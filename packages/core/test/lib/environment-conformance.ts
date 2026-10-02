@@ -191,5 +191,22 @@ export const environmentConformance = <E>(
         expect(yield* Effect.flip(harness.files.stat(`${harness.root}/source`))).toBeInstanceOf(NotFound)
       }),
     )
+
+    check("canonicalizes paths with realPath", (harness) =>
+      Effect.gen(function* () {
+        const target = `${harness.root}/file.txt`
+        yield* harness.files.write(target, bytes("content"))
+        const canonical = yield* harness.files.realPath(target)
+        expect(canonical).toBe(target)
+
+        const missing = `${harness.root}/missing.txt`
+        expect(yield* Effect.flip(harness.files.realPath(missing))).toBeInstanceOf(NotFound)
+
+        if (harness.symlink) {
+          yield* harness.symlink("file.txt", `${harness.root}/link.txt`)
+          expect(yield* harness.files.realPath(`${harness.root}/link.txt`)).toBe(target)
+        }
+      }),
+    )
   })
 }

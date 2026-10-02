@@ -64,6 +64,16 @@ ${loadMetadata()}
 mv -- "$1" "$2"
 `
 
+const realPathScript = `
+resolved=$(realpath -e -- "$1" 2>&1) || {
+  case "$resolved" in
+    *'No such file or directory'*|*'Not a directory'*) exit ${NOT_FOUND} ;;
+    *) printf '%s' "$resolved" >&2; exit ${FAILED} ;;
+  esac
+}
+printf '%s' "$resolved"
+`
+
 interface Result {
   readonly exitCode: number
   readonly stdout: Uint8Array
@@ -144,6 +154,10 @@ export const execDefaults = (spawner: ChildProcessSpawner["Service"]): FilesImpl
     move: (from, to) =>
       run(from, moveScript, [to]).pipe(Effect.flatMap((result) => classifyPlain(from, result, () => undefined))),
     mkdir: (path) => run(path, `mkdir -p -- "$1"`).pipe(Effect.flatMap((result) => complete(path, result))),
+    realPath: (path) =>
+      run(path, realPathScript).pipe(
+        Effect.flatMap((result) => classifyPlain(path, result, (stdout) => new TextDecoder().decode(stdout))),
+      ),
   }
 }
 
