@@ -1104,6 +1104,7 @@ describe("SessionRunnerLLM", () => {
         messageID: expect.stringMatching(/^msg_/),
         id: Tool.CallID.make("call-location"),
         progress: expect.any(Function),
+        checkpoint: expect.any(Function),
       },
     ])
     expect(Array.from(yield* Fiber.join(progressFiber))[0]?.data.metadata).toEqual({ phase: "reading" })
@@ -5120,6 +5121,75 @@ describe("SessionRunnerLLM", () => {
     yield* s.llm.push([])
     yield* s.resume
     expect(messageRoles(s.requests[0])).toEqual(["user", "assistant", "tool"])
+  })
+
+  scenario("retains checkpointed partial results when a generic tool is interrupted and survives replay", function* (s) {
+    const registry = yield* Tool.Service
+    yield* transformTools(
+      registry,
+      {
+        checkpointed: {
+          name: "checkpointed",
+          description: "Tool with checkpointed progress",
+          input: Schema.Struct({ text: Schema.String }),
+          output: Schema.Struct({ text: Schema.String }),
+          execute: ({ text }, context) =>
+            Effect.gen(function* () {
+              s.authorizations.push(context)
+              s.executions.push(text)
+              yield* context.checkpoint({ content: `partial: ${text}`, metadata: { stage: "running" } })
+              yield* s.awaitToolBarrier
+              return { output: { text }, content: text }
+            }),
+        },
+      },
+      { codemode: false },
+    )
+    yield* s.admit("Interrupt checkpointed tool")
+    const tools = yield* s.blockTools()
+    yield* s.llm.push(
+      TestLLM.hangAfter(
+        LLMEvent.stepStart({ index: 0 }),
+        LLMEvent.toolCall({ id: "call-checkpoint-interrupt", name: "checkpointed", input: { text: "partial progress" } }),
+      ),
+    )
+
+    const run = yield* s.resume.pipe(Effect.forkChild)
+    yield* tools.started
+    yield* s.session.interrupt(sessionID)
+
+    expect(yield* Fiber.await(run)).toMatchObject({ _tag: "Failure" })
+    yield* s.session.interrupt(sessionID)
+
+    const expectedFailedTool = Expected.failedTool(
+      { id: "call-checkpoint-interrupt" },
+      {
+        error: { type: "aborted", message: "Tool execution interrupted" },
+        content: [Expected.text("partial: partial progress")],
+        metadata: { stage: "running" },
+      },
+    )
+
+    const context = yield* s.context
+    expect(context).toMatchObject([
+      Expected.user("Interrupt checkpointed tool"),
+      Expected.assistant({}, [expectedFailedTool]),
+    ])
+
+    const assistant = requireAssistant(context)
+    expect(yield* recordedStepSettlementTypes(sessionID, assistant.id)).toEqual([
+      "session.step.started.1",
+      "session.tool.called.1",
+      "session.tool.failed.2",
+      "session.step.failed.1",
+    ])
+
+    yield* replaySessionProjection(sessionID)
+
+    expect(yield* s.context).toMatchObject([
+      Expected.user("Interrupt checkpointed tool"),
+      Expected.assistant({}, [expectedFailedTool]),
+    ])
   })
 
   scenario("interrupts a blocked step without local tool execution", function* (s) {

@@ -255,6 +255,7 @@ export function fromPromise(plugin: Plugin) {
               execute(input, {
                 ...context,
                 progress: (update) => Effect.promise(() => context.progress(update)),
+                checkpoint: (checkpoint) => Effect.promise(() => context.checkpoint(checkpoint)),
               }),
               { signal: context.signal },
             )
@@ -623,5 +624,6 @@ const executePromiseTool = (tool: Info, input: any, context: Tool.Context) =>
       ...context,
       signal,
       progress: (update) => Effect.runPromise(context.progress(update), { signal }),
+      checkpoint: (checkpoint) => Effect.runPromise(context.checkpoint(checkpoint), { signal }),
     }),
   )
