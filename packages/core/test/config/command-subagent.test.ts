@@ -1,3 +1,4 @@
+import fs from "fs/promises"
 import { describe, expect } from "bun:test"
 import path from "path"
 import { Effect, Layer } from "effect"
@@ -13,6 +14,7 @@ import { Model } from "@opencode/core/model"
 import { Provider } from "@opencode/core/provider"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
+import { Skill } from "@opencode/core/skill"
 import { SessionRunnerModel } from "@opencode/core/session/runner/model"
 import { LayerNode } from "@opencode/util/effect/layer-node"
 import { Global } from "@opencode/util/global"
@@ -106,40 +108,119 @@ describe("command subagents", () => {
     )
   }
 
-  it.live("subagent: false overrides subagent mode and the legacy alias", () =>
+  it.live("subagent: false overrides subagent mode and switches parent agent and model while forwarding attachments", () =>
     Effect.gen(function* () {
-      const parent = yield* project({ subagent: false, subtask: true, agent: "reviewer" }, "json")
+      const parent = yield* project(
+        {
+          subagent: false,
+          subtask: true,
+          agent: "reviewer",
+          model: "test/override",
+          template: "Review @src/button.tsx with @reviewer: $ARGUMENTS: !`printf ready`",
+        },
+        "json",
+      )
       const sessions = yield* Session.Service
-      yield* sessions.command({ sessionID: parent.id, command: "review", text: "changes" })
+      yield* sessions.command({
+        sessionID: parent.id,
+        command: "review",
+        text: "changes",
+        files: [{ uri: "data:text/plain;base64,ZXhwb3J0IGNvbnN0IGJ1dHRvbiA9IHRydWU=", name: "button.tsx" }],
+        agents: [{ name: "lead" }],
+        skills: [{ id: Skill.ID.make("security") }],
+      })
       yield* sessions.wait(parent.id)
       expect((yield* sessions.list({ parentID: parent.id })).data).toEqual([])
       expect(yield* sessions.get(parent.id)).toMatchObject({
         agent: "reviewer",
-        model: { id: "child" },
+        model: { id: "override" },
       })
-      expect((yield* sessions.context(parent.id)).filter((message) => message.type === "user")).toMatchObject([
-        { text: "Review changes: ready" },
-      ])
+      const userMessages = (yield* sessions.context(parent.id)).filter((message) => message.type === "user")
+      expect(userMessages).toHaveLength(1)
+      expect(userMessages[0]).toMatchObject({
+        text: "Review @src/button.tsx with @reviewer: changes: ready",
+        agents: [{ name: "lead" }],
+        skills: [{ id: "security", name: "Security" }],
+      })
+      expect(userMessages[0]?.files).toHaveLength(1)
+      expect(userMessages[0]?.files?.[0]).toMatchObject({
+        name: "button.tsx",
+      })
+    }),
+  )
+
+  it.live("forwards explicit file, agent, and skill attachments and preserves literal template mentions to subagent child session", () =>
+    Effect.gen(function* () {
+      const parent = yield* project(
+        {
+          subagent: true,
+          agent: "reviewer",
+          template: "Review @src/button.tsx with @reviewer: $ARGUMENTS",
+        },
+        "json",
+      )
+      const sessions = yield* Session.Service
+      const llm = yield* TestLLM.Test
+      const gate = yield* llm.gate()
+
+      yield* sessions.command({
+        sessionID: parent.id,
+        command: "review",
+        text: "changes",
+        files: [{ uri: "data:text/plain;base64,ZXhwb3J0IGNvbnN0IGJ1dHRvbiA9IHRydWU=", name: "button.tsx" }],
+        agents: [{ name: "lead" }],
+        skills: [{ id: Skill.ID.make("security") }],
+      })
+      yield* gate.started
+      const children = (yield* sessions.list({ parentID: parent.id })).data
+      expect(children).toHaveLength(1)
+      const child = children[0]
+      if (!child) return yield* Effect.die("Expected a child session")
+
+      const userMessages = (yield* sessions.context(child.id)).filter((message) => message.type === "user")
+      expect(userMessages).toHaveLength(1)
+      expect(userMessages[0]).toMatchObject({
+        text: "You are a subagent spawned by another session.\nReview @src/button.tsx with @reviewer: changes",
+        agents: [{ name: "lead" }],
+        skills: [{ id: "security", name: "Security" }],
+      })
+      expect(userMessages[0]?.files).toHaveLength(1)
+      expect(userMessages[0]?.files?.[0]).toMatchObject({
+        name: "button.tsx",
+      })
+
+      yield* gate.release
+      yield* llm.wait(2)
+      yield* sessions.wait(parent.id)
     }),
   )
 })
 
 function project(
-  command: { agent?: string; model?: string; subagent?: boolean; subtask?: boolean },
+  command: { agent?: string; model?: string; subagent?: boolean; subtask?: boolean; template?: string },
   format: "json" | "markdown",
 ) {
   return Effect.gen(function* () {
     const tmp = yield* tmpdirScoped()
-    const definition = { description: "Review code", template: "Review $ARGUMENTS: !`printf ready`", ...command }
-    yield* Effect.promise(() =>
-      Bun.write(
+    const definition = {
+      description: "Review code",
+      template: command.template ?? "Review $ARGUMENTS: !`printf ready`",
+      ...command,
+    }
+    yield* Effect.promise(async () => {
+      await fs.mkdir(path.join(tmp.path, ".opencode", "skills", "security"), { recursive: true })
+      await fs.writeFile(
+        path.join(tmp.path, ".opencode", "skills", "security", "SKILL.md"),
+        "---\nname: Security\ndescription: Security inspection\n---\n# Security guide",
+      )
+      await Bun.write(
         path.join(tmp.path, "opencode.json"),
         JSON.stringify({
           agents: { reviewer: { mode: "subagent", model: "test/child" } },
           ...(format === "markdown" ? {} : { commands: { review: definition } }),
         }),
-      ),
-    )
+      )
+    })
     if (format === "markdown")
       yield* Effect.promise(() =>
         Bun.write(
