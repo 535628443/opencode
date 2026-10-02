@@ -675,3 +675,69 @@ describe("AzurePlugin transport", () => {
     }),
   )
 })
+
+it.live(
+  "401 recovery bypasses an unexpired Azure CLI token cache",
+  () =>
+    Effect.gen(function* () {
+      const directory = (yield* Location.Service).directory
+      const tokenFile = `${directory}/recovery-token.json`
+      const expires = Math.floor((Date.now() + hour) / 1000)
+      yield* Effect.promise(() => Bun.write(tokenFile, JSON.stringify({ accessToken: "old", expires_on: expires })))
+      const windows = process.platform === "win32"
+      yield* Effect.promise(() =>
+        Bun.write(`${directory}/azure-cli.ts`, `console.log(await Bun.file(${JSON.stringify(tokenFile)}).text())`),
+      )
+      yield* Effect.promise(() =>
+        Bun.write(
+          `${directory}/${windows ? "az.cmd" : "az"}`,
+          windows
+            ? `@"${process.execPath}" "${directory}/azure-cli.ts"\r\n`
+            : `#!/bin/sh\nexec "${process.execPath}" "${directory}/azure-cli.ts"\n`,
+        ),
+      )
+      yield* Effect.promise(() => chmod(`${directory}/${windows ? "az.cmd" : "az"}`, 0o755))
+      yield* setEnv({ ...noResourceEnv, PATH: `${directory}${windows ? ";" : ":"}${process.env.PATH}` })
+      const server = yield* fakeAzure({})
+      yield* addPlugin(server.endpoints)
+      const integrations = yield* Integration.Service
+      const credentials = yield* Credential.Service
+      const attempt = yield* integrations.oauth.connect({
+        integrationID: azureID,
+        methodID: Integration.MethodID.make("azure-cli"),
+        answer: { resourceName: "test-resource" },
+      })
+      const connected = yield* integrations.oauth.status({ integrationID: azureID, attemptID: attempt.attemptID }).pipe(
+        Effect.repeat({
+          schedule: Schedule.spaced("1 millis"),
+          times: 5000,
+          until: (value) => value.status !== "pending",
+        }),
+      )
+      expect(connected.status).toBe("complete")
+      const credential = (yield* credentials.list(azureID))[0]
+      expect(credential.value).toHaveProperty("access", "old")
+      yield* Effect.promise(() => Bun.write(tokenFile, JSON.stringify({ accessToken: "new", expires_on: expires })))
+      const connection = {
+        type: "credential" as const,
+        id: credential.id,
+        label: "Azure CLI",
+        method: "oauth" as const,
+      }
+      expect(
+        yield* integrations.connection.recover({ integrationID: azureID, connection, status: 401 }),
+      ).toHaveProperty("access", "new")
+      expect((yield* credentials.get(credential.id))?.value).toHaveProperty("access", "new")
+      expect((yield* integrations.connection.active(azureID))?.status).toBeUndefined()
+      expect(
+        yield* integrations.connection.recover({ integrationID: azureID, connection, status: 401 }),
+      ).toBeUndefined()
+      expect((yield* integrations.connection.active(azureID))?.status?.status).toBe("needs_auth")
+
+      expect(
+        yield* integrations.connection.recover({ integrationID: azureID, connection, status: 403 }),
+      ).toBeUndefined()
+      expect((yield* integrations.connection.active(azureID))?.status?.status).toBe("needs_auth")
+    }),
+  10000,
+)

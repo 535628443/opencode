@@ -63,6 +63,8 @@ export interface Prepared<Event = SessionRequest> {
   readonly event: Event
   readonly request: LLMRequest
   readonly options: StreamOptions
+  /** HTTP hooks can replace the resolved connection's authorization. */
+  readonly usesConnection?: () => boolean
   readonly retry: (event: PluginHooks.Domains["session"]["retry"]) => Effect.Effect<void>
   /** Runs a tool call against the tools this request advertised. */
   readonly executeTool: (
@@ -317,16 +319,20 @@ export const layer = Layer.effect(
           new Error("Provider context is incompatible with the route selected by model request hooks"),
         )
 
+      let usesConnection = true
       const hasHttpHooks =
         (yield* hooks.has("session", "http.request", model.ref.providerID)) ||
         (yield* hooks.has("session", "http.response", model.ref.providerID))
       const http: StreamOptions["http"] = hasHttpHooks
         ? (req, handler) =>
             Effect.gen(function* () {
+              const original = yield* HttpClientRequest.toWeb(req)
+              const authorization = original.headers.get("authorization")
               const before = yield* hooks.trigger("session", "http.request", {
                 ...scope,
-                request: yield* HttpClientRequest.toWeb(req),
+                request: original,
               })
+              if (before.request.headers.get("authorization") !== authorization) usesConnection = false
               let sent = HttpClientRequest.fromWeb(before.request)
               if (before.request.body)
                 sent = HttpClientRequest.bodyUint8Array(
@@ -376,6 +382,7 @@ export const layer = Layer.effect(
 
       return {
         event: shaped,
+        usesConnection: () => usesConnection,
         request,
         options: { ...(http ? { http } : {}), ...(webSocket ? { webSocket } : {}) },
         retry: (event: Parameters<Prepared["retry"]>[0]) =>

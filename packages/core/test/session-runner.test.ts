@@ -90,6 +90,9 @@ import { agentHost, modelHost, host, noProviders, integrationHost, providerHost 
 import { CodeModeInstructions } from "@opencode/core/codemode/instructions"
 import { Credential } from "@opencode/core/credential"
 import { Integration } from "@opencode/core/integration"
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
+import { withEnv } from "./fixture/env"
+import { SnowflakeCortexPlugin } from "@opencode/core/plugin/provider/snowflake-cortex"
 import { CopilotHttp, GithubCopilotPlugin } from "@opencode/core/plugin/provider/github-copilot"
 
 const emptyCodeMode = `${CodeModeInstructions.render({ total: 0, shown: 0, namespaces: [] })}\n\n`
@@ -6826,3 +6829,114 @@ describe("SessionRunnerLLM", () => {
     )
   })
 })
+;[
+  { name: "Snowflake authentication recovery permits only one HTTP retry", status: 401, token: undefined },
+  { name: "Snowflake environment override preserves the unused OAuth connection", status: 403, token: "fixture-env" },
+].forEach((fixture) =>
+  httpIt.live(
+    fixture.name,
+    () =>
+      withEnv(
+        { SNOWFLAKE_ACCOUNT: undefined, SNOWFLAKE_CORTEX_TOKEN: fixture.token, SNOWFLAKE_CORTEX_PAT: undefined },
+        () =>
+          Effect.gen(function* () {
+            const s = yield* setup
+            const paths: string[] = []
+            const auth: Array<string | null> = []
+            let refreshes = 0
+            const server = yield* Effect.acquireRelease(
+              Effect.sync(() =>
+                Bun.serve({
+                  port: 0,
+                  fetch(request) {
+                    const pathname = new URL(request.url).pathname
+                    paths.push(pathname)
+                    if (pathname === "/oauth/token-request") {
+                      refreshes++
+                      return Response.json({
+                        access_token: `new-${refreshes}`,
+                        refresh_token: `refresh-${refreshes}`,
+                        expires_in: 3600,
+                      })
+                    }
+                    if (pathname === "/chat/completions") {
+                      auth.push(request.headers.get("authorization"))
+                      return Response.json(
+                        { error: { message: "Rejected", type: "authentication_error" } },
+                        { status: fixture.status },
+                      )
+                    }
+                    return new Response(null, { status: 404 })
+                  },
+                }),
+              ),
+              (server) => Effect.sync(() => server.stop(true)),
+            )
+            const providerID = Provider.ID.make("snowflake-cortex")
+            const modelID = ID.make("recovery-fixture-model")
+            const providers = yield* Provider.Service
+            const models = yield* Model.Service
+            yield* providers.transform((editor) =>
+              editor.update(providerID, (provider) => {
+                provider.activation = "enabled"
+                provider.package = "@opencode/ai/providers/openai-compatible"
+                provider.settings = { baseURL: server.url.origin }
+              }),
+            )
+            yield* models.transform((editor) =>
+              editor.update(providerID, modelID, (model) => {
+                model.package = "@opencode/ai/providers/openai-compatible"
+                model.modelID = modelID
+                model.settings = { baseURL: server.url.origin }
+                model.enabled = true
+                model.limit = defaultModelLimit
+                model.capabilities = { tools: true, input: ["text"], output: ["text"] }
+              }),
+            )
+            const http = HttpClient.make((request) =>
+              Effect.gen(function* () {
+                expect(request.url).toBe("https://recovery-fixture.snowflakecomputing.com/oauth/token-request")
+                const web = yield* HttpClientRequest.toWeb(request).pipe(Effect.orDie)
+                const response = yield* Effect.promise(() =>
+                  fetch(new Request(`${server.url.origin}/oauth/token-request`, web)),
+                )
+                return HttpClientResponse.fromWeb(request, response)
+              }),
+            )
+            yield* SnowflakeCortexPlugin.effect(s.pluginHost).pipe(Effect.provideService(HttpClient.HttpClient, http))
+            const stored = yield* s.credentials.create({
+              integrationID: Integration.ID.make(providerID),
+              value: Credential.OAuth.make({
+                type: "oauth",
+                methodID: Integration.MethodID.make("browser"),
+                access: "old",
+                refresh: "refresh-old",
+                expires: Date.now() + 3600000,
+                metadata: { account: "recovery-fixture" },
+              }),
+            })
+            yield* s.db
+              .update(SessionTable)
+              .set({ model: { providerID, id: modelID } })
+              .where(eq(SessionTable.id, sessionID))
+              .run()
+            const exit = yield* s.runPrompt("Hello").pipe(Effect.exit)
+            expect(Exit.isFailure(exit)).toBe(true)
+            expect(refreshes).toBe(fixture.token ? 0 : 1)
+            expect(auth).toEqual(fixture.token ? ["Bearer fixture-env"] : ["Bearer old", "Bearer new-1"])
+            expect(paths).toEqual(
+              fixture.token
+                ? ["/chat/completions"]
+                : ["/chat/completions", "/oauth/token-request", "/chat/completions"],
+            )
+            expect((yield* s.credentials.get(stored.id))?.value).toHaveProperty(
+              "access",
+              fixture.token ? "old" : "new-1",
+            )
+            if (fixture.token)
+              expect((yield* s.integrations.connection.active(Integration.ID.make(providerID)))?.status).toBeUndefined()
+          }),
+      ),
+    20_000,
+  ),
+)

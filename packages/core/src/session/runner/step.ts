@@ -183,13 +183,16 @@ export const make = Effect.gen(function* () {
         )
           return Outcome.RecoverFull()
 
+        let authRecoveryAttempted = false
         if (
           input.recoverAuth &&
+          (input.prepared.usesConnection?.() ?? true) &&
           llmFailure?.reason._tag === "Authentication" &&
           !recorded.outputStarted &&
           input.model.connection &&
           input.model.integrationID
         ) {
+          authRecoveryAttempted = true
           const recovered = yield* restore(
             integrations.connection
               .recover({
@@ -211,7 +214,11 @@ export const make = Effect.gen(function* () {
         }
 
         const retry =
-          llmFailure && llmError && !isContextOverflowFailure(llmFailure)
+          llmFailure &&
+          llmError &&
+          !isContextOverflowFailure(llmFailure) &&
+          // Integration recovery owns the one authentication retry, including legacy plugin hooks.
+          !(llmFailure.reason._tag === "Authentication" && (authRecoveryAttempted || !input.recoverAuth))
             ? yield* restore(
                 input.retry(
                   llmFailure,

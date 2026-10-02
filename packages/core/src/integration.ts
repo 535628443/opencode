@@ -739,7 +739,7 @@ const layer = Layer.effect(
           const deferred = yield* Deferred.make<Credential.Value | undefined, AuthorizationError>()
           inFlightRecoveries.set(credentialID, deferred)
 
-          const result = yield* Effect.gen(function* () {
+          yield* Effect.gen(function* () {
             const key = statusKey(input.integrationID, input.connection)
             const credential = yield* credentials.get(credentialID)
             if (!credential || credential.value.type !== "oauth") {
@@ -796,9 +796,10 @@ const layer = Layer.effect(
                 yield* Deferred.done(deferred, exit)
               }),
             ),
+            Effect.forkIn(scope, { startImmediately: true }),
           )
 
-          return result
+          return yield* Deferred.await(deferred)
         }),
         key: Effect.fn("Integration.connection.key")(function* (input) {
           const method = state

@@ -167,6 +167,14 @@ export function make(
                 })
               }),
             }),
+          recover: (credential, status) =>
+            Effect.gen(function* () {
+              if (status !== 401) return undefined
+              tokens.delete(cognitiveScope)
+              const current = yield* token(cognitiveScope)
+              if (current.access === credential.access) return undefined
+              return Credential.OAuth.make({ ...credential, access: current.access, expires: current.expires })
+            }),
           refresh: (credential) =>
             token(cognitiveScope).pipe(
               Effect.map((current) =>

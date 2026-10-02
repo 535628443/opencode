@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber, Option, Layer, Scope, Stream } from "effect"
+import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber, Option, Layer, Schema, Scope, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import { Credential } from "@opencode/core/credential"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
@@ -997,87 +997,6 @@ describe("Integration.connection.recover", () => {
       expect(res3?.type === "oauth" && res3.access).toBe("concurrent-refreshed")
     }),
   )
-
-  it.effect("cleans up in-flight recovery when starter fiber is interrupted", () =>
-    Effect.gen(function* () {
-      const integrations = yield* Integration.Service
-      const credentials = yield* Credential.Service
-      const integrationID = Integration.ID.make("test-interrupted-recover")
-      const methodID = Integration.MethodID.make("oauth")
-      const started = yield* Deferred.make<void>()
-
-      yield* integrations.transform((editor) => {
-        editor.update(integrationID, (integration) => {
-          integration.name = "Test Interrupted"
-        })
-        editor.method.update({
-          integrationID,
-          method: { id: methodID, type: "oauth", label: "OAuth" },
-          authorize: () =>
-            Effect.succeed({
-              mode: "auto" as const,
-              url: "https://example.com/oauth",
-              instructions: "Login",
-              callback: Effect.succeed(
-                Credential.OAuth.make({
-                  type: "oauth",
-                  methodID,
-                  access: "initial",
-                  refresh: "initial",
-                  expires: 0,
-                }),
-              ),
-            }),
-          refresh: (value) =>
-            Effect.gen(function* () {
-              yield* Deferred.succeed(started, undefined)
-              yield* Effect.never
-              return value
-            }),
-        })
-      })
-
-      const attempt = yield* integrations.oauth.connect({ integrationID, methodID })
-      yield* Effect.yieldNow
-      const cred = (yield* credentials.list(integrationID))[0]
-
-      const fiber = yield* integrations.connection
-        .recover({
-          integrationID,
-          connection: { type: "credential", id: cred.id, label: "OAuth", method: "oauth" },
-          status: 401,
-        })
-        .pipe(Effect.forkChild)
-
-      yield* Deferred.await(started)
-      yield* Fiber.interrupt(fiber)
-
-      yield* integrations.transform((editor) => {
-        editor.method.update({
-          integrationID,
-          method: { id: methodID, type: "oauth", label: "OAuth" },
-          authorize: () => Effect.die("unused"),
-          refresh: (value) =>
-            Effect.succeed(
-              Credential.OAuth.make({
-                type: "oauth",
-                methodID,
-                access: "recovered-after-interrupt",
-                refresh: value.refresh,
-                expires: 0,
-              }),
-            ),
-        })
-      })
-
-      const recovered = yield* integrations.connection.recover({
-        integrationID,
-        connection: { type: "credential", id: cred.id, label: "OAuth", method: "oauth" },
-        status: 401,
-      })
-      expect(recovered?.type === "oauth" && recovered.access).toBe("recovered-after-interrupt")
-    }),
-  )
   ;["unsupported", "refresh-fails", "recover-fails", "recover-declines"].forEach((fixture) => {
     it.effect(`marks OAuth authentication required when ${fixture}`, () =>
       Effect.gen(function* () {
@@ -1133,48 +1052,78 @@ describe("Integration.connection.recover", () => {
   })
 })
 
-it.live("creator cancellation cannot strand a concurrent credential recovery", () =>
-  Effect.gen(function* () {
-    const integrations = yield* Integration.Service
-    const credentials = yield* Credential.Service
-    const integrationID = Integration.ID.make("independent-recovery")
-    const methodID = Integration.MethodID.make("oauth")
-    const started = yield* Deferred.make<void>()
-    const gate = yield* Deferred.make<void>()
-    yield* integrations.transform((editor) =>
-      editor.method.update({
+it.live(
+  "cancelling a recovery caller preserves another caller and persists the refreshed credential",
+  () =>
+    Effect.gen(function* () {
+      const integrations = yield* Integration.Service
+      const credentials = yield* Credential.Service
+      const integrationID = Integration.ID.make("independent-recovery")
+      const methodID = Integration.MethodID.make("oauth")
+      const started = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      let calls = 0
+      const server = yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          Bun.serve({
+            port: 0,
+            async fetch() {
+              calls++
+              started.resolve()
+              await release.promise
+              return Response.json({ access: "new" })
+            },
+          }),
+        ),
+        (server) => Effect.sync(() => server.stop(true)),
+      )
+      yield* integrations.transform((editor) =>
+        editor.method.update({
+          integrationID,
+          method: { id: methodID, type: "oauth", label: "Local OAuth fixture" },
+          authorize: () => Effect.never,
+          recover: (value) =>
+            Effect.tryPromise({
+              try: async (signal) => {
+                const response = await fetch(server.url, { signal })
+                const body = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Struct({ access: Schema.String })))(
+                  await response.text(),
+                )
+                return Credential.OAuth.make({ ...value, access: body.access })
+              },
+              catch: (cause) => cause,
+            }),
+        }),
+      )
+      const credential = yield* credentials.create({
         integrationID,
-        method: { id: methodID, type: "oauth", label: "Test OAuth" },
-        authorize: () => Effect.never,
-        recover: (credential) =>
-          Deferred.succeed(started, undefined).pipe(Effect.andThen(Deferred.await(gate)), Effect.as(credential)),
-      }),
-    )
-    const credential = yield* credentials.create({
-      integrationID,
-      value: Credential.OAuth.make({
-        type: "oauth",
-        methodID,
-        access: "old",
-        refresh: "refresh",
-        expires: Number.MAX_SAFE_INTEGER,
-      }),
-    })
-    const recover = integrations.connection.recover({
-      integrationID,
-      connection: { type: "credential", id: credential.id, label: "OAuth", method: "oauth" },
-      status: 401,
-    })
-    const creator = yield* recover.pipe(Effect.forkChild)
-    yield* Deferred.await(started)
-    const waiter = yield* recover.pipe(Effect.forkChild)
-    yield* Effect.yieldNow
-    yield* Fiber.interrupt(creator).pipe(Effect.forkChild)
-    yield* Effect.yieldNow
-    yield* Effect.yieldNow
-    yield* Deferred.succeed(gate, undefined)
-    const result = yield* Fiber.await(waiter).pipe(Effect.timeoutOption("300 millis"))
-    expect(Option.isSome(result)).toBe(true)
-    yield* Fiber.interrupt(waiter)
-  }),
+        value: Credential.OAuth.make({
+          type: "oauth",
+          methodID,
+          access: "old",
+          refresh: "refresh",
+          expires: Number.MAX_SAFE_INTEGER,
+        }),
+      })
+      const recovery = integrations.connection.recover({
+        integrationID,
+        connection: { type: "credential", id: credential.id, label: "OAuth", method: "oauth" },
+        status: 401,
+      })
+      const creator = yield* recovery.pipe(Effect.forkChild)
+      yield* Effect.promise(() => started.promise)
+      const waiter = yield* recovery.pipe(Effect.forkChild)
+      yield* Effect.yieldNow
+      yield* Effect.yieldNow
+      yield* Fiber.interrupt(creator)
+      release.resolve()
+      const result = yield* Fiber.await(waiter).pipe(Effect.timeout("1 second"))
+      expect(calls).toBe(1)
+      expect(Exit.isSuccess(result)).toBe(true)
+      expect((yield* credentials.get(credential.id))?.value).toHaveProperty("access", "new")
+      expect(Exit.hasInterrupts(result)).toBe(false)
+      expect(yield* recovery).toHaveProperty("access", "new")
+      expect(calls).toBe(2)
+    }),
+  10000,
 )
