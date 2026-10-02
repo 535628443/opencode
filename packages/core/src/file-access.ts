@@ -93,13 +93,11 @@ const projectRootViaFiles = Effect.fn("FileAccess.projectRootViaFiles")(function
   let current: string = start
   while (true) {
     for (const marker of markers) {
-      const found = yield* files
-        .stat(path.join(current, marker))
-        .pipe(
-          Effect.as(true),
-          Effect.catchTag("Environment.NotFound", () => Effect.succeed(false)),
-          Effect.catchTag("Environment.Failed", () => Effect.succeed(false)),
-        )
+      const found = yield* files.stat(path.join(current, marker)).pipe(
+        Effect.as(true),
+        Effect.catchTag("Environment.NotFound", () => Effect.succeed(false)),
+        Effect.catchTag("Environment.Failed", () => Effect.succeed(false)),
+      )
       if (found) return AbsolutePath.make(current)
     }
     const parent = path.dirname(current)
@@ -133,12 +131,10 @@ const layer = Layer.effect(
           ? true
           : input.kind === "file"
             ? false
-            : (yield* environment.files
-                .stat(absolute)
-                .pipe(
-                  Effect.catchTag("Environment.NotFound", () => Effect.undefined),
-                  Effect.catchTag("Environment.Failed", () => Effect.undefined),
-                ))?.type === "directory"
+            : (yield* Environment.typeFollowing(environment.files, absolute).pipe(
+                Effect.catchTag("Environment.NotFound", () => Effect.undefined),
+                Effect.catchTag("Environment.Failed", () => Effect.undefined),
+              )) === "directory"
       const directory = AbsolutePath.make(isDir ? absolute : path.dirname(absolute))
       return {
         absolute,
@@ -194,4 +190,8 @@ const layer = Layer.effect(
   }),
 )
 
-export const node = makeLocationNode({ service: Service, layer, deps: [Environment.node, Location.node, Permission.node] })
+export const node = makeLocationNode({
+  service: Service,
+  layer,
+  deps: [Environment.node, Location.node, Permission.node],
+})
