@@ -3,8 +3,11 @@ import fuzzysort from "fuzzysort"
 import { mkdir } from "node:fs/promises"
 import os from "os"
 import path from "path"
-import { Deferred, Effect, Layer } from "effect"
+import { Deferred, Effect, Layer, PlatformError, Sink, Stream } from "effect"
 import { TestClock } from "effect/testing"
+import { ChildProcessSpawner } from "effect/unstable/process"
+import { ExitCode, makeHandle, ProcessId } from "effect/unstable/process/ChildProcessSpawner"
+import { Database } from "@opencode/core/database/database"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { FileSystem } from "@opencode/core/filesystem"
 import { Protected } from "@opencode/core/filesystem/protected"
@@ -13,6 +16,8 @@ import { Location } from "@opencode/core/location"
 import { Ripgrep } from "@opencode/core/ripgrep"
 import { AbsolutePath, RelativePath } from "@opencode/core/schema"
 import { Workspace } from "@opencode/core/workspace"
+import { WorkspaceDriver } from "@opencode/core/workspace/driver"
+import { LayerNode } from "@opencode/util/effect/layer-node"
 import { location } from "../fixture/location"
 import { tmpdir } from "../fixture/tmpdir"
 import { it } from "../lib/effect"
@@ -241,6 +246,93 @@ describe("FileSystemSearch", () => {
 
         expect(prepare).toHaveBeenCalledTimes(2)
         expect(cleanup).toHaveBeenCalledTimes(3)
+      }).pipe(Effect.provide(layer))
+    }),
+  )
+
+  it.live("passes filesystem search with a workspace driver that rejects host-absolute binary paths", () =>
+    Effect.gen(function* () {
+      const directory = (yield* Effect.acquireDisposable(Effect.promise(() => tmpdir("opencode-search-rg-path-"))))
+        .path
+      const workspaceID = Workspace.ID.make("wrk_test")
+      const ref = Location.Ref.make({
+        directory: AbsolutePath.make(directory),
+        workspaceID,
+      })
+
+      let spawnedCommand: string | undefined
+      const fakeDriver = WorkspaceDriver.make({
+        create: ({ workspaceID }) => Effect.succeed({ binding: { workspaceID } }),
+        connect: () =>
+          Effect.succeed({
+            spawner: ChildProcessSpawner.make((command) => {
+              if (command._tag === "StandardCommand") {
+                spawnedCommand = command.command
+                if (path.isAbsolute(command.command)) {
+                  return Effect.fail(
+                    PlatformError.systemError({
+                      _tag: "Unknown",
+                      module: "WorkspaceDriver",
+                      method: "spawn",
+                      description: `Host absolute binary path rejected: ${command.command}`,
+                    }),
+                  )
+                }
+                if (command.command === "rg") {
+                  const output = Stream.succeed(new TextEncoder().encode("remote.ts\n"))
+                  return Effect.succeed(
+                    makeHandle({
+                      pid: ProcessId(1),
+                      exitCode: Effect.succeed(ExitCode(0)),
+                      isRunning: Effect.succeed(false),
+                      kill: () => Effect.void,
+                      stdin: Sink.drain,
+                      stdout: output,
+                      stderr: Stream.empty,
+                      all: output,
+                      getInputFd: () => Sink.drain,
+                      getOutputFd: () => Stream.empty,
+                      unref: Effect.succeed(Effect.void),
+                    }),
+                  )
+                }
+              }
+              return Effect.fail(
+                PlatformError.systemError({
+                  _tag: "Unknown",
+                  module: "WorkspaceDriver",
+                  method: "spawn",
+                  description: `Unsupported command: ${command._tag}`,
+                }),
+              )
+            }),
+          }),
+        suspendForIdle: () => Effect.void,
+        destroy: () => Effect.void,
+      })
+
+      const layer = AppNodeBuilder.build(
+        LayerNode.group([Database.node, Workspace.node, FileSystemSearch.node]),
+        [
+          WorkspaceDriver.node.replace(WorkspaceDriver.registryNode({ fake: fakeDriver })),
+          Location.node.replace(
+            Layer.succeed(
+              Location.Service,
+              Location.Service.of(
+                location(ref, { vcs: { type: "git", store: AbsolutePath.make(path.join(directory, ".git")) } }),
+              ),
+            ),
+          ),
+        ],
+      )
+
+      yield* Effect.gen(function* () {
+        const workspace = yield* Workspace.Service
+        yield* workspace.create({ id: workspaceID, provider: "fake" })
+        const search = yield* FileSystemSearch.Service
+        const entries = yield* search.find({ query: "remote", type: "file" })
+        expect(spawnedCommand).toBe("rg")
+        expect(entries.map((entry) => entry.path)).toEqual([RelativePath.make("remote.ts")])
       }).pipe(Effect.provide(layer))
     }),
   )
