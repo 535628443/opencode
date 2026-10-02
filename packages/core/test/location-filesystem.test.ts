@@ -243,6 +243,7 @@ describe("FileSystem", () => {
           const workspaceDir = collision ? directory : path.join(directory, "remote-only")
           if (collision) {
             yield* Effect.promise(() => fs.writeFile(path.join(workspaceDir, "host.txt"), "host data"))
+            yield* Effect.promise(() => fs.writeFile(path.join(workspaceDir, "host-only.txt"), "host only data"))
           }
           const driver = Environment.makeMemoryDriver()
           const files = Environment.makeFiles(driver)
@@ -265,6 +266,14 @@ describe("FileSystem", () => {
             if (collision) {
               const read = yield* filesystem.read({ path: RelativePath.make("host.txt") })
               expect(new TextDecoder().decode(read.content)).toBe("workspace collision")
+              const missing = yield* filesystem.read({ path: RelativePath.make("host-only.txt") }).pipe(Effect.exit)
+              expect(Exit.isFailure(missing)).toBe(true)
+              if (Exit.isFailure(missing)) {
+                expect(Cause.findErrorOption(missing.cause)).toMatchObject({
+                  _tag: "Some",
+                  value: { _tag: "FileSystem.NotFoundError", path: "host-only.txt" },
+                })
+              }
             }
           }).pipe(
             Effect.provide(
@@ -320,6 +329,22 @@ describe("FileSystem", () => {
           // Reading external symlink fails (escapes location)
           const external = yield* filesystem.read({ path: RelativePath.make("external.txt") }).pipe(Effect.exit)
           expect(Exit.isFailure(external)).toBe(true)
+          if (Exit.isFailure(external)) {
+            expect(external.cause.reasons.filter(Cause.isDieReason)).toMatchObject([
+              { defect: new Error("Path escapes the location") },
+            ])
+          }
+          const lexical = yield* filesystem.read({ path: RelativePath.make("../outside/secret.txt") }).pipe(Effect.exit)
+          expect(Exit.isFailure(lexical)).toBe(true)
+          if (Exit.isFailure(lexical)) {
+            expect(lexical.cause.reasons.filter(Cause.isDieReason)).toMatchObject([
+              { defect: new Error("Path escapes the location") },
+            ])
+          }
+          // Directory navigation can leave the location, but stays on the workspace filesystem.
+          expect(yield* filesystem.list({ path: "../outside" })).toEqual([
+            FileSystem.Entry.make({ path: RelativePath.make(path.join("..", "outside", "secret.txt")), type: "file" }),
+          ])
         }).pipe(
           Effect.provide(
             LayerNode.compile(FileSystem.node, {
@@ -410,6 +435,57 @@ describe("FileSystem", () => {
       }),
     ),
   )
+
+  for (const failure of ["missing", "failed"] as const) {
+    it.live(`does not read workspace files when root canonicalization ${failure}`, () =>
+      withTmp((directory) =>
+        Effect.gen(function* () {
+          const driver = Environment.makeMemoryDriver()
+          const baseFiles = Environment.makeFiles(driver)
+          yield* baseFiles.mkdir(directory)
+          yield* baseFiles.write(path.join(directory, "file.txt"), new TextEncoder().encode("workspace data"))
+          const error =
+            failure === "missing"
+              ? new Environment.NotFound({ path: directory })
+              : new Environment.Failed({ path: directory, cause: new Error("Canonicalization failed") })
+          const files: Environment.Files = {
+            ...baseFiles,
+            realPath: (target) => (target === directory ? Effect.fail(error) : baseFiles.realPath(target)),
+          }
+          const result = yield* FileSystem.Service.pipe(
+            Effect.flatMap((filesystem) => filesystem.read({ path: RelativePath.make("file.txt") })),
+            Effect.provide(
+              LayerNode.compile(FileSystem.node, {
+                replacements: [
+                  Location.node.replace(
+                    Layer.succeed(
+                      Location.Service,
+                      location({
+                        directory: AbsolutePath.make(directory),
+                        workspaceID: Workspace.ID.make("wrk_root_failure_test"),
+                      }),
+                    ),
+                  ),
+                  Environment.node.replace(Layer.succeed(Environment.Service, { files, spawner: driver.spawner })),
+                ],
+              }),
+            ),
+            Effect.exit,
+          )
+          expect(Exit.isFailure(result)).toBe(true)
+          if (!Exit.isFailure(result)) return
+          if (failure === "missing") {
+            expect(Cause.findErrorOption(result.cause)).toMatchObject({
+              _tag: "Some",
+              value: { _tag: "FileSystem.NotFoundError", path: "file.txt" },
+            })
+            return
+          }
+          expect(result.cause.reasons.filter(Cause.isDieReason)).toMatchObject([{ defect: error }])
+        }),
+      ),
+    )
+  }
 
   it.live("returns typed NotFoundError when remote file is removed after canonicalization", () =>
     withTmp((directory) =>

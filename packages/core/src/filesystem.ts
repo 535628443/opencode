@@ -134,13 +134,14 @@ const baseLayer = Layer.effect(
       find: search.find,
       read: Effect.fn("FileSystem.read")(function* (input) {
         if (location.workspaceID) {
-          const canonicalRoot = yield* environment.files
-            .realPath(location.directory)
-            .pipe(Effect.orElseSucceed(() => location.directory))
           const absolute = path.resolve(location.directory, input.path)
           if (!FSUtil.contains(location.directory, absolute)) {
             return yield* Effect.die(new Error("Path escapes the location"))
           }
+          const canonicalRoot = yield* environment.files.realPath(location.directory).pipe(
+            Effect.catchTag("Environment.NotFound", () => Effect.fail(new NotFoundError({ path: input.path }))),
+            Effect.catchTag("Environment.Failed", (cause) => Effect.die(cause)),
+          )
           const real = yield* environment.files.realPath(absolute).pipe(
             Effect.catchTag("Environment.NotFound", () => Effect.fail(new NotFoundError({ path: input.path }))),
             Effect.catchTag("Environment.Failed", (cause) => Effect.die(cause)),
