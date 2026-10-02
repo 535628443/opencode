@@ -200,7 +200,11 @@ async function mountProductionPrompt(input: {
                                                   <DialogProvider>
                                                     <AttentionProvider>
                                                       <PluginProvider
-                                                        packages={{ prepare: async () => ({}) as any }}
+                                                        packages={{
+                                                          prepare: async () => {
+                                                            throw new Error("Unexpected plugin package request")
+                                                          },
+                                                        }}
                                                         directories={[]}
                                                       >
                                                         <box width={promptWidth() ?? "100%"} height="100%">
@@ -619,6 +623,16 @@ for (const layout of [{ width: 40 }, { width: 120 }, { width: 120, promptWidth: 
 
         const pendingFrame = harness.app.captureCharFrame()
 
+        // The armed label is longer, so verify the measured status region updates.
+        harness.app.mockInput.pressEscape()
+        await wait(() => harness.app.captureCharFrame().includes("esc again to interrupt"))
+        await harness.app.renderOnce()
+        const armedFrame = harness.app.captureCharFrame()
+        expect(armedFrame).toContain("esc again to interrupt")
+        expect(armedFrame).toContain("NEW USER DRAFT")
+        expect(armedFrame).toContain("SESSION HISTORY SENTINEL")
+        expect(armedFrame.split("\n").filter((line) => line.includes("Resol"))).toHaveLength(1)
+
         // Resolve command with HTTP 204 NoContent
         deferred.resolve(new Response(null, { status: 204 }))
         await wait(() => PendingCommands.list(sessionID).length === 0)
@@ -642,7 +656,7 @@ for (const layout of [{ width: 40 }, { width: 120 }, { width: 120, promptWidth: 
         expect(settledFrame).not.toContain("Resolving")
         expect(settledFrame).toContain("SESSION HISTORY SENTINEL")
         expect(settledFrame).toContain("NEW USER DRAFT")
-        expect(settledFrame).toContain("esc interrupt")
+        expect(settledFrame).toContain("esc again to interrupt")
       } finally {
         deferred.resolve(new Response(null, { status: 204 }))
         await harness.cleanup()
@@ -832,3 +846,48 @@ for (const animations of [false, true]) {
     }
   })
 }
+
+test("production Prompt shows pending feedback during selection preparation and restores on preparation failure", async () => {
+  PendingCommands.clear()
+  const prepared = Promise.withResolvers<Response>()
+  let preparing = false
+  let commandCalled = false
+  const harness = await mountProductionPrompt({
+    sessionID: "ses_prepare_failure",
+    fetch: (url, request) => {
+      if (url.pathname === "/api/session/ses_prepare_failure/model" && request.method === "POST") {
+        preparing = true
+        return prepared.promise
+      }
+      if (url.pathname === "/api/session/ses_prepare_failure/command" && request.method === "POST") {
+        commandCalled = true
+        return new Response(null, { status: 204 })
+      }
+    },
+  })
+
+  try {
+    await harness.app.renderOnce()
+    const textarea = harness.app.renderer.currentFocusedEditor
+    if (!(textarea instanceof TextareaRenderable)) throw new Error("expected focused prompt textarea")
+    textarea.setText("/mcp-slow retained arguments")
+    await harness.app.renderOnce()
+    harness.app.mockInput.pressEnter()
+    await wait(() => preparing)
+    await harness.app.renderOnce()
+    expect(textarea.plainText).toBe("")
+    expect(PendingCommands.list("ses_prepare_failure")).toHaveLength(1)
+    expect(harness.app.captureCharFrame()).toContain("Resolving /mcp-slow retained arguments")
+    expect(commandCalled).toBeFalse()
+
+    prepared.reject(new Error("Model preparation failed"))
+    await wait(() => PendingCommands.list("ses_prepare_failure").length === 0)
+    await harness.app.renderOnce()
+    expect(commandCalled).toBeFalse()
+    expect(textarea.plainText).toBe("/mcp-slow retained arguments")
+    expect(harness.app.captureCharFrame()).not.toContain("Resolving")
+  } finally {
+    prepared.resolve(new Response(null, { status: 204 }))
+    await harness.cleanup()
+  }
+})

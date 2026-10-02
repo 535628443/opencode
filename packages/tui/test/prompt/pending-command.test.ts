@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { formatPendingCommandText, PendingCommands } from "../../src/component/prompt/pending-command"
+import { Skill } from "@opencode/schema/skill"
 import type { PromptInfo } from "../../src/prompt/history"
 
 describe("pending slash commands", () => {
@@ -31,7 +32,7 @@ describe("pending slash commands", () => {
 
     const files: PromptInfo["files"] = [{ uri: "file:///test.txt", name: "test.txt" }]
     const agents: PromptInfo["agents"] = [{ name: "builder" }]
-    const skills: PromptInfo["skills"] = [{ id: "skill_1" as any }]
+    const skills: PromptInfo["skills"] = [{ id: Skill.ID.make("skill_1") }]
 
     const cmd = PendingCommands.add({
       sessionID: "ses_attachments",
