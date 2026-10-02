@@ -695,6 +695,67 @@ describe("AuthorizationError", () => {
 })
 
 describe("Integration.connection.recover", () => {
+  ;[false, true].forEach((inFlight) =>
+    it.effect(
+      `does not recover another integration's credential${inFlight ? " during an existing recovery" : ""}`,
+      () =>
+        Effect.gen(function* () {
+          const integrations = yield* Integration.Service
+          const credentials = yield* Credential.Service
+          const integrationID = Integration.ID.make("recovery-owner")
+          const methodID = Integration.MethodID.make("oauth")
+          const started = yield* Deferred.make<void>()
+          const release = yield* Deferred.make<void>()
+          let calls = 0
+          yield* integrations.transform((editor) =>
+            editor.method.update({
+              integrationID,
+              method: { id: methodID, type: "oauth", label: "OAuth" },
+              authorize: () => Effect.never,
+              recover: (value) =>
+                Effect.gen(function* () {
+                  calls++
+                  yield* Deferred.succeed(started, undefined)
+                  if (inFlight) yield* Deferred.await(release)
+                  return Credential.OAuth.make({ ...value, access: "new" })
+                }),
+            }),
+          )
+          const credential = yield* credentials.create({
+            integrationID,
+            value: Credential.OAuth.make({
+              type: "oauth",
+              methodID,
+              access: "old",
+              refresh: "refresh",
+              expires: Number.MAX_SAFE_INTEGER,
+            }),
+          })
+          const connection = {
+            type: "credential" as const,
+            id: credential.id,
+            label: "OAuth",
+            method: "oauth" as const,
+          }
+          const owner = inFlight
+            ? yield* integrations.connection.recover({ integrationID, connection, status: 401 }).pipe(Effect.forkChild)
+            : undefined
+          if (owner) yield* Deferred.await(started)
+          const foreign = yield* integrations.connection
+            .recover({ integrationID: Integration.ID.make("other-integration"), connection, status: 401 })
+            .pipe(Effect.forkChild)
+          yield* Effect.yieldNow
+          yield* Effect.yieldNow
+          yield* Deferred.succeed(release, undefined)
+          expect(yield* Fiber.join(foreign)).toBeUndefined()
+          expect(calls).toBe(inFlight ? 1 : 0)
+          if (owner) expect(yield* Fiber.join(owner)).toHaveProperty("access", "new")
+          expect((yield* credentials.get(credential.id))?.value).toHaveProperty("access", inFlight ? "new" : "old")
+          expect((yield* integrations.connection.active(integrationID))?.status).toBeUndefined()
+        }),
+    ),
+  )
+
   it.effect("recovers 401 using standard refresh when recover is omitted", () =>
     Effect.gen(function* () {
       const integrations = yield* Integration.Service

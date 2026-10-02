@@ -185,24 +185,32 @@ export const make = Effect.gen(function* () {
 
         let authRecoveryAttempted = false
         if (
-          input.recoverAuth &&
           (input.prepared.usesConnection?.() ?? true) &&
           llmFailure?.reason._tag === "Authentication" &&
           !recorded.outputStarted &&
           input.model.connection &&
           input.model.integrationID
         ) {
+          if (!input.recoverAuth) {
+            yield* integrations.connection.status({
+              integrationID: input.model.integrationID,
+              connection: input.model.connection,
+              status: { status: "needs_auth", message: "Authentication failed. Reconnect the integration." },
+            })
+          }
           authRecoveryAttempted = true
-          const recovered = yield* restore(
-            integrations.connection
-              .recover({
-                integrationID: input.model.integrationID,
-                connection: input.model.connection,
-                status: llmFailure.reason.http?.status ?? 401,
-                response: { headers: llmFailure.reason.http?.headers, body: llmFailure.reason.body },
-              })
-              .pipe(Effect.orElseSucceed(() => undefined)),
-          )
+          const recovered = input.recoverAuth
+            ? yield* restore(
+                integrations.connection
+                  .recover({
+                    integrationID: input.model.integrationID,
+                    connection: input.model.connection,
+                    status: llmFailure.reason.http?.status ?? 401,
+                    response: { headers: llmFailure.reason.http?.headers, body: llmFailure.reason.body },
+                  })
+                  .pipe(Effect.orElseSucceed(() => undefined)),
+              )
+            : undefined
           if (recovered) {
             yield* Effect.logInfo("recovered integration credential after authentication rejection", {
               sessionID: input.sessionID,

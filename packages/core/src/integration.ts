@@ -732,6 +732,8 @@ const layer = Layer.effect(
         recover: Effect.fn("Integration.connection.recover")(function* (input) {
           if (input.connection.type !== "credential") return undefined
           const credentialID = input.connection.id
+          const credential = yield* credentials.get(credentialID)
+          if (credential && credential.integrationID !== input.integrationID) return undefined
           const existing = inFlightRecoveries.get(credentialID)
           if (existing) {
             return yield* Deferred.await(existing)
@@ -741,7 +743,6 @@ const layer = Layer.effect(
 
           yield* Effect.gen(function* () {
             const key = statusKey(input.integrationID, input.connection)
-            const credential = yield* credentials.get(credentialID)
             if (!credential || credential.value.type !== "oauth") {
               statuses.set(key, { status: "needs_auth", message: "Authentication failed. Reconnect the integration." })
               yield* bus.publish(Integration.Event.Updated, {})

@@ -6818,10 +6818,9 @@ describe("SessionRunnerLLM", () => {
                 `${server.url.origin}/${fixture.rotate ? "new" : "old"}`,
               )
               expect(yield* s.credentials.list(Integration.ID.make("github-copilot"))).toHaveLength(1)
-              if (!fixture.rotate)
-                expect(
-                  (yield* s.integrations.connection.active(Integration.ID.make("github-copilot")))?.status?.status,
-                ).toBe("needs_auth")
+              expect(
+                (yield* s.integrations.connection.active(Integration.ID.make("github-copilot")))?.status?.status,
+              ).toBe(fixture.repeated || !fixture.rotate ? "needs_auth" : undefined)
             })
           }),
         20_000,
