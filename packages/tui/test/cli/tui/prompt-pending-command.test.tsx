@@ -4,7 +4,7 @@ import { testRender } from "@opentui/solid"
 import { expect, test } from "bun:test"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
-import { createSignal, onMount } from "solid-js"
+import { createSignal, onMount, Show } from "solid-js"
 import { Prompt, PromptInterruptStatus, type PromptRef } from "../../../src/component/prompt"
 import {
   PendingCommands,
@@ -31,6 +31,7 @@ import { AttentionProvider } from "../../../src/context/attention"
 import { ExitProvider } from "../../../src/context/exit"
 import { PluginProvider } from "../../../src/plugin/context"
 import { DialogProvider } from "../../../src/ui/dialog"
+import { SESSION_SIDEBAR_WIDTH, sessionTabsFitVertically } from "../../../src/ui/layout"
 import { ToastProvider } from "../../../src/ui/toast"
 import { PromptHistoryProvider } from "../../../src/prompt/history"
 import { PromptStashProvider } from "../../../src/prompt/stash"
@@ -129,6 +130,8 @@ async function mountProductionPrompt(input: {
   fetch?: FetchHandler
   width?: number
   height?: number
+  promptWidth?: number
+  animations?: boolean
 }) {
   const temporary = await tmpdir()
   await mkdir(path.join(temporary.path, "test", "locks"), { recursive: true })
@@ -151,10 +154,12 @@ async function mountProductionPrompt(input: {
     if (url.pathname === "/api/agent") return json({ location, data: [agent("build")] })
     if (url.pathname === "/api/model") return json({ location, data: [model("first")] })
     if (url.pathname === "/api/command") return json({ location, data: commands })
-    if (url.pathname === `/api/session/${input.sessionID}`)
-      return json({ data: session(input.sessionID, { providerID: "provider", id: "first" }) })
+    if (/^\/api\/session\/[^/]+$/.test(url.pathname))
+      return json({ data: session(url.pathname.split("/").at(-1)!, { providerID: "provider", id: "first" }) })
   }, events)
 
+  const [activeSession, setActiveSession] = createSignal(input.sessionID)
+  const [promptWidth, setPromptWidth] = createSignal(input.promptWidth)
   let local!: ReturnType<typeof useLocal>
   let data!: ReturnType<typeof useData>
   let storage!: ReturnType<typeof useStorage>
@@ -175,7 +180,7 @@ async function mountProductionPrompt(input: {
             <ExitProvider exit={() => {}}>
               <StorageProvider>
                 <ArgsProvider>
-                  <ConfigProvider config={createTuiResolvedConfig({ animations: false })}>
+                  <ConfigProvider config={createTuiResolvedConfig({ animations: input.animations ?? false })}>
                     <Keymap.Provider>
                       <ThemeProvider mode="dark" source={emptyThemeSource}>
                         <ToastProvider>
@@ -198,12 +203,23 @@ async function mountProductionPrompt(input: {
                                                         packages={{ prepare: async () => ({}) as any }}
                                                         directories={[]}
                                                       >
-                                                        <Prompt
-                                                          sessionID={input.sessionID}
-                                                          ref={(ref) => {
-                                                            promptRef = ref
-                                                          }}
-                                                        />
+                                                        <box width={promptWidth() ?? "100%"} height="100%">
+                                                          <box flexGrow={1}>
+                                                            <text>SESSION HISTORY SENTINEL</text>
+                                                          </box>
+                                                          <box flexShrink={0}>
+                                                            <Show when={activeSession()} keyed>
+                                                              {(sessionID) => (
+                                                                <Prompt
+                                                                  sessionID={sessionID}
+                                                                  ref={(ref) => {
+                                                                    promptRef = ref
+                                                                  }}
+                                                                />
+                                                              )}
+                                                            </Show>
+                                                          </box>
+                                                        </box>
                                                       </PluginProvider>
                                                     </AttentionProvider>
                                                   </DialogProvider>
@@ -247,6 +263,9 @@ async function mountProductionPrompt(input: {
 
   return {
     app,
+    events,
+    setActiveSession,
+    setPromptWidth,
     get promptRef() {
       return promptRef!
     },
@@ -300,7 +319,7 @@ test("production Prompt shows pending state immediately on slash command submit 
     expect(harness.app.captureCharFrame()).toContain("Resolving /mcp-slow hello world…")
 
     // Resolve command
-    commandSettled.resolve(json({ data: { ok: true } }))
+    commandSettled.resolve(new Response(null, { status: 204 }))
     await wait(() => PendingCommands.list("ses_prompt_success").length === 0)
 
     // Verify pending indicator cleared
@@ -441,7 +460,7 @@ test("production Prompt handles multiple concurrent slash command submissions", 
     expect(harness.app.captureCharFrame()).toContain("Resolving /first-cmd foo (+1 more)…")
 
     // Resolve first command
-    firstSettled.resolve(json({ data: { ok: true } }))
+    firstSettled.resolve(new Response(null, { status: 204 }))
     await wait(() => PendingCommands.list("ses_prompt_multi").length === 1)
 
     // Second command is now the primary visible pending command
@@ -449,7 +468,7 @@ test("production Prompt handles multiple concurrent slash command submissions", 
     expect(harness.app.captureCharFrame()).toContain("Resolving /second-cmd bar…")
 
     // Resolve second command
-    secondSettled.resolve(json({ data: { ok: true } }))
+    secondSettled.resolve(new Response(null, { status: 204 }))
     await wait(() => PendingCommands.list("ses_prompt_multi").length === 0)
 
     await harness.app.renderOnce()
@@ -458,3 +477,358 @@ test("production Prompt handles multiple concurrent slash command submissions", 
     await harness.cleanup()
   }
 })
+
+test("production Prompt preserves failed command draft after blank Enter", async () => {
+  PendingCommands.clear()
+  const deferred = Promise.withResolvers<Response>()
+  let called = false
+
+  const harness = await mountProductionPrompt({
+    sessionID: "ses_review_blank",
+    fetch: (url, request) => {
+      if (url.pathname.endsWith("/command") && request.method === "POST") {
+        called = true
+        return deferred.promise
+      }
+    },
+  })
+
+  try {
+    await harness.app.renderOnce()
+    const textarea = harness.app.renderer.currentFocusedEditor
+    if (!(textarea instanceof TextareaRenderable)) throw new Error("no textarea")
+
+    textarea.setText("/mcp-slow important arguments")
+    await harness.app.renderOnce()
+    harness.app.mockInput.pressEnter()
+    await wait(() => called)
+    expect(textarea.plainText).toBe("")
+
+    // Press Enter in empty composer without typing anything
+    harness.app.mockInput.pressEnter()
+    await Bun.sleep(100)
+
+    // Reject the pending command
+    deferred.reject(new Error("MCP resolution failed"))
+    await wait(() => PendingCommands.list("ses_review_blank").length === 0)
+    await harness.app.renderOnce()
+
+    // Original command draft is restored successfully
+    expect(textarea.plainText).toBe("/mcp-slow important arguments")
+  } finally {
+    await harness.cleanup()
+  }
+})
+
+test("production Prompt pending indicator follows keyed session remounts", async () => {
+  PendingCommands.clear()
+  const deferred = Promise.withResolvers<Response>()
+  let called = false
+
+  const harness = await mountProductionPrompt({
+    sessionID: "ses_review_switch",
+    fetch: (url, request) => {
+      if (url.pathname.endsWith("/command") && request.method === "POST") {
+        called = true
+        return deferred.promise
+      }
+    },
+  })
+
+  try {
+    await harness.app.renderOnce()
+    const textarea = harness.app.renderer.currentFocusedEditor
+    if (!(textarea instanceof TextareaRenderable)) throw new Error("no textarea")
+
+    textarea.setText("/mcp-slow first session")
+    await harness.app.renderOnce()
+    harness.app.mockInput.pressEnter()
+    await wait(() => called)
+
+    // Switch to another session
+    harness.setActiveSession("ses_review_other")
+    await harness.data.session.sync("ses_review_other")
+    await harness.app.renderOnce()
+    expect(harness.app.captureCharFrame()).not.toContain("Resolving /mcp-slow")
+
+    // Switch back to original session
+    harness.setActiveSession("ses_review_switch")
+    await harness.app.renderOnce()
+    expect(harness.app.captureCharFrame()).toContain("Resolving /mcp-slow first session")
+
+    // Resolve command
+    deferred.resolve(new Response(null, { status: 204 }))
+    await wait(() => PendingCommands.list("ses_review_switch").length === 0)
+    await harness.app.renderOnce()
+    expect(harness.app.captureCharFrame()).not.toContain("Resolving /mcp-slow")
+  } finally {
+    await harness.cleanup()
+  }
+})
+
+// A 120-column terminal supports the default rail; Session adds two columns padding per side.
+const verticalPromptWidth = 120 - SESSION_SIDEBAR_WIDTH - 4
+for (const layout of [{ width: 40 }, { width: 120 }, { width: 120, promptWidth: verticalPromptWidth }]) {
+  for (const animations of [false, true]) {
+    test(`production Prompt with long arguments bounds footer and preserves interrupt at ${layout.width}x12 composer=${layout.promptWidth ?? layout.width} animations=${animations}`, async () => {
+      PendingCommands.clear()
+      const deferred = Promise.withResolvers<Response>()
+      const sessionID = `ses_matrix_${layout.width}_${layout.promptWidth ?? layout.width}_${animations}`
+      let called = false
+
+      const harness = await mountProductionPrompt({
+        sessionID,
+        width: layout.width,
+        promptWidth: layout.promptWidth,
+        height: 12,
+        animations,
+        fetch: (url, request) => {
+          if (url.pathname.endsWith("/command") && request.method === "POST") {
+            called = true
+            return deferred.promise
+          }
+        },
+      })
+
+      try {
+        await harness.app.renderOnce()
+        const textarea = harness.app.renderer.currentFocusedEditor
+        if (!(textarea instanceof TextareaRenderable)) throw new Error("no textarea")
+
+        // Mark session as running
+        harness.events.emit({
+          id: `evt_${sessionID}`,
+          created: 0,
+          type: "session.execution.started",
+          durable: { aggregateID: sessionID, seq: 1, version: 1 },
+          data: { sessionID },
+        })
+        await wait(() => harness.data.session.status(sessionID) === "running")
+
+        // Submit long arguments (60 x 14 chars = 840 chars)
+        textarea.setText("/mcp-slow " + "long argument ".repeat(60))
+        await harness.app.renderOnce()
+        harness.app.mockInput.pressEnter()
+        await wait(() => called)
+
+        // User types new draft while pending
+        textarea.setText("NEW USER DRAFT")
+        await harness.app.renderOnce()
+        await Bun.sleep(100)
+        await harness.app.renderOnce()
+
+        const pendingFrame = harness.app.captureCharFrame()
+
+        // Resolve command with HTTP 204 NoContent
+        deferred.resolve(new Response(null, { status: 204 }))
+        await wait(() => PendingCommands.list(sessionID).length === 0)
+        await harness.app.renderOnce()
+
+        const settledFrame = harness.app.captureCharFrame()
+
+        // Assertions
+        expect(textarea.plainText).toBe("NEW USER DRAFT")
+        expect(pendingFrame).toContain("SESSION HISTORY SENTINEL")
+        expect(pendingFrame).toContain("NEW USER DRAFT")
+        expect(pendingFrame).toContain("esc interrupt")
+        if (!animations) expect(pendingFrame).toContain("⋯ Resolving")
+        if (animations) expect(pendingFrame).not.toContain("⋯ Resolving")
+        expect(pendingFrame.split("\n").filter((line) => line.includes("Resolv"))).toHaveLength(1)
+        if (layout.width >= 80) {
+          expect(pendingFrame).toContain("agents")
+          expect(pendingFrame).toContain("commands")
+          expect(pendingFrame).toMatch(/agents\s+\S*\s*commands/)
+        }
+        expect(settledFrame).not.toContain("Resolving")
+        expect(settledFrame).toContain("SESSION HISTORY SENTINEL")
+        expect(settledFrame).toContain("NEW USER DRAFT")
+        expect(settledFrame).toContain("esc interrupt")
+      } finally {
+        deferred.resolve(new Response(null, { status: 204 }))
+        await harness.cleanup()
+      }
+    })
+  }
+}
+
+test("production Prompt newer meaningful submission suppresses older failed draft", async () => {
+  PendingCommands.clear()
+  const first = Promise.withResolvers<Response>()
+  const second = Promise.withResolvers<Response>()
+  const called: string[] = []
+
+  const harness = await mountProductionPrompt({
+    sessionID: "ses_epoch_meaningful",
+    fetch: async (url, request) => {
+      if (url.pathname.endsWith("/command") && request.method === "POST") {
+        const payload = (await request.json()) as { name: string }
+        called.push(payload.name)
+        return payload.name === "first-cmd" ? first.promise : second.promise
+      }
+    },
+  })
+
+  try {
+    await harness.app.renderOnce()
+    const textarea = harness.app.renderer.currentFocusedEditor
+    if (!(textarea instanceof TextareaRenderable)) throw new Error("no textarea")
+
+    textarea.setText("/first-cmd old draft")
+    await harness.app.renderOnce()
+    harness.app.mockInput.pressEnter()
+    await wait(() => called.includes("first-cmd"))
+
+    textarea.setText("/second-cmd new submission")
+    await harness.app.renderOnce()
+    harness.app.mockInput.pressEnter()
+    await wait(() => called.includes("second-cmd"))
+
+    expect(PendingCommands.list("ses_epoch_meaningful")).toHaveLength(2)
+
+    // Resolve second command
+    second.resolve(new Response(null, { status: 204 }))
+    await wait(() => PendingCommands.list("ses_epoch_meaningful").length === 1)
+    expect(PendingCommands.list("ses_epoch_meaningful")[0].name).toBe("first-cmd")
+
+    // Fail first command
+    first.reject(new Error("older command failed"))
+    await wait(() => PendingCommands.list("ses_epoch_meaningful").length === 0)
+    expect(textarea.plainText).toBe("")
+  } finally {
+    first.resolve(new Response(null, { status: 204 }))
+    second.resolve(new Response(null, { status: 204 }))
+    await harness.cleanup()
+  }
+})
+
+test("production Prompt session switching preserves each new draft and pending feedback", async () => {
+  PendingCommands.clear()
+  const deferred = Promise.withResolvers<Response>()
+  let called = false
+
+  const harness = await mountProductionPrompt({
+    sessionID: "ses_draft_a",
+    fetch: (url, request) => {
+      if (url.pathname.endsWith("/command") && request.method === "POST") {
+        called = true
+        return deferred.promise
+      }
+    },
+  })
+
+  const focused = () => {
+    const textarea = harness.app.renderer.currentFocusedEditor
+    if (!(textarea instanceof TextareaRenderable)) throw new Error("no textarea")
+    return textarea
+  }
+
+  try {
+    await harness.app.renderOnce()
+    focused().setText("/mcp-slow session A")
+    await harness.app.renderOnce()
+    harness.app.mockInput.pressEnter()
+    await wait(() => called)
+
+    focused().setText("draft A")
+    await harness.app.renderOnce()
+
+    // Switch to session B
+    harness.setActiveSession("ses_draft_b")
+    await harness.data.session.sync("ses_draft_b")
+    await harness.app.renderOnce()
+    expect(harness.app.captureCharFrame()).not.toContain("Resolving")
+
+    focused().setText("draft B")
+    await harness.app.renderOnce()
+
+    // Switch back to session A
+    harness.setActiveSession("ses_draft_a")
+    await harness.app.renderOnce()
+    expect(focused().plainText).toBe("draft A")
+    expect(harness.app.captureCharFrame()).toContain("Resolving /mcp-slow")
+
+    // Reject command on session A
+    deferred.reject(new Error("MCP failure after switching"))
+    await wait(() => PendingCommands.list("ses_draft_a").length === 0)
+    expect(focused().plainText).toBe("draft A")
+
+    // Switch to session B
+    harness.setActiveSession("ses_draft_b")
+    await harness.app.renderOnce()
+    expect(focused().plainText).toBe("draft B")
+  } finally {
+    deferred.resolve(new Response(null, { status: 204 }))
+    await harness.cleanup()
+  }
+})
+
+for (const animations of [false, true]) {
+  test(`production Prompt recomputes pending width when its container and terminal resize animations=${animations}`, async () => {
+    PendingCommands.clear()
+    const deferred = Promise.withResolvers<Response>()
+    const sessionID = `ses_resize_${animations}`
+    let called = false
+    const harness = await mountProductionPrompt({
+      sessionID,
+      width: 120,
+      height: 12,
+      animations,
+      fetch: (url, request) => {
+        if (url.pathname.endsWith("/command") && request.method === "POST") {
+          called = true
+          return deferred.promise
+        }
+      },
+    })
+
+    try {
+      expect(sessionTabsFitVertically(120, SESSION_SIDEBAR_WIDTH)).toBe(true)
+      await harness.app.renderOnce()
+      const textarea = harness.app.renderer.currentFocusedEditor
+      if (!(textarea instanceof TextareaRenderable)) throw new Error("expected focused prompt textarea")
+      harness.events.emit({
+        id: `evt_${sessionID}`,
+        created: 0,
+        type: "session.execution.started",
+        durable: { aggregateID: sessionID, seq: 1, version: 1 },
+        data: { sessionID },
+      })
+      await wait(() => harness.data.session.status(sessionID) === "running")
+      textarea.setText("/mcp-slow " + "long argument ".repeat(60))
+      await harness.app.renderOnce()
+      harness.app.mockInput.pressEnter()
+      await wait(() => called)
+      textarea.setText("NEW USER DRAFT")
+
+      for (const layout of [
+        { width: 120, promptWidth: verticalPromptWidth },
+        { width: 40, promptWidth: undefined },
+        { width: 120, promptWidth: verticalPromptWidth },
+        { width: 120, promptWidth: undefined },
+      ]) {
+        harness.setPromptWidth(layout.promptWidth)
+        harness.app.resize(layout.width, 12)
+        await harness.app.renderOnce()
+        await Bun.sleep(30)
+        await harness.app.renderOnce()
+        const frame = harness.app.captureCharFrame()
+        expect(PendingCommands.list(sessionID)).toHaveLength(1)
+        expect(textarea.plainText).toBe("NEW USER DRAFT")
+        expect(frame).toContain("NEW USER DRAFT")
+        expect(frame).toContain("SESSION HISTORY SENTINEL")
+        expect(frame).toContain("esc interrupt")
+        expect(frame.split("\n").filter((line) => line.includes("Resol"))).toHaveLength(1)
+        if (layout.width >= 80) expect(frame).toMatch(/agents\s+\S*\s*commands/)
+      }
+
+      deferred.resolve(new Response(null, { status: 204 }))
+      await wait(() => PendingCommands.list(sessionID).length === 0)
+      await harness.app.renderOnce()
+      expect(harness.app.captureCharFrame()).not.toContain("Resolving")
+      expect(textarea.plainText).toBe("NEW USER DRAFT")
+    } finally {
+      deferred.resolve(new Response(null, { status: 204 }))
+      await harness.cleanup()
+    }
+  })
+}

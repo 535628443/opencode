@@ -139,7 +139,7 @@ export function PromptInterruptStatus(props: {
   })
 
   return (
-    <text fg={props.armed ? armedColor() : props.text} wrapMode="none" truncate flexShrink={1}>
+    <text fg={props.armed ? armedColor() : props.text} wrapMode="none" flexShrink={0}>
       esc{" "}
       <span style={{ fg: props.armed ? armedColor() : props.subdued }}>
         {props.armed ? "again to interrupt" : "interrupt"}
@@ -1184,7 +1184,7 @@ export function Prompt(props: PromptProps) {
     // history records exactly what was submitted instead of the live store
     // (which may have absorbed mid-flight typing). Failure paths restore the
     // snapshot unless the user has started typing something new.
-    const currentEpoch = ++submissionEpoch
+    const currentEpoch = trimmed ? ++submissionEpoch : submissionEpoch
     const currentMode = store.mode
     const entry = { ...store.prompt, mode: currentMode }
     if (trimmed) {
@@ -1643,11 +1643,17 @@ export function Prompt(props: PromptProps) {
     const branch = data.location.vcs.info(location)?.branch.current
     return branch ? `${directory}:${branch}` : directory
   })
-  const [locationWidth, setLocationWidth] = createSignal(dimensions().width)
+  const [footerStatusWidth, setFooterStatusWidth] = createSignal(dimensions().width)
+  const pendingMaxWidth = createMemo(() => {
+    // This status region already excludes footer controls and any session-tab rail.
+    const interruptWidth =
+      status() === "running" ? stringWidth(store.interrupt > 0 ? "esc again to interrupt" : "esc interrupt") + 1 : 0
+    return Math.max(0, footerStatusWidth() - interruptWidth - 1)
+  })
   const locationLabelDisplay = createMemo(() => {
     const label = locationLabel()
     if (!label) return
-    return truncateFilePath(label, locationWidth())
+    return truncateFilePath(label, footerStatusWidth())
   })
   const locationActions = useWorkingDirectoryActions({
     directory: () => footerLocation()?.directory,
@@ -1911,24 +1917,42 @@ export function Prompt(props: PromptProps) {
                 minWidth={0}
                 onSizeChange={function (this: BoxRenderable) {
                   const width = this.width
-                  queueMicrotask(() => setLocationWidth(width))
+                  queueMicrotask(() => setFooterStatusWidth(width))
                 }}
               >
                 <Switch>
                   <Match when={pendingCommands().length > 0}>
-                    <box flexDirection="row" gap={1} flexGrow={1} justifyContent="flex-start">
-                      <box marginLeft={1}>
+                    <box
+                      flexDirection="row"
+                      gap={1}
+                      flexGrow={1}
+                      flexShrink={1}
+                      minWidth={0}
+                      height={1}
+                      minHeight={0}
+                      justifyContent="flex-start"
+                    >
+                      <box
+                        marginLeft={1}
+                        flexShrink={1}
+                        minWidth={0}
+                        maxWidth={pendingMaxWidth()}
+                        height={1}
+                        minHeight={0}
+                      >
                         <PromptPendingCommands commands={pendingCommands()} />
                       </box>
                       <Show when={status() === "running"}>
-                        <PromptInterruptStatus
-                          armed={store.interrupt > 0}
-                          animations={animationsEnabled()}
-                          text={theme.text.base}
-                          subdued={theme.text.muted}
-                          warning={theme.text.feedback.warning.base}
-                          flash={theme.decrease(theme.text.feedback.warning.base, 2)}
-                        />
+                        <box flexShrink={0}>
+                          <PromptInterruptStatus
+                            armed={store.interrupt > 0}
+                            animations={animationsEnabled()}
+                            text={theme.text.base}
+                            subdued={theme.text.muted}
+                            warning={theme.text.feedback.warning.base}
+                            flash={theme.decrease(theme.text.feedback.warning.base, 2)}
+                          />
+                        </box>
                       </Show>
                     </box>
                   </Match>

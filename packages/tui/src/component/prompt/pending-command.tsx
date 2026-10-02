@@ -3,7 +3,8 @@ import { Show, createMemo } from "solid-js"
 import type { SessionInbox } from "@opencode/schema/session-inbox"
 import type { PromptInfo } from "../../prompt/history"
 import { useTheme } from "../../context/theme"
-import { Spinner } from "../spinner"
+import { useConfig } from "../../config"
+import { SPINNER_FRAMES } from "../spinner"
 
 export type PendingCommand = {
   readonly id: string
@@ -74,6 +75,7 @@ export function formatPendingCommandText(command: PendingCommand, moreCount = 0)
 
 export function PromptPendingCommands(props: { commands: readonly PendingCommand[] }) {
   const theme = useTheme()
+  const config = useConfig().data
   const first = createMemo(() => props.commands[0])
   const moreCount = createMemo(() => Math.max(0, props.commands.length - 1))
   const text = createMemo(() => {
@@ -81,12 +83,20 @@ export function PromptPendingCommands(props: { commands: readonly PendingCommand
     if (!cmd) return ""
     return formatPendingCommandText(cmd, moreCount())
   })
+  const color = () => theme.text.feedback.info.base
 
   return (
     <Show when={first()}>
-      <Spinner color={theme.text.feedback.info.base}>
-        {text()}
-      </Spinner>
+      <box flexDirection="row" gap={1} flexShrink={1} minWidth={0} height={1}>
+        <box flexShrink={0}>
+          <Show when={config.animations ?? true} fallback={<text fg={color()}>⋯</text>}>
+            <spinner frames={SPINNER_FRAMES} interval={80} color={color()} />
+          </Show>
+        </box>
+        <text fg={color()} wrapMode="none" truncate flexShrink={1} minWidth={0}>
+          {text()}
+        </text>
+      </box>
     </Show>
   )
 }
