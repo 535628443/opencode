@@ -486,16 +486,21 @@ export function fromPromise(plugin: Plugin) {
                       }),
                     update: (id, update) =>
                       editor.update(id, (tool) => {
+                        const execute = promiseExecutor(tool.execute)
                         const value: Info = {
                           ...tool,
-                          execute: promiseExecutor(tool.execute),
+                          execute,
                         }
                         update(value)
                         Object.assign(tool, value, {
                           output: value.output,
                           options: value.options,
-                          execute: (input: Parameters<Info["execute"]>[0], context: Tool.Context) =>
-                            executePromiseTool(value, input, context),
+                          // Metadata edits must retain the Effect executor's interruption cleanup.
+                          execute:
+                            value.execute === execute
+                              ? tool.execute
+                              : (input: Parameters<Info["execute"]>[0], context: Tool.Context) =>
+                                  executePromiseTool(value, input, context),
                         })
                       }),
                     remove: editor.remove,

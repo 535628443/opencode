@@ -175,3 +175,66 @@ it.live("Promise tool progress is cancelled with its executor", () =>
     expect(String(errors[0])).toContain("All fibers interrupted")
   }),
 )
+
+it.live("Promise metadata updates preserve an Effect tool's interruption checkpoints", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const tools = yield* Tool.Service
+    const started = yield* Deferred.make<void>()
+    const cleanupStarted = yield* Deferred.make<void>()
+    const releaseCleanup = yield* Deferred.make<void>()
+    const checkpointed = yield* Deferred.make<void>()
+    const checkpoints: unknown[] = []
+    yield* tools.transform((editor) =>
+      editor.add({
+        name: "effect-cleanup",
+        description: "Effect tool with interrupted output",
+        options: { codemode: false },
+        input: { type: "object", properties: {}, additionalProperties: false },
+        execute: (_input, context) =>
+          Deferred.succeed(started, undefined).pipe(
+            Effect.andThen(Effect.never),
+            Effect.onInterrupt(() =>
+              Effect.gen(function* () {
+                yield* Deferred.succeed(cleanupStarted, undefined)
+                yield* Deferred.await(releaseCleanup)
+                yield* context.checkpoint("retained Effect cleanup output")
+                yield* Deferred.succeed(checkpointed, undefined)
+              }),
+            ),
+          ),
+      }),
+    )
+    yield* PluginPromise.fromPromise({
+      id: "update-description",
+      async setup(host) {
+        await host.tool.transform((editor) =>
+          editor.update("effect-cleanup", (tool) => {
+            tool.description = "Updated description"
+          }),
+        )
+      },
+    }).effect(yield* PluginHost.make(plugins))
+    const snapshot = yield* tools.snapshot()
+    const fiber = yield* snapshot
+      .execute({
+        sessionID: Session.ID.make("ses_effect_update_cancel"),
+        agent: Agent.ID.make("build"),
+        messageID: SessionMessage.ID.make("msg_effect_update_cancel"),
+        call: { type: "tool-call", id: "call_effect_update_cancel", name: "effect-cleanup", input: {} },
+        checkpoint: (checkpoint) => Effect.sync(() => checkpoints.push(checkpoint)).pipe(Effect.asVoid),
+      })
+      .pipe(Effect.forkScoped)
+    yield* Deferred.await(started)
+    const interrupt = yield* Fiber.interrupt(fiber).pipe(Effect.forkChild)
+    yield* Deferred.await(cleanupStarted)
+    yield* Effect.promise(() => Bun.sleep(10))
+    const settledDuringCleanup = fiber.pollUnsafe()
+    yield* Deferred.succeed(releaseCleanup, undefined)
+    yield* Fiber.join(interrupt)
+    yield* Deferred.await(checkpointed)
+    expect(settledDuringCleanup).toBeUndefined()
+    expect(checkpoints).toEqual(["retained Effect cleanup output"])
+    expect(Exit.hasInterrupts(yield* Fiber.await(fiber))).toBe(true)
+  }),
+)

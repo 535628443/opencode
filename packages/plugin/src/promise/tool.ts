@@ -11,6 +11,7 @@ import type { Hooks, Transform } from "./registration.js"
 export interface ToolContext extends Omit<Tool.Context, "progress" | "checkpoint"> {
   readonly signal: AbortSignal
   readonly progress: (update: Tool.Metadata) => Promise<void>
+  /** Register directly in the abort listener; interruption awaits checkpoints but does not await the executor. */
   readonly checkpoint: (checkpoint: Tool.Checkpoint | string | ReadonlyArray<Tool.Content>) => Promise<void>
 }
 

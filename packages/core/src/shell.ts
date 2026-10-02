@@ -394,6 +394,7 @@ const layer = () =>
                   const timeoutFiber = command.timeoutFiber
                   command.timeout = undefined
                   command.timeoutFiber = undefined
+                  command.kill = undefined
                   if (timeoutFiber) yield* Fiber.interrupt(timeoutFiber)
                 })
 
