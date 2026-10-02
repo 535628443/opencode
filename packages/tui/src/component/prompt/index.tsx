@@ -70,6 +70,7 @@ import { directoryRecentValue } from "../../prompt/directory-completion"
 import { useWorkingDirectoryActions } from "../../ui/working-directory-actions"
 import { truncateFilePath } from "../../ui/file-path"
 import { PromptMetadataRow } from "./metadata"
+import { PendingCommands, PromptPendingCommands } from "./pending-command"
 
 export type PromptProps = {
   sessionID?: string
@@ -212,6 +213,8 @@ export function Prompt(props: PromptProps) {
   const dialog = useDialog()
   const toast = useToast()
   const status = createMemo(() => data.session.status(props.sessionID ?? ""))
+  const pendingCommands = createMemo(() => PendingCommands.list(props.sessionID))
+  let submissionEpoch = 0
   const history = usePromptHistory()
   const stash = usePromptStash()
   const keymap = Keymap.use()
@@ -1181,6 +1184,7 @@ export function Prompt(props: PromptProps) {
     // history records exactly what was submitted instead of the live store
     // (which may have absorbed mid-flight typing). Failure paths restore the
     // snapshot unless the user has started typing something new.
+    const currentEpoch = ++submissionEpoch
     const currentMode = store.mode
     const entry = { ...store.prompt, mode: currentMode }
     if (trimmed) {
@@ -1188,7 +1192,7 @@ export function Prompt(props: PromptProps) {
       props.onSubmit?.()
     }
     const restoreEntry = () => {
-      if (disposed || input.isDestroyed || input.plainText !== "") return
+      if (disposed || input.isDestroyed || input.plainText !== "" || submissionEpoch !== currentEpoch) return
       input.setText(entry.text)
       setStore("prompt", entry)
       setStore("mode", entry.mode ?? "normal")
@@ -1326,9 +1330,25 @@ export function Prompt(props: PromptProps) {
           delivery,
         })
       }
-      void (newSession ? newSession.gate.then(send) : send()).catch((error) =>
-        newSession ? newSession.recover(error) : fail("Failed to run command", error),
-      )
+      const pending = PendingCommands.add({
+        sessionID: target,
+        name: slashHead.name,
+        arguments: slashHead.arguments,
+        delivery,
+        files: entry.files,
+        agents: entry.agents,
+        skills: entry.skills?.length ? entry.skills : undefined,
+      })
+      const execute = newSession ? newSession.gate.then(send) : send()
+      void execute
+        .then(() => {
+          PendingCommands.remove(pending.id, target)
+        })
+        .catch((error) => {
+          PendingCommands.remove(pending.id, target)
+          if (newSession) newSession.recover(error)
+          else fail("Failed to run command", error)
+        })
     } else {
       move.startSubmit()
       if (!(await attempt("Failed to prepare session", prepareAgent))) return true
@@ -1895,6 +1915,23 @@ export function Prompt(props: PromptProps) {
                 }}
               >
                 <Switch>
+                  <Match when={pendingCommands().length > 0}>
+                    <box flexDirection="row" gap={1} flexGrow={1} justifyContent="flex-start">
+                      <box marginLeft={1}>
+                        <PromptPendingCommands commands={pendingCommands()} />
+                      </box>
+                      <Show when={status() === "running"}>
+                        <PromptInterruptStatus
+                          armed={store.interrupt > 0}
+                          animations={animationsEnabled()}
+                          text={theme.text.base}
+                          subdued={theme.text.muted}
+                          warning={theme.text.feedback.warning.base}
+                          flash={theme.decrease(theme.text.feedback.warning.base, 2)}
+                        />
+                      </Show>
+                    </box>
+                  </Match>
                   <Match when={status() === "running"}>
                     <box flexDirection="row" gap={1} flexGrow={1} justifyContent="flex-start">
                       <box marginLeft={1}>
