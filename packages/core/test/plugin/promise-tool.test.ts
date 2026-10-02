@@ -12,11 +12,12 @@ import { PluginTestLayer } from "./fixture"
 
 const it = testEffect(PluginTestLayer)
 
-it.live("Promise tool executors receive interruption through their AbortSignal", () =>
+it.live("Promise tools interrupt even when their executor receives abort without settling", () =>
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service
     const tools = yield* Tool.Service
     const started = yield* Deferred.make<AbortSignal>()
+    const aborted = yield* Deferred.make<void>()
     yield* PluginPromise.fromPromise({
       id: "cancel-tool",
       async setup(context) {
@@ -27,8 +28,10 @@ it.live("Promise tool executors receive interruption through their AbortSignal",
             input: { type: "object", properties: {}, additionalProperties: false },
             options: { codemode: false },
             execute: (_input, context) =>
-              new Promise<never>((_resolve, reject) => {
-                context.signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true })
+              new Promise<never>(() => {
+                context.signal.addEventListener("abort", () => Effect.runSync(Deferred.succeed(aborted, undefined)), {
+                  once: true,
+                })
                 Effect.runSync(Deferred.succeed(started, context.signal))
               }),
           }),
@@ -48,8 +51,127 @@ it.live("Promise tool executors receive interruption through their AbortSignal",
     const signal = yield* Deferred.await(started)
     expect(signal.aborted).toBe(false)
     yield* Fiber.interrupt(fiber)
+    yield* Deferred.await(aborted)
     const exit = yield* Fiber.await(fiber)
     expect(signal.aborted).toBe(true)
     expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(true)
+  }),
+)
+
+it.live("Promise tool can checkpoint in abort cleanup", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const tools = yield* Tool.Service
+    const started = yield* Deferred.make<void>()
+    const checkpointStarted = yield* Deferred.make<void>()
+    const releaseCheckpoint = yield* Deferred.make<void>()
+    const checkpoints: unknown[] = []
+    const errors: unknown[] = []
+    yield* PluginPromise.fromPromise({
+      id: "checkpoint-cleanup",
+      async setup(host) {
+        await host.tool.transform((editor) =>
+          editor.add({
+            name: "checkpoint-wait",
+            description: "incremental work with abort cleanup",
+            input: { type: "object", properties: {}, additionalProperties: false },
+            options: { codemode: false },
+            execute: async (_input, context) => {
+              await context.checkpoint("ordinary checkpoint")
+              return await new Promise<never>(() => {
+                context.signal.addEventListener(
+                  "abort",
+                  () => {
+                    void context.checkpoint("partial output from abort cleanup").catch((error) => errors.push(error))
+                  },
+                  { once: true },
+                )
+                Effect.runSync(Deferred.succeed(started, undefined))
+              })
+            },
+          }),
+        )
+      },
+    }).effect(yield* PluginHost.make(plugins))
+    const snapshot = yield* tools.snapshot()
+    const fiber = yield* snapshot
+      .execute({
+        sessionID: Session.ID.make("ses_review_39565"),
+        agent: Agent.ID.make("build"),
+        messageID: SessionMessage.ID.make("msg_review_39565"),
+        call: { type: "tool-call", id: "call_review_39565", name: "checkpoint-wait", input: {} },
+        checkpoint: (checkpoint) =>
+          Effect.gen(function* () {
+            if (checkpoint === "partial output from abort cleanup") {
+              yield* Deferred.succeed(checkpointStarted, undefined)
+              yield* Deferred.await(releaseCheckpoint)
+            }
+            checkpoints.push(checkpoint)
+          }),
+      })
+      .pipe(Effect.forkScoped)
+    yield* Deferred.await(started)
+    const interrupt = yield* Fiber.interrupt(fiber).pipe(Effect.forkChild)
+    yield* Deferred.await(checkpointStarted)
+    expect(fiber.pollUnsafe()).toBeUndefined()
+    yield* Deferred.succeed(releaseCheckpoint, undefined)
+    yield* Fiber.join(interrupt)
+    const exit = yield* Fiber.await(fiber)
+    expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(true)
+    expect(errors).toEqual([])
+    expect(checkpoints).toEqual(["ordinary checkpoint", "partial output from abort cleanup"])
+  }),
+)
+
+it.live("Promise tool progress is cancelled with its executor", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const tools = yield* Tool.Service
+    const started = yield* Deferred.make<void>()
+    const cancelled = yield* Deferred.make<void>()
+    const progress = Promise.withResolvers<void>()
+    const errors: unknown[] = []
+    yield* PluginPromise.fromPromise({
+      id: "cancel-progress",
+      async setup(host) {
+        await host.tool.transform((editor) =>
+          editor.add({
+            name: "progress-wait",
+            description: "Report progress until cancelled",
+            input: { type: "object", properties: {}, additionalProperties: false },
+            options: { codemode: false },
+            execute: (_input, context) =>
+              new Promise<never>(() => {
+                void context
+                  .progress({ stage: "running" })
+                  .catch((error) => errors.push(error))
+                  .finally(progress.resolve)
+              }),
+          }),
+        )
+      },
+    }).effect(yield* PluginHost.make(plugins))
+    const snapshot = yield* tools.snapshot()
+    const fiber = yield* snapshot
+      .execute({
+        sessionID: Session.ID.make("ses_promise_progress_cancel"),
+        agent: Agent.ID.make("build"),
+        messageID: SessionMessage.ID.make("msg_promise_progress_cancel"),
+        call: { type: "tool-call", id: "call_promise_progress_cancel", name: "progress-wait", input: {} },
+        progress: () =>
+          Deferred.succeed(started, undefined).pipe(
+            Effect.andThen(Effect.never),
+            Effect.onInterrupt(() => Deferred.succeed(cancelled, undefined)),
+          ),
+      })
+      .pipe(Effect.forkScoped)
+    yield* Deferred.await(started)
+    yield* Fiber.interrupt(fiber)
+    yield* Deferred.await(cancelled)
+    yield* Effect.promise(() => progress.promise)
+    const exit = yield* Fiber.await(fiber)
+    expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(true)
+    expect(errors).toHaveLength(1)
+    expect(String(errors[0])).toContain("All fibers interrupted")
   }),
 )

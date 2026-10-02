@@ -6,7 +6,7 @@ import type { Scope } from "effect"
 import { HttpApiEndpoint, HttpApiSchema } from "effect/unstable/httpapi"
 import { define } from "../effect/plugin.js"
 import type { Plugin } from "./plugin.js"
-import type { Info } from "./tool.js"
+import type { Info, ToolContext } from "./tool.js"
 import type { RpcDomain, RpcHandlers } from "./rpc.js"
 
 type HostRegistration = { readonly dispose: Effect.Effect<void> }
@@ -619,11 +619,32 @@ function attempt<A>(evaluate: (signal: AbortSignal) => PromiseLike<A>) {
 type RuntimeSchema = Schema.Codec<unknown, unknown>
 
 const executePromiseTool = (tool: Info, input: any, context: Tool.Context) =>
-  Effect.promise((signal) =>
-    tool.execute(input, {
+  Effect.gen(function* () {
+    const controller = new AbortController()
+    const checkpoints = new Set<Promise<void>>()
+    const toolContext: ToolContext = {
       ...context,
-      signal,
-      progress: (update) => Effect.runPromise(context.progress(update), { signal }),
-      checkpoint: (checkpoint) => Effect.runPromise(context.checkpoint(checkpoint), { signal }),
-    }),
-  )
+      signal: controller.signal,
+      progress: (update) => Effect.runPromise(context.progress(update), { signal: controller.signal }),
+      checkpoint: (checkpoint) => {
+        const promise = Effect.runPromise(context.checkpoint(checkpoint))
+        checkpoints.add(promise)
+        void promise.then(
+          () => checkpoints.delete(promise),
+          () => checkpoints.delete(promise),
+        )
+        return promise
+      },
+    }
+
+    return yield* Effect.promise(() => tool.execute(input, toolContext)).pipe(
+      Effect.onInterrupt(() =>
+        Effect.gen(function* () {
+          // Abort listeners run synchronously and may register asynchronous checkpoint work.
+          // Keep the publisher alive for that work without waiting for the executor to cooperate.
+          controller.abort()
+          yield* Effect.promise(() => Promise.allSettled(checkpoints))
+        }),
+      ),
+    )
+  })

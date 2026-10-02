@@ -5192,6 +5192,155 @@ describe("SessionRunnerLLM", () => {
     ])
   })
 
+  scenario(
+    "persists bounded output and survives replay when an Effect tool checkpoints on interruption",
+    function* (s) {
+      const registry = yield* Tool.Service
+      yield* registry.transform((editor) =>
+        editor.add({
+          name: "cleanup-output",
+          description: "Incremental production tool",
+          options: { codemode: false },
+          input: Schema.Struct({}),
+          output: Schema.Struct({}),
+          execute: (_input, context) =>
+            s.awaitToolBarrier.pipe(
+              Effect.andThen(Effect.succeed({ output: {} })),
+              Effect.onInterrupt(() =>
+                context.checkpoint({
+                  content: "x".repeat(70_000),
+                  metadata: { capturedDuringCleanup: true },
+                }),
+              ),
+            ),
+        }),
+      )
+      yield* s.admit("interrupt incremental work")
+      const barrier = yield* s.blockTools()
+      yield* s.llm.push(
+        TestLLM.hangAfter(
+          LLMEvent.stepStart({ index: 0 }),
+          LLMEvent.toolCall({ id: "review-cleanup", name: "cleanup-output", input: {} }),
+        ),
+      )
+      const fiber = yield* s.resume.pipe(Effect.forkChild)
+      yield* barrier.started
+      yield* s.session.interrupt(sessionID)
+      expect(Exit.hasInterrupts(yield* Fiber.await(fiber))).toBe(true)
+      const before = yield* s.context
+      expect(before).toMatchObject([
+        Expected.user("interrupt incremental work"),
+        Expected.assistant({}, [
+          Expected.failedTool(
+            { id: "review-cleanup" },
+            { error: { type: "aborted" }, metadata: { truncated: true, capturedDuringCleanup: true } },
+          ),
+        ]),
+      ])
+      const assistant = requireAssistant(before)
+      const tool = assistant.content.find((part): part is SessionMessage.AssistantTool => part.type === "tool")
+      expect(
+        tool?.state.status === "error" &&
+          tool.state.content?.some((part) => part.type === "text" && part.text.includes("full output saved to")),
+      ).toBe(true)
+      yield* replaySessionProjection(sessionID)
+      expect(yield* s.context).toEqual(before)
+    },
+  )
+
+  scenario("persists large cleanup output and releases a nonsettling Promise tool before replay", function* (s) {
+    const { PluginPromise } = yield* Effect.promise(() => import("@opencode/core/plugin/promise"))
+    const registry = yield* Tool.Service
+    const hooks = yield* PluginHooks.Service
+    const started = yield* Deferred.make<void>()
+    const cleaned = Promise.withResolvers<void>()
+    const errors: unknown[] = []
+    yield* PluginPromise.fromPromise({
+      id: "review-promise-output",
+      async setup(context) {
+        await context.tool.transform((editor) =>
+          editor.add({
+            name: "promise-cleanup",
+            description: "Incremental production Promise tool",
+            options: { codemode: false },
+            input: { type: "object", properties: {}, additionalProperties: false },
+            execute: (_input, context) =>
+              new Promise<never>(() => {
+                context.signal.addEventListener(
+                  "abort",
+                  () => {
+                    void context
+                      .checkpoint({
+                        content: "x".repeat(70_000),
+                        metadata: { capturedDuringCleanup: true },
+                      })
+                      .catch((error) => errors.push(error))
+                      .finally(() => {
+                        cleaned.resolve()
+                      })
+                  },
+                  { once: true },
+                )
+                Effect.runSync(Deferred.succeed(started, undefined))
+              }),
+          }),
+        )
+      },
+    }).effect(
+      host({
+        tool: {
+          transform: registry.transform,
+          reload: registry.reload,
+          list: registry.list,
+          hook: (name, callback) => hooks.register("tool", name, callback),
+        },
+      }),
+    )
+    yield* s.admit("interrupt Promise incremental work")
+    yield* s.llm.push(
+      TestLLM.hangAfter(
+        LLMEvent.stepStart({ index: 0 }),
+        LLMEvent.toolCall({ id: "review-promise-cleanup", name: "promise-cleanup", input: {} }),
+      ),
+    )
+    const fiber = yield* s.resume.pipe(Effect.forkChild)
+    yield* Deferred.await(started)
+    yield* s.session.interrupt(sessionID)
+    expect(Exit.hasInterrupts(yield* Fiber.await(fiber))).toBe(true)
+    const execution = yield* SessionExecution.Service
+    expect(yield* execution.isActive(sessionID)).toBe(false)
+    yield* Effect.promise(() => cleaned.promise)
+    expect(errors).toEqual([])
+    const before = yield* s.context
+    expect(before).toMatchObject([
+      Expected.user("interrupt Promise incremental work"),
+      Expected.assistant({}, [
+        Expected.failedTool(
+          { id: "review-promise-cleanup" },
+          { error: { type: "aborted" }, metadata: { truncated: true, capturedDuringCleanup: true } },
+        ),
+      ]),
+    ])
+    const assistant = requireAssistant(before)
+    const tool = assistant.content.find((part): part is SessionMessage.AssistantTool => part.type === "tool")
+    expect(
+      tool?.state.status === "error" &&
+        tool.state.content?.some((part) => part.type === "text" && part.text.includes("full output saved to")),
+    ).toBe(true)
+    if (tool?.state.status !== "error") throw new Error("Expected an interrupted tool")
+    const outputPath = tool.state.metadata?.outputPath
+    if (typeof outputPath !== "string") throw new Error("Expected a retained full-output path")
+    expect(yield* Effect.promise(() => Bun.file(outputPath).text())).toBe("x".repeat(70_000))
+    expect(yield* recordedStepSettlementTypes(sessionID, assistant.id)).toEqual([
+      "session.step.started.1",
+      "session.tool.called.1",
+      "session.tool.failed.2",
+      "session.step.failed.1",
+    ])
+    yield* replaySessionProjection(sessionID)
+    expect(yield* s.context).toEqual(before)
+  })
+
   scenario("interrupts a blocked step without local tool execution", function* (s) {
     yield* s.admit("Interrupt provider")
     const stream = yield* s.llm.gate
