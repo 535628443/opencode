@@ -5,6 +5,7 @@ import {
   Cause,
   Clock,
   Context,
+  Deferred,
   Duration,
   Effect,
   Equal,
@@ -74,6 +75,11 @@ export interface OAuthImplementation {
   readonly method: OAuthMethod
   readonly authorize: (answer: Form.Answer) => Effect.Effect<OAuthAuthorization, unknown, Scope.Scope>
   readonly refresh?: (credential: Credential.OAuth) => Effect.Effect<Credential.OAuth, unknown>
+  readonly recover?: (
+    credential: Credential.OAuth,
+    status: number,
+    response?: { readonly headers?: Record<string, string>; readonly body?: string },
+  ) => Effect.Effect<Credential.OAuth | undefined, unknown>
   readonly label?: (credential: Credential.OAuth) => string | undefined
 }
 
@@ -169,6 +175,13 @@ export interface Interface extends State.Transformable<Editor> {
     readonly resolve: (
       connection: IntegrationConnection.Info,
     ) => Effect.Effect<Credential.Value | undefined, AuthorizationError>
+    /** Recovers a connection's credentials after an authentication rejection (HTTP 401/403). */
+    readonly recover: (input: {
+      readonly integrationID: ID
+      readonly connection: IntegrationConnection.Info
+      readonly status: number
+      readonly response?: { readonly headers?: Record<string, string>; readonly body?: string }
+    }) => Effect.Effect<Credential.Value | undefined, AuthorizationError>
     /** Runs a key method and stores the resulting credential. */
     readonly key: (input: {
       /** Integration receiving the credential. */
@@ -288,6 +301,7 @@ const layer = Layer.effect(
     const commandAttempts = SynchronizedRef.makeUnsafe(new Map<AttemptID, CommandAttemptEntry>())
     // Runtime-only: statuses describe the current process's view of a connection and are not persisted.
     const statuses = new Map<string, IntegrationConnection.Status>()
+    const inFlightRecoveries = new Map<string, Deferred.Deferred<Credential.Value | undefined, AuthorizationError>>()
     const statusKey = (integrationID: ID, connection: IntegrationConnection.Info) =>
       `${integrationID}:${IntegrationConnection.key(connection)}`
     const state = State.create<Data, Editor>({
@@ -691,7 +705,10 @@ const layer = Layer.effect(
       connection: {
         active: Effect.fn("Integration.connection.active")(function* (id) {
           const entry = state.get().integrations.get(id)
-          return resolveConnections(entry, yield* credentials.list(id))[0]
+          const connection = resolveConnections(entry, yield* credentials.list(id))[0]
+          if (!connection) return undefined
+          const status = statuses.get(statusKey(id, connection))
+          return status ? { ...connection, status } : connection
         }),
         resolve: Effect.fn("Integration.connection.resolve")(function* (connection) {
           if (connection.type === "env") {
@@ -711,6 +728,77 @@ const layer = Layer.effect(
           const value = yield* authorize(implementation.refresh(credential.value))
           yield* credentials.update(credential.id, { value })
           return value
+        }),
+        recover: Effect.fn("Integration.connection.recover")(function* (input) {
+          if (input.connection.type !== "credential") return undefined
+          const credentialID = input.connection.id
+          const existing = inFlightRecoveries.get(credentialID)
+          if (existing) {
+            return yield* Deferred.await(existing)
+          }
+          const deferred = yield* Deferred.make<Credential.Value | undefined, AuthorizationError>()
+          inFlightRecoveries.set(credentialID, deferred)
+
+          const result = yield* Effect.gen(function* () {
+            const key = statusKey(input.integrationID, input.connection)
+            const credential = yield* credentials.get(credentialID)
+            if (!credential || credential.value.type !== "oauth") {
+              statuses.set(key, { status: "needs_auth", message: "Authentication failed. Reconnect the integration." })
+              yield* bus.publish(Integration.Event.Updated, {})
+              return undefined
+            }
+            const oauthValue = credential.value
+
+            const implementation = state
+              .get()
+              .integrations.get(credential.integrationID)
+              ?.implementations.get(oauthValue.methodID)
+            if (!implementation) {
+              statuses.set(key, { status: "needs_auth", message: "Authentication failed. Reconnect the integration." })
+              yield* bus.publish(Integration.Event.Updated, {})
+              return undefined
+            }
+
+            const recovery = yield* Effect.gen(function* () {
+              if (implementation.recover) {
+                return yield* authorize(implementation.recover(oauthValue, input.status, input.response))
+              }
+              if (input.status === 401 && implementation.refresh) {
+                return yield* authorize(implementation.refresh(oauthValue))
+              }
+              return undefined
+            }).pipe(Effect.exit)
+
+            if (Exit.isSuccess(recovery) && recovery.value !== undefined) {
+              const value = recovery.value
+              yield* credentials.update(credential.id, { value })
+              if (statuses.has(key)) {
+                statuses.delete(key)
+                yield* bus.publish(Integration.Event.Updated, {})
+              }
+              return value
+            }
+
+            const failureMsg = Exit.isFailure(recovery)
+              ? message(recovery.cause)
+              : "Authentication failed. Reconnect the integration."
+            statuses.set(key, { status: "needs_auth", message: failureMsg })
+            yield* bus.publish(Integration.Event.Updated, {})
+
+            if (Exit.isFailure(recovery)) {
+              return yield* recovery
+            }
+            return undefined
+          }).pipe(
+            Effect.onExit((exit) =>
+              Effect.gen(function* () {
+                inFlightRecoveries.delete(credentialID)
+                yield* Deferred.done(deferred, exit)
+              }),
+            ),
+          )
+
+          return result
         }),
         key: Effect.fn("Integration.connection.key")(function* (input) {
           const method = state

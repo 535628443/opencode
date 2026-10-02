@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Cause, Clock, Duration, Effect, Exit, Fiber, Layer, Scope, Stream } from "effect"
+import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber, Option, Layer, Scope, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import { Credential } from "@opencode/core/credential"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
@@ -693,3 +693,488 @@ describe("AuthorizationError", () => {
     expect(new Integration.AuthorizationError({ cause: undefined }).message).toBe("Authorization failed")
   })
 })
+
+describe("Integration.connection.recover", () => {
+  it.effect("recovers 401 using standard refresh when recover is omitted", () =>
+    Effect.gen(function* () {
+      const integrations = yield* Integration.Service
+      const credentials = yield* Credential.Service
+      const integrationID = Integration.ID.make("test-oauth")
+      const methodID = Integration.MethodID.make("oauth-refresh")
+      let refreshCalls = 0
+
+      yield* integrations.transform((editor) => {
+        editor.update(integrationID, (integration) => {
+          integration.name = "Test OAuth"
+        })
+        editor.method.update({
+          integrationID,
+          method: { id: methodID, type: "oauth", label: "OAuth Refresh" },
+          authorize: () =>
+            Effect.succeed({
+              mode: "auto" as const,
+              url: "https://example.com/oauth",
+              instructions: "Login",
+              callback: Effect.succeed(
+                Credential.OAuth.make({
+                  type: "oauth",
+                  methodID,
+                  access: "token-initial",
+                  refresh: "refresh-initial",
+                  expires: 0,
+                }),
+              ),
+            }),
+          refresh: (value) => {
+            refreshCalls++
+            return Effect.succeed(
+              Credential.OAuth.make({
+                type: "oauth",
+                methodID,
+                access: "token-refreshed",
+                refresh: value.refresh,
+                expires: 0,
+              }),
+            )
+          },
+        })
+      })
+
+      const attempt = yield* integrations.oauth.connect({ integrationID, methodID })
+      yield* Effect.yieldNow
+      const cred = (yield* credentials.list(integrationID))[0]
+      expect(cred).toBeDefined()
+      expect(cred.value.type).toBe("oauth")
+      if (cred.value.type === "oauth") {
+        expect(cred.value.access).toBe("token-initial")
+      }
+
+      const recovered = yield* integrations.connection.recover({
+        integrationID,
+        connection: { type: "credential", id: cred.id, label: "OAuth", method: "oauth" },
+        status: 401,
+      })
+
+      expect(refreshCalls).toBe(1)
+      expect(recovered).toBeDefined()
+      expect(recovered?.type).toBe("oauth")
+      if (recovered?.type === "oauth") {
+        expect(recovered.access).toBe("token-refreshed")
+      }
+
+      const updatedCred = yield* credentials.get(cred.id)
+      expect(updatedCred).toBeDefined()
+      expect(updatedCred?.id).toBe(cred.id)
+      if (updatedCred?.value.type === "oauth") {
+        expect(updatedCred.value.access).toBe("token-refreshed")
+      }
+      expect((yield* integrations.connection.active(integrationID))?.status).toBeUndefined()
+    }),
+  )
+
+  it.effect("recovers using custom recover handler for 401 and 403", () =>
+    Effect.gen(function* () {
+      const integrations = yield* Integration.Service
+      const credentials = yield* Credential.Service
+      const integrationID = Integration.ID.make("test-custom-recover")
+      const methodID = Integration.MethodID.make("custom")
+      const recoveryStatuses: number[] = []
+
+      yield* integrations.transform((editor) => {
+        editor.update(integrationID, (integration) => {
+          integration.name = "Test Custom Recover"
+        })
+        editor.method.update({
+          integrationID,
+          method: { id: methodID, type: "oauth", label: "Custom OAuth" },
+          authorize: () =>
+            Effect.succeed({
+              mode: "auto" as const,
+              url: "https://example.com/oauth",
+              instructions: "Login",
+              callback: Effect.succeed(
+                Credential.OAuth.make({
+                  type: "oauth",
+                  methodID,
+                  access: "initial",
+                  refresh: "initial",
+                  expires: 0,
+                  metadata: { endpoint: "v1" },
+                }),
+              ),
+            }),
+          recover: (value, status) => {
+            recoveryStatuses.push(status)
+            if (status === 401) {
+              return Effect.succeed(
+                Credential.OAuth.make({
+                  ...value,
+                  access: "recovered-401",
+                }),
+              )
+            }
+            if (status === 403) {
+              return Effect.succeed(
+                Credential.OAuth.make({
+                  ...value,
+                  access: "recovered-403",
+                  metadata: { endpoint: "v2" },
+                }),
+              )
+            }
+            return Effect.succeed(undefined)
+          },
+        })
+      })
+
+      const attempt = yield* integrations.oauth.connect({ integrationID, methodID })
+      yield* Effect.yieldNow
+      const cred = (yield* credentials.list(integrationID))[0]
+
+      const rec401 = yield* integrations.connection.recover({
+        integrationID,
+        connection: { type: "credential", id: cred.id, label: "OAuth", method: "oauth" },
+        status: 401,
+      })
+      expect(rec401?.type).toBe("oauth")
+      if (rec401?.type === "oauth") {
+        expect(rec401.access).toBe("recovered-401")
+      }
+
+      const rec403 = yield* integrations.connection.recover({
+        integrationID,
+        connection: { type: "credential", id: cred.id, label: "OAuth", method: "oauth" },
+        status: 403,
+      })
+      expect(rec403?.type).toBe("oauth")
+      if (rec403?.type === "oauth") {
+        expect(rec403.access).toBe("recovered-403")
+        expect(rec403.metadata?.endpoint).toBe("v2")
+      }
+      expect(recoveryStatuses).toEqual([401, 403])
+    }),
+  )
+
+  it.effect("treats 403 as permanent denial when recover is omitted and sets needs_auth", () =>
+    Effect.gen(function* () {
+      const integrations = yield* Integration.Service
+      const credentials = yield* Credential.Service
+      const integrationID = Integration.ID.make("test-no-403-recover")
+      const methodID = Integration.MethodID.make("oauth")
+      let refreshCalls = 0
+
+      yield* integrations.transform((editor) => {
+        editor.update(integrationID, (integration) => {
+          integration.name = "Test No 403"
+        })
+        editor.method.update({
+          integrationID,
+          method: { id: methodID, type: "oauth", label: "OAuth" },
+          authorize: () =>
+            Effect.succeed({
+              mode: "auto" as const,
+              url: "https://example.com/oauth",
+              instructions: "Login",
+              callback: Effect.succeed(
+                Credential.OAuth.make({
+                  type: "oauth",
+                  methodID,
+                  access: "initial",
+                  refresh: "initial",
+                  expires: 0,
+                }),
+              ),
+            }),
+          refresh: () => {
+            refreshCalls++
+            return Effect.succeed(
+              Credential.OAuth.make({
+                type: "oauth",
+                methodID,
+                access: "refreshed",
+                refresh: "refreshed",
+                expires: 0,
+              }),
+            )
+          },
+        })
+      })
+
+      const attempt = yield* integrations.oauth.connect({ integrationID, methodID })
+      yield* Effect.yieldNow
+      const cred = (yield* credentials.list(integrationID))[0]
+
+      const recovered = yield* integrations.connection.recover({
+        integrationID,
+        connection: { type: "credential", id: cred.id, label: "OAuth", method: "oauth" },
+        status: 403,
+      })
+
+      expect(refreshCalls).toBe(0)
+      expect(recovered).toBeUndefined()
+
+      const item = yield* integrations.get(integrationID)
+      const connection = item?.connections.find((c) => c.type === "credential" && c.id === cred.id)
+      expect(connection?.status?.status).toBe("needs_auth")
+      const active = yield* integrations.connection.active(integrationID)
+      expect(active?.status?.status).toBe("needs_auth")
+    }),
+  )
+
+  it.effect("coalesces concurrent recoveries for the same credential", () =>
+    Effect.gen(function* () {
+      const integrations = yield* Integration.Service
+      const credentials = yield* Credential.Service
+      const integrationID = Integration.ID.make("test-concurrent-recover")
+      const methodID = Integration.MethodID.make("oauth")
+      let refreshCalls = 0
+
+      yield* integrations.transform((editor) => {
+        editor.update(integrationID, (integration) => {
+          integration.name = "Test Concurrent Recover"
+        })
+        editor.method.update({
+          integrationID,
+          method: { id: methodID, type: "oauth", label: "OAuth" },
+          authorize: () =>
+            Effect.succeed({
+              mode: "auto" as const,
+              url: "https://example.com/oauth",
+              instructions: "Login",
+              callback: Effect.succeed(
+                Credential.OAuth.make({
+                  type: "oauth",
+                  methodID,
+                  access: "initial",
+                  refresh: "initial",
+                  expires: 0,
+                }),
+              ),
+            }),
+          refresh: (value) =>
+            Effect.gen(function* () {
+              refreshCalls++
+              yield* Effect.promise(() => Bun.sleep(50))
+              return Credential.OAuth.make({
+                type: "oauth",
+                methodID,
+                access: "concurrent-refreshed",
+                refresh: value.refresh,
+                expires: 0,
+              })
+            }),
+        })
+      })
+
+      const attempt = yield* integrations.oauth.connect({ integrationID, methodID })
+      yield* Effect.yieldNow
+      const cred = (yield* credentials.list(integrationID))[0]
+
+      const [res1, res2, res3] = yield* Effect.all(
+        [
+          integrations.connection.recover({
+            integrationID,
+            connection: { type: "credential", id: cred.id, label: "OAuth", method: "oauth" },
+            status: 401,
+          }),
+          integrations.connection.recover({
+            integrationID,
+            connection: { type: "credential", id: cred.id, label: "OAuth", method: "oauth" },
+            status: 401,
+          }),
+          integrations.connection.recover({
+            integrationID,
+            connection: { type: "credential", id: cred.id, label: "OAuth", method: "oauth" },
+            status: 401,
+          }),
+        ],
+        { concurrency: "unbounded" },
+      )
+
+      expect(refreshCalls).toBe(1)
+      expect(res1?.type === "oauth" && res1.access).toBe("concurrent-refreshed")
+      expect(res2?.type === "oauth" && res2.access).toBe("concurrent-refreshed")
+      expect(res3?.type === "oauth" && res3.access).toBe("concurrent-refreshed")
+    }),
+  )
+
+  it.effect("cleans up in-flight recovery when starter fiber is interrupted", () =>
+    Effect.gen(function* () {
+      const integrations = yield* Integration.Service
+      const credentials = yield* Credential.Service
+      const integrationID = Integration.ID.make("test-interrupted-recover")
+      const methodID = Integration.MethodID.make("oauth")
+      const started = yield* Deferred.make<void>()
+
+      yield* integrations.transform((editor) => {
+        editor.update(integrationID, (integration) => {
+          integration.name = "Test Interrupted"
+        })
+        editor.method.update({
+          integrationID,
+          method: { id: methodID, type: "oauth", label: "OAuth" },
+          authorize: () =>
+            Effect.succeed({
+              mode: "auto" as const,
+              url: "https://example.com/oauth",
+              instructions: "Login",
+              callback: Effect.succeed(
+                Credential.OAuth.make({
+                  type: "oauth",
+                  methodID,
+                  access: "initial",
+                  refresh: "initial",
+                  expires: 0,
+                }),
+              ),
+            }),
+          refresh: (value) =>
+            Effect.gen(function* () {
+              yield* Deferred.succeed(started, undefined)
+              yield* Effect.never
+              return value
+            }),
+        })
+      })
+
+      const attempt = yield* integrations.oauth.connect({ integrationID, methodID })
+      yield* Effect.yieldNow
+      const cred = (yield* credentials.list(integrationID))[0]
+
+      const fiber = yield* integrations.connection
+        .recover({
+          integrationID,
+          connection: { type: "credential", id: cred.id, label: "OAuth", method: "oauth" },
+          status: 401,
+        })
+        .pipe(Effect.forkChild)
+
+      yield* Deferred.await(started)
+      yield* Fiber.interrupt(fiber)
+
+      yield* integrations.transform((editor) => {
+        editor.method.update({
+          integrationID,
+          method: { id: methodID, type: "oauth", label: "OAuth" },
+          authorize: () => Effect.die("unused"),
+          refresh: (value) =>
+            Effect.succeed(
+              Credential.OAuth.make({
+                type: "oauth",
+                methodID,
+                access: "recovered-after-interrupt",
+                refresh: value.refresh,
+                expires: 0,
+              }),
+            ),
+        })
+      })
+
+      const recovered = yield* integrations.connection.recover({
+        integrationID,
+        connection: { type: "credential", id: cred.id, label: "OAuth", method: "oauth" },
+        status: 401,
+      })
+      expect(recovered?.type === "oauth" && recovered.access).toBe("recovered-after-interrupt")
+    }),
+  )
+  ;["unsupported", "refresh-fails", "recover-fails", "recover-declines"].forEach((fixture) => {
+    it.effect(`marks OAuth authentication required when ${fixture}`, () =>
+      Effect.gen(function* () {
+        const integrations = yield* Integration.Service
+        const credentials = yield* Credential.Service
+        const integrationID = Integration.ID.make("failed-recovery")
+        const methodID = Integration.MethodID.make("oauth")
+        yield* integrations.transform((editor) =>
+          editor.method.update({
+            integrationID,
+            method: { id: methodID, type: "oauth", label: "OAuth" },
+            authorize: () => Effect.never,
+            ...(fixture === "recover-declines"
+              ? {
+                  recover: () => Effect.succeed(undefined),
+                  refresh: () => Effect.die("An explicit recovery decline must not invoke refresh"),
+                }
+              : {}),
+            ...(fixture === "refresh-fails" ? { refresh: () => Effect.fail(new Error("Refresh token revoked")) } : {}),
+            ...(fixture === "recover-fails" ? { recover: () => Effect.fail(new Error("Recovery denied")) } : {}),
+          }),
+        )
+        const credential = yield* credentials.create({
+          integrationID,
+          value: Credential.OAuth.make({
+            type: "oauth",
+            methodID,
+            access: "old",
+            refresh: "refresh",
+            expires: Number.MAX_SAFE_INTEGER,
+          }),
+        })
+        const result = yield* integrations.connection
+          .recover({
+            integrationID,
+            connection: { type: "credential", id: credential.id, label: "OAuth", method: "oauth" },
+            status: 401,
+          })
+          .pipe(Effect.exit)
+        expect(Exit.isFailure(result)).toBe(fixture === "refresh-fails" || fixture === "recover-fails")
+        const connection = yield* integrations.connection.active(integrationID)
+        expect(connection?.status?.status).toBe("needs_auth")
+        expect(connection?.status?.message).toContain(
+          fixture === "unsupported" || fixture === "recover-declines"
+            ? "Reconnect"
+            : fixture === "refresh-fails"
+              ? "revoked"
+              : "denied",
+        )
+        expect((yield* credentials.get(credential.id))?.value).toEqual(credential.value)
+      }),
+    )
+  })
+})
+
+it.live("creator cancellation cannot strand a concurrent credential recovery", () =>
+  Effect.gen(function* () {
+    const integrations = yield* Integration.Service
+    const credentials = yield* Credential.Service
+    const integrationID = Integration.ID.make("independent-recovery")
+    const methodID = Integration.MethodID.make("oauth")
+    const started = yield* Deferred.make<void>()
+    const gate = yield* Deferred.make<void>()
+    yield* integrations.transform((editor) =>
+      editor.method.update({
+        integrationID,
+        method: { id: methodID, type: "oauth", label: "Test OAuth" },
+        authorize: () => Effect.never,
+        recover: (credential) =>
+          Deferred.succeed(started, undefined).pipe(Effect.andThen(Deferred.await(gate)), Effect.as(credential)),
+      }),
+    )
+    const credential = yield* credentials.create({
+      integrationID,
+      value: Credential.OAuth.make({
+        type: "oauth",
+        methodID,
+        access: "old",
+        refresh: "refresh",
+        expires: Number.MAX_SAFE_INTEGER,
+      }),
+    })
+    const recover = integrations.connection.recover({
+      integrationID,
+      connection: { type: "credential", id: credential.id, label: "OAuth", method: "oauth" },
+      status: 401,
+    })
+    const creator = yield* recover.pipe(Effect.forkChild)
+    yield* Deferred.await(started)
+    const waiter = yield* recover.pipe(Effect.forkChild)
+    yield* Effect.yieldNow
+    yield* Fiber.interrupt(creator).pipe(Effect.forkChild)
+    yield* Effect.yieldNow
+    yield* Effect.yieldNow
+    yield* Deferred.succeed(gate, undefined)
+    const result = yield* Fiber.await(waiter).pipe(Effect.timeoutOption("300 millis"))
+    expect(Option.isSome(result)).toBe(true)
+    yield* Fiber.interrupt(waiter)
+  }),
+)
