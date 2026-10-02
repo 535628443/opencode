@@ -2,6 +2,8 @@ import fs from "fs/promises"
 import path from "path"
 import { describe, expect } from "bun:test"
 import { Cause, Effect, Exit, Layer, PlatformError } from "effect"
+import { ChildProcessSpawner } from "effect/unstable/process"
+import { CrossSpawnSpawner } from "@opencode/util/cross-spawn-spawner"
 import { Environment } from "@opencode/core/environment/index"
 import { FSUtil } from "@opencode/util/fs-util"
 import { LayerNode } from "@opencode/util/effect/layer-node"
@@ -519,4 +521,85 @@ describe("FileSystem", () => {
       }),
     ),
   )
+
+  for (const rootNewline of [false, true]) {
+    it.live(`exec canonicalization preserves exact path bytes with trailing newlines (root newline: ${rootNewline})`, () =>
+      withTmp((temporary) =>
+        Effect.gen(function* () {
+          const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+          const shim = path.join(temporary, "bin")
+          yield* Effect.promise(() => fs.mkdir(shim))
+          // GNU realpath supports -z -e; on macOS/BSD, adapt arguments to preserve canonical paths with delimiter
+          const shimScript = `#!/bin/sh
+zero=0
+target=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -z) zero=1 ;;
+    -e|--) ;;
+    *) target="$1" ;;
+  esac
+  shift
+done
+res=$(/bin/realpath "$target" 2>&1 && printf x) || {
+  code=$?
+  printf "%s" "\${res%x}" >&2
+  exit $code
+}
+res="\${res%x}"
+res="\${res%
+}"
+if [ "$zero" = 1 ]; then
+  printf "%s\\0" "$res"
+else
+  printf "%s\\n" "$res"
+fi
+`
+          yield* Effect.promise(() => fs.writeFile(path.join(shim, "realpath"), shimScript, { mode: 0o755 }))
+          const routed = ChildProcessSpawner.make((command) => {
+            if (command._tag !== "StandardCommand") return spawner.spawn(command)
+            return spawner.spawn({
+              ...command,
+              options: { ...command.options, env: { ...command.options.env, PATH: `${shim}:/usr/bin:/bin` } },
+            })
+          })
+          const base = Environment.makeFiles(Environment.makeLocalDriver(spawner))
+          const files = { ...base, realPath: Environment.execDefaults(routed).realPath }
+          const directory = path.join(temporary, rootNewline ? "root\n" : "root")
+          yield* base.mkdir(directory)
+          yield* base.write(path.join(directory, "value.txt"), new TextEncoder().encode("plain file"))
+          yield* base.write(path.join(directory, "value.txt\n"), new TextEncoder().encode("newline file"))
+          yield* Effect.gen(function* () {
+            const service = yield* FileSystem.Service
+            const result = yield* service.read({ path: RelativePath.make(rootNewline ? "value.txt" : "value.txt\n") })
+            expect(new TextDecoder().decode(result.content)).toBe(rootNewline ? "plain file" : "newline file")
+          }).pipe(
+            Effect.provide(
+              LayerNode.compile(FileSystem.node, {
+                replacements: [
+                  Location.node.replace(
+                    Layer.succeed(
+                      Location.Service,
+                      Location.Service.of(
+                        location({
+                          directory: AbsolutePath.make(directory),
+                          workspaceID: Workspace.ID.make("wrk_exec_newline_test"),
+                        }),
+                      ),
+                    ),
+                  ),
+                  Environment.node.replace(
+                    Layer.succeed(Environment.Service, {
+                      files,
+                      spawner: routed,
+                    }),
+                  ),
+                ],
+              }),
+            ),
+          )
+        }).pipe(Effect.provide(LayerNode.compile(CrossSpawnSpawner.node))),
+      ),
+    )
+  }
 })

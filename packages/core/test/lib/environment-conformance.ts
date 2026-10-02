@@ -202,6 +202,11 @@ export const environmentConformance = <E>(
         const missing = `${harness.root}/missing.txt`
         expect(yield* Effect.flip(harness.files.realPath(missing))).toBeInstanceOf(NotFound)
 
+        const newlineTarget = `${harness.root}/file.txt\n`
+        yield* harness.files.write(newlineTarget, bytes("newline content"))
+        const newlineCanonical = yield* harness.files.realPath(newlineTarget)
+        expect(newlineCanonical).toBe(newlineTarget)
+
         if (harness.symlink) {
           yield* harness.symlink("file.txt", `${harness.root}/link.txt`)
           expect(yield* harness.files.realPath(`${harness.root}/link.txt`)).toBe(target)
