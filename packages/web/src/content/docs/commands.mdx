@@ -136,6 +136,8 @@ You can also access individual arguments using positional parameters:
 - `$3` - Third argument
 - And so on...
 
+The highest-numbered placeholder includes any remaining arguments.
+
 For example:
 
 ```md title=".opencode/commands/create-file.md"
@@ -150,7 +152,7 @@ with the following content: $3
 Run the command:
 
 ```bash frame="none"
-/create-file config.json src "{ \"key\": \"value\" }"
+/create-file config.json src '{ "key": "value" }'
 ```
 
 This replaces:
@@ -191,7 +193,8 @@ Recent git commits:
 Review these changes and suggest any improvements.
 ```
 
-Commands run in your project's root directory and their output becomes part of the prompt.
+Shell interpolation runs in the session's working directory, which may be a subdirectory of your project, and its output becomes part of the prompt.
+It finishes before the command prompt is submitted, including commands that run a background subagent.
 
 ---
 
@@ -244,6 +247,7 @@ Use the `description` option to provide a brief description of what the command 
 {
   "commands": {
     "test": {
+      "template": "Run tests with coverage",
       "description": "Run tests with coverage"
     }
   }
@@ -264,6 +268,7 @@ To disable this behavior and run in the parent session instead, set `subagent` t
 {
   "commands": {
     "review": {
+      "template": "Review $ARGUMENTS",
       "agent": "plan"
     }
   }
@@ -277,7 +282,7 @@ This is an **optional** config option. If not specified, defaults to your curren
 ### Subagent
 
 Use the `subagent` boolean (or legacy alias `subtask`) to force the command to trigger a background [subagent](/docs/agents/#subagents) invocation.
-This runs the command in a background child session without polluting the parent session's context, and delivers a completion notice back to the parent session when done.
+This runs the command prompt in a background child session. The parent keeps its selected agent and model and receives a completion notice containing the child's result when done.
 
 ```json title="opencode.json"
 {
@@ -296,6 +301,8 @@ In native `commands` config or Markdown frontmatter, use `subagent: true` (or le
 
 This is an **optional** config option.
 
+When both `subagent` and `subtask` are present in native config or Markdown frontmatter, `subagent` takes precedence, including `false`. Setting it to `false` runs in the parent session, switching the parent's agent and model when specified by the command.
+
 ---
 
 ### Model
@@ -306,6 +313,7 @@ Use the `model` config to override the default model for this command.
 {
   "commands": {
     "analyze": {
+      "template": "Analyze $ARGUMENTS",
       "model": "anthropic/claude-3-5-sonnet-20241022"
     }
   }
