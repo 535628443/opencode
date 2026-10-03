@@ -80,7 +80,8 @@ export type CreateDataInput = {
   readonly onError?: (error: unknown) => void
 }
 
-const messageIDFromEvent = (eventID: Event.ID) => SessionMessage.ID.make(eventID.replace(/^evt_/, "msg_"))
+const messageIDFromEvent = (eventID: Event.ID) =>
+  SessionMessage.ID.make(eventID.replace(/^evt_/, "msg_"), { disableChecks: true })
 const messagePageLimit = 20
 // Trailing window for event bursts that each ask for the same refetch.
 export const settleMs = 150
@@ -609,8 +610,8 @@ export function createData(config: CreateDataInput) {
         delete draft.form[sessionID]
         for (const [rootID, family] of Object.entries(draft.family)) {
           const next = family.filter((id) => id !== sessionID)
-          if (next.length === 0) delete draft.family[SessionID.make(rootID)]
-          else draft.family[SessionID.make(rootID)] = next
+          if (next.length === 0) delete draft.family[SessionID.make(rootID, { disableChecks: true })]
+          else draft.family[SessionID.make(rootID, { disableChecks: true })] = next
         }
       }),
     )
@@ -628,7 +629,7 @@ export function createData(config: CreateDataInput) {
               if (activeUpdates !== updates) return
               // Lifecycle events received during hydration supersede the snapshot.
               const snapshot = new Map<SessionID, DataSessionStatus>(
-                Object.keys(active).map((id) => [SessionID.make(id), "running"]),
+                Object.keys(active).map((id) => [SessionID.make(id, { disableChecks: true }), "running"]),
               )
               updates.forEach((status, id) => {
                 if (status === undefined) return snapshot.delete(id)
@@ -1206,7 +1207,10 @@ export function createData(config: CreateDataInput) {
     if (event.type === "credential.updated" || event.type === "credential.switched") {
       Object.keys(store.location).forEach((key) => {
         const ref = JSON.parse(key) as [string, string | null]
-        const location = { directory: ref[0], workspaceID: ref[1] === null ? undefined : WorkspaceID.make(ref[1]) }
+        const location = {
+          directory: ref[0],
+          workspaceID: ref[1] === null ? undefined : WorkspaceID.make(ref[1], { disableChecks: true }),
+        }
         if (event.type === "credential.updated") {
           result.location.integration.invalidate(location)
           refresh(() => result.location.integration.sync(location))
