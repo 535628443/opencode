@@ -287,6 +287,7 @@ export const layer = Layer.effect(
       })
 
       const baseURL = base.model.route.endpoint.baseURL
+      const originalAuth = credentialHeaders(base.http?.headers)
       const modelHook = yield* hooks.trigger("session", "model.request", {
         ...scope,
         baseURL: typeof baseURL === "string" ? baseURL : undefined,
@@ -319,7 +320,7 @@ export const layer = Layer.effect(
           new Error("Provider context is incompatible with the route selected by model request hooks"),
         )
 
-      let usesConnection = true
+      let usesConnection = credentialHeaders(modelHook.headers) === originalAuth
       const hasHttpHooks =
         (yield* hooks.has("session", "http.request", model.ref.providerID)) ||
         (yield* hooks.has("session", "http.response", model.ref.providerID))
@@ -327,12 +328,12 @@ export const layer = Layer.effect(
         ? (req, handler) =>
             Effect.gen(function* () {
               const original = yield* HttpClientRequest.toWeb(req)
-              const authorization = original.headers.get("authorization")
+              const authorization = credentialHeaders(original.headers)
               const before = yield* hooks.trigger("session", "http.request", {
                 ...scope,
                 request: original,
               })
-              if (before.request.headers.get("authorization") !== authorization) usesConnection = false
+              if (credentialHeaders(before.request.headers) !== authorization) usesConnection = false
               let sent = HttpClientRequest.fromWeb(before.request)
               if (before.request.body)
                 sent = HttpClientRequest.bodyUint8Array(
@@ -360,13 +361,16 @@ export const layer = Layer.effect(
               session.id,
               {
                 handshake: (connect) =>
-                  hooks
-                    .trigger("session", "experimental.ws.handshake", {
+                  Effect.gen(function* () {
+                    const authorization = credentialHeaders(connect.headers)
+                    const event = yield* hooks.trigger("session", "experimental.ws.handshake", {
                       ...scope,
                       url: connect.url,
                       headers: connect.headers,
                     })
-                    .pipe(Effect.map((event) => ({ url: event.url, headers: event.headers }))),
+                    if (credentialHeaders(event.headers) !== authorization) usesConnection = false
+                    return { url: event.url, headers: event.headers }
+                  }),
                 send: (frame) =>
                   hooks
                     .trigger("session", "experimental.ws.send", { ...scope, frame })
@@ -425,3 +429,12 @@ export const node = makeLocationNode({
   layer,
   deps: [PluginHooks.node, SessionModelTransport.node, App.node],
 })
+
+// These are the credential headers used by the built-in provider routes. Snapshot before hooks
+// run because hooks may mutate the supplied Request or header object in place.
+function credentialHeaders(headers: Headers | Record<string, string> | undefined) {
+  const values = new Headers(headers)
+  return JSON.stringify(
+    ["authorization", "x-api-key", "api-key", "x-goog-api-key", "x-key"].map((name) => values.get(name)),
+  )
+}
