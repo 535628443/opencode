@@ -22,6 +22,7 @@ import { tempGlobalLayer } from "../fixture/global"
 import { offlineModels } from "../fixture/models"
 import { tmpdirScoped } from "../fixture/tmpdir"
 import { testEffect } from "../lib/effect"
+import PROMPT_REVIEW from "../../src/plugin/command/review.txt"
 
 const llmLayer = TestLLM.testLayer({ fallback: TestLLM.text("Review complete", "review") })
 const it = testEffect(
@@ -54,6 +55,43 @@ const it = testEffect(
 const parentModel = Model.Ref.make({ id: Model.ID.make("parent"), providerID: Provider.ID.make("test") })
 
 describe("command subagents", () => {
+  it.live("built-in review admits a normal parent prompt with explicit attachments", () =>
+    Effect.gen(function* () {
+      const parent = yield* project({}, "json", "custom-review")
+      const sessions = yield* Session.Service
+      const llm = yield* TestLLM.Test
+      const gate = yield* llm.gate()
+
+      yield* sessions.command({
+        sessionID: parent.id,
+        command: "review",
+        text: "branch @known.txt @reviewer",
+        files: [{ uri: "data:text/plain;base64,U1VQUExJRURfQVRUQUNITUVOVA==", name: "explicit.txt" }],
+        agents: [{ name: "lead" }],
+        skills: [{ id: Skill.ID.make("security") }],
+      })
+      yield* gate.started
+      expect((yield* sessions.list({ parentID: parent.id })).data).toEqual([])
+      expect(yield* sessions.get(parent.id)).toMatchObject({ agent: "build", model: parentModel })
+      const users = (yield* sessions.context(parent.id)).filter((message) => message.type === "user")
+      expect(users).toHaveLength(1)
+      expect(users[0]).toMatchObject({
+        text: PROMPT_REVIEW.replace("${path}", parent.location.directory).replaceAll(
+          "$ARGUMENTS",
+          "branch @known.txt @reviewer",
+        ),
+        agents: [{ name: "lead" }],
+        skills: [{ id: "security", name: "Security" }],
+      })
+      expect(users[0]?.files).toHaveLength(1)
+      const request = JSON.stringify((yield* llm.requests())[0])
+      expect(request).toContain("SUPPLIED_ATTACHMENT")
+      expect(request).toContain("# Security guide")
+      yield* gate.release
+      yield* sessions.wait(parent.id)
+    }),
+  )
+
   for (const fixture of [
     {
       name: "native JSON",
@@ -256,6 +294,7 @@ describe("command subagents", () => {
 function project(
   command: { agent?: string; model?: string; subagent?: boolean; subtask?: boolean; template?: string },
   format: "json" | "legacy-json" | "markdown",
+  name = "review",
 ) {
   return Effect.gen(function* () {
     const tmp = yield* tmpdirScoped()
@@ -276,14 +315,14 @@ function project(
           agents: { reviewer: { mode: "subagent", model: "test/child" } },
           ...(format === "markdown"
             ? {}
-            : { [format === "legacy-json" ? "command" : "commands"]: { review: definition } }),
+            : { [format === "legacy-json" ? "command" : "commands"]: { [name]: definition } }),
         }),
       )
     })
     if (format === "markdown")
       yield* Effect.promise(() =>
         Bun.write(
-          path.join(tmp.path, ".opencode/commands/review.md"),
+          path.join(tmp.path, ".opencode/commands", `${name}.md`),
           [
             "---",
             "description: Review code",
