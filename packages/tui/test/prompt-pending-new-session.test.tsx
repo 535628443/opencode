@@ -1,3 +1,6 @@
+import { Session } from "@opencode/schema/session"
+import { Model } from "@opencode/schema/model"
+import { Provider } from "@opencode/schema/provider"
 import { TextareaRenderable } from "@opentui/core"
 import { expect, test } from "bun:test"
 import { PendingCommands } from "../src/component/prompt/pending-command"
@@ -6,16 +9,19 @@ import { createAppFixture } from "./fixture/app"
 import { agent, model, session } from "./fixture/local"
 import { directory, json } from "./fixture/tui-client"
 
+const sessionID = Session.ID.make("ses_pending_create", { disableChecks: true })
+const selection = { providerID: Provider.ID.make("provider"), id: Model.ID.make("first") }
+
 async function launch() {
   PendingCommands.clear()
   takeDraft(undefined)
-  takeDraft("ses_pending_create")
+  takeDraft(sessionID)
   const created = Promise.withResolvers<Response>()
   const environment = Promise.withResolvers<Response>()
   const command = Promise.withResolvers<Response>()
   const calls: string[] = []
   const setup = await createAppFixture({
-    args: { newSessionID: "ses_pending_create" },
+    args: { newSessionID: sessionID },
     environment: { PENDING_TEST: "value" },
     config: { animations: false, tabs: { enabled: false } },
     fetch: async (url, request) => {
@@ -27,7 +33,7 @@ async function launch() {
         return json({ location, data: [{ name: "mcp-slow", description: "Slow MCP prompt" }] })
       if (url.pathname === "/api/session" && request.method === "POST") {
         calls.push("create")
-        expect((await request.json()).id).toBe("ses_pending_create")
+        expect((await request.json()).id).toBe(sessionID)
         return created.promise
       }
       if (url.pathname.endsWith("/environment") && request.method === "PUT") {
@@ -42,8 +48,7 @@ async function launch() {
       }
       if (/^\/api\/session\/[^/]+\/(message|inbox|permission|family)$/.test(url.pathname))
         return json({ data: [], cursor: {} })
-      if (/^\/api\/session\/[^/]+$/.test(url.pathname))
-        return json({ data: session("ses_pending_create", { providerID: "provider", id: "first" }) })
+      if (/^\/api\/session\/[^/]+$/.test(url.pathname)) return json({ data: session(sessionID, selection) })
     },
   })
   await setup.ready
@@ -58,7 +63,7 @@ async function launch() {
     environment,
     command,
     async [Symbol.asyncDispose]() {
-      created.resolve(json({ data: session("ses_pending_create", { providerID: "provider", id: "first" }) }))
+      created.resolve(json({ data: session(sessionID, selection) }))
       environment.resolve(new Response(null, { status: 204 }))
       command.resolve(new Response(null, { status: 204 }))
       await setup[Symbol.asyncDispose]()
@@ -70,21 +75,21 @@ test("new-session command stays pending throughout creation, environment setup a
   await using run = await launch()
   const setup = run.setup
 
-  expect(PendingCommands.list("ses_pending_create")).toHaveLength(1)
+  expect(PendingCommands.list(sessionID)).toHaveLength(1)
   expect(run.calls).toEqual(["create"])
   expect(setup.renderer.currentFocusedEditor?.plainText).toBe("")
 
-  run.created.resolve(json({ data: session("ses_pending_create", { providerID: "provider", id: "first" }) }))
+  run.created.resolve(json({ data: session(sessionID, selection) }))
   await setup.waitForFrame((frame) => run.calls.includes("environment") && frame.includes("Resolving /mcp-slow"))
   expect(run.calls).not.toContain("command")
-  expect(PendingCommands.list("ses_pending_create")).toHaveLength(1)
+  expect(PendingCommands.list(sessionID)).toHaveLength(1)
 
   run.environment.resolve(new Response(null, { status: 204 }))
   await setup.waitForFrame((frame) => run.calls.includes("command") && frame.includes("Resolving /mcp-slow"))
   expect(run.calls.filter((call) => call === "command")).toHaveLength(1)
   run.command.resolve(new Response(null, { status: 204 }))
   await setup.waitForFrame((frame) => !frame.includes("Resolving /mcp-slow"))
-  expect(PendingCommands.list("ses_pending_create")).toEqual([])
+  expect(PendingCommands.list(sessionID)).toEqual([])
 })
 
 for (const phase of ["create", "environment"] as const) {
@@ -93,7 +98,7 @@ for (const phase of ["create", "environment"] as const) {
       await using run = await launch()
       const setup = run.setup
       if (phase === "environment") {
-        run.created.resolve(json({ data: session("ses_pending_create", { providerID: "provider", id: "first" }) }))
+        run.created.resolve(json({ data: session(sessionID, selection) }))
         await setup.waitForFrame(() => run.calls.includes("environment"))
       }
       const textarea = setup.renderer.currentFocusedEditor
@@ -106,7 +111,7 @@ for (const phase of ["create", "environment"] as const) {
       gate.resolve(json({ message: `${phase} failed` }, { status: 500 }))
       const expectedDraft = newerDraft ? "keep my newer draft" : "/mcp-slow new session arguments"
       await setup.waitForFrame((frame) => frame.includes(expectedDraft) && !frame.includes("Resolving /mcp-slow"))
-      expect(PendingCommands.list("ses_pending_create")).toEqual([])
+      expect(PendingCommands.list(sessionID)).toEqual([])
       expect(run.calls).not.toContain("command")
       expect(setup.renderer.currentFocusedEditor?.plainText).toBe(expectedDraft)
     })

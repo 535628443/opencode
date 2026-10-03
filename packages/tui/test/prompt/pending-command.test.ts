@@ -1,3 +1,6 @@
+import type { SessionMessage } from "@opencode/schema/session-message"
+import type { PendingCommand } from "../../src/component/prompt/pending-command"
+import { Session } from "@opencode/schema/session"
 import { describe, expect, test } from "bun:test"
 import { formatPendingCommandText, PendingCommands } from "../../src/component/prompt/pending-command"
 import { Skill } from "@opencode/schema/skill"
@@ -5,10 +8,10 @@ import type { PromptInfo } from "../../src/prompt/history"
 
 describe("pending slash commands", () => {
   test("adds and lists pending commands for a session", () => {
-    PendingCommands.clear("ses_1")
+    PendingCommands.clear(Session.ID.make("ses_1", { disableChecks: true }))
 
     const cmd = PendingCommands.add({
-      sessionID: "ses_1",
+      sessionID: Session.ID.make("ses_1", { disableChecks: true }),
       name: "mcp-prompt",
       arguments: "arg1 arg2",
       delivery: "steer",
@@ -19,23 +22,23 @@ describe("pending slash commands", () => {
     expect(cmd.arguments).toBe("arg1 arg2")
     expect(cmd.delivery).toBe("steer")
 
-    const list = PendingCommands.list("ses_1")
+    const list = PendingCommands.list(Session.ID.make("ses_1", { disableChecks: true }))
     expect(list).toHaveLength(1)
     expect(list[0]).toEqual(cmd)
 
-    PendingCommands.remove(cmd.id, "ses_1")
-    expect(PendingCommands.list("ses_1")).toHaveLength(0)
+    PendingCommands.remove(cmd.id, Session.ID.make("ses_1", { disableChecks: true }))
+    expect(PendingCommands.list(Session.ID.make("ses_1", { disableChecks: true }))).toHaveLength(0)
   })
 
   test("preserves attachments, agents, skills, and delivery mode", () => {
-    PendingCommands.clear("ses_attachments")
+    PendingCommands.clear(Session.ID.make("ses_attachments", { disableChecks: true }))
 
     const files: PromptInfo["files"] = [{ uri: "file:///test.txt", name: "test.txt" }]
     const agents: PromptInfo["agents"] = [{ name: "builder" }]
     const skills: PromptInfo["skills"] = [{ id: Skill.ID.make("skill_1") }]
 
     const cmd = PendingCommands.add({
-      sessionID: "ses_attachments",
+      sessionID: Session.ID.make("ses_attachments", { disableChecks: true }),
       name: "review-code",
       arguments: "--verbose",
       delivery: "queue",
@@ -49,56 +52,56 @@ describe("pending slash commands", () => {
     expect(cmd.skills).toEqual(skills)
     expect(cmd.delivery).toBe("queue")
 
-    PendingCommands.clear("ses_attachments")
+    PendingCommands.clear(Session.ID.make("ses_attachments", { disableChecks: true }))
   })
 
   test("isolates pending commands across multiple sessions", () => {
-    PendingCommands.clear("ses_a")
-    PendingCommands.clear("ses_b")
+    PendingCommands.clear(Session.ID.make("ses_a", { disableChecks: true }))
+    PendingCommands.clear(Session.ID.make("ses_b", { disableChecks: true }))
 
     const cmdA = PendingCommands.add({
-      sessionID: "ses_a",
+      sessionID: Session.ID.make("ses_a", { disableChecks: true }),
       name: "cmd-a",
       delivery: "steer",
     })
 
     const cmdB = PendingCommands.add({
-      sessionID: "ses_b",
+      sessionID: Session.ID.make("ses_b", { disableChecks: true }),
       name: "cmd-b",
       delivery: "steer",
     })
 
-    expect(PendingCommands.list("ses_a")).toEqual([cmdA])
-    expect(PendingCommands.list("ses_b")).toEqual([cmdB])
-    expect(PendingCommands.list("ses_c")).toEqual([])
+    expect(PendingCommands.list(Session.ID.make("ses_a", { disableChecks: true }))).toEqual([cmdA])
+    expect(PendingCommands.list(Session.ID.make("ses_b", { disableChecks: true }))).toEqual([cmdB])
+    expect(PendingCommands.list(Session.ID.make("ses_c", { disableChecks: true }))).toEqual([])
 
-    PendingCommands.remove(cmdA.id, "ses_a")
-    expect(PendingCommands.list("ses_a")).toEqual([])
-    expect(PendingCommands.list("ses_b")).toEqual([cmdB])
+    PendingCommands.remove(cmdA.id, Session.ID.make("ses_a", { disableChecks: true }))
+    expect(PendingCommands.list(Session.ID.make("ses_a", { disableChecks: true }))).toEqual([])
+    expect(PendingCommands.list(Session.ID.make("ses_b", { disableChecks: true }))).toEqual([cmdB])
 
-    PendingCommands.remove(cmdB.id, "ses_b")
-    expect(PendingCommands.list("ses_b")).toEqual([])
+    PendingCommands.remove(cmdB.id, Session.ID.make("ses_b", { disableChecks: true }))
+    expect(PendingCommands.list(Session.ID.make("ses_b", { disableChecks: true }))).toEqual([])
   })
 
   test("handles multiple concurrent submissions in the same session without colliding", () => {
-    PendingCommands.clear("ses_multi")
+    PendingCommands.clear(Session.ID.make("ses_multi", { disableChecks: true }))
 
     const cmd1 = PendingCommands.add({
-      sessionID: "ses_multi",
+      sessionID: Session.ID.make("ses_multi", { disableChecks: true }),
       name: "mcp-slow-1",
       arguments: "first",
       delivery: "steer",
     })
 
     const cmd2 = PendingCommands.add({
-      sessionID: "ses_multi",
+      sessionID: Session.ID.make("ses_multi", { disableChecks: true }),
       name: "mcp-slow-2",
       arguments: "second",
       delivery: "steer",
     })
 
     const cmd3 = PendingCommands.add({
-      sessionID: "ses_multi",
+      sessionID: Session.ID.make("ses_multi", { disableChecks: true }),
       name: "mcp-slow-1", // repeated submission of same command name
       arguments: "third",
       delivery: "queue",
@@ -107,25 +110,25 @@ describe("pending slash commands", () => {
     expect(cmd1.id).not.toBe(cmd2.id)
     expect(cmd1.id).not.toBe(cmd3.id)
 
-    expect(PendingCommands.list("ses_multi")).toEqual([cmd1, cmd2, cmd3])
+    expect(PendingCommands.list(Session.ID.make("ses_multi", { disableChecks: true }))).toEqual([cmd1, cmd2, cmd3])
 
     // Removing cmd2 leaves cmd1 and cmd3
-    PendingCommands.remove(cmd2.id, "ses_multi")
-    expect(PendingCommands.list("ses_multi")).toEqual([cmd1, cmd3])
+    PendingCommands.remove(cmd2.id, Session.ID.make("ses_multi", { disableChecks: true }))
+    expect(PendingCommands.list(Session.ID.make("ses_multi", { disableChecks: true }))).toEqual([cmd1, cmd3])
 
     // Removing cmd1 leaves cmd3
-    PendingCommands.remove(cmd1.id, "ses_multi")
-    expect(PendingCommands.list("ses_multi")).toEqual([cmd3])
+    PendingCommands.remove(cmd1.id, Session.ID.make("ses_multi", { disableChecks: true }))
+    expect(PendingCommands.list(Session.ID.make("ses_multi", { disableChecks: true }))).toEqual([cmd3])
 
-    PendingCommands.remove(cmd3.id, "ses_multi")
-    expect(PendingCommands.list("ses_multi")).toEqual([])
+    PendingCommands.remove(cmd3.id, Session.ID.make("ses_multi", { disableChecks: true }))
+    expect(PendingCommands.list(Session.ID.make("ses_multi", { disableChecks: true }))).toEqual([])
   })
 
   test("formats pending command display text correctly for various options", () => {
     expect(
       formatPendingCommandText({
         id: "1",
-        sessionID: "s",
+        sessionID: Session.ID.make("s", { disableChecks: true }),
         name: "test-cmd",
         delivery: "steer",
       }),
@@ -134,7 +137,7 @@ describe("pending slash commands", () => {
     expect(
       formatPendingCommandText({
         id: "2",
-        sessionID: "s",
+        sessionID: Session.ID.make("s", { disableChecks: true }),
         name: "test-cmd",
         arguments: "arg1 arg2",
         delivery: "steer",
@@ -144,7 +147,7 @@ describe("pending slash commands", () => {
     expect(
       formatPendingCommandText({
         id: "3",
-        sessionID: "s",
+        sessionID: Session.ID.make("s", { disableChecks: true }),
         name: "test-cmd",
         arguments: "arg1",
         delivery: "queue",
@@ -155,7 +158,7 @@ describe("pending slash commands", () => {
       formatPendingCommandText(
         {
           id: "4",
-          sessionID: "s",
+          sessionID: Session.ID.make("s", { disableChecks: true }),
           name: "test-cmd",
           delivery: "steer",
         },
@@ -164,3 +167,19 @@ describe("pending slash commands", () => {
     ).toBe("Resolving /test-cmd (+3 more)…")
   })
 })
+
+// These assertions target the production API so widening a Session boundary breaks typecheck.
+type Assert<T extends true> = T
+export type PendingCommandSessionBoundary = [
+  Assert<SessionMessage.ID extends PendingCommand["sessionID"] ? false : true>,
+  Assert<SessionMessage.ID extends Parameters<typeof PendingCommands.list>[0] ? false : true>,
+  Assert<SessionMessage.ID extends Parameters<typeof PendingCommands.add>[0]["sessionID"] ? false : true>,
+  Assert<SessionMessage.ID extends Parameters<typeof PendingCommands.remove>[1] ? false : true>,
+  Assert<SessionMessage.ID extends Parameters<typeof PendingCommands.clear>[0] ? false : true>,
+  Assert<string extends Parameters<typeof PendingCommands.list>[0] ? false : true>,
+  Assert<string extends Parameters<typeof PendingCommands.add>[0]["sessionID"] ? false : true>,
+  Assert<string extends Parameters<typeof PendingCommands.remove>[1] ? false : true>,
+  Assert<string extends Parameters<typeof PendingCommands.clear>[0] ? false : true>,
+  Assert<string extends PendingCommand["id"] ? true : false>,
+  Assert<string extends Parameters<typeof PendingCommands.remove>[0] ? true : false>,
+]

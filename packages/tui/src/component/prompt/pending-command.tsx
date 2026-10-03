@@ -1,3 +1,4 @@
+import { Session } from "@opencode/schema/session"
 import { createStore } from "solid-js/store"
 import { Show, createMemo } from "solid-js"
 import type { SessionInbox } from "@opencode/schema/session-inbox"
@@ -8,7 +9,7 @@ import { SPINNER_FRAMES } from "../spinner"
 
 export type PendingCommand = {
   readonly id: string
-  readonly sessionID: string
+  readonly sessionID: Session.ID
   readonly name: string
   readonly arguments?: string
   readonly delivery: SessionInbox.Delivery
@@ -17,7 +18,7 @@ export type PendingCommand = {
   readonly skills?: PromptInfo["skills"]
 }
 
-const [store, setStore] = createStore<Record<string, PendingCommand[]>>({})
+const [store, setStore] = createStore<Record<Session.ID, PendingCommand[]>>({})
 
 let nextId = 0
 function createCommandId() {
@@ -25,7 +26,7 @@ function createCommandId() {
 }
 
 export const PendingCommands = {
-  list(sessionID: string | undefined): readonly PendingCommand[] {
+  list(sessionID: Session.ID | undefined): readonly PendingCommand[] {
     if (!sessionID) return []
     return store[sessionID] ?? []
   },
@@ -43,23 +44,23 @@ export const PendingCommands = {
     setStore(input.sessionID, (prev = []) => [...prev, command])
     return command
   },
-  remove(id: string, sessionID?: string) {
+  remove(id: string, sessionID?: Session.ID) {
     if (sessionID) {
       setStore(sessionID, (prev = []) => prev.filter((item) => item.id !== id))
       return
     }
-    for (const key of Object.keys(store)) {
+    for (const key of Object.keys(store).map((key) => Session.ID.make(key, { disableChecks: true }))) {
       if (store[key]?.some((item) => item.id === id)) {
         setStore(key, (prev = []) => prev.filter((item) => item.id !== id))
       }
     }
   },
-  clear(sessionID?: string) {
+  clear(sessionID?: Session.ID) {
     if (sessionID) {
       setStore(sessionID, [])
       return
     }
-    for (const key of Object.keys(store)) {
+    for (const key of Object.keys(store).map((key) => Session.ID.make(key, { disableChecks: true }))) {
       setStore(key, [])
     }
   },

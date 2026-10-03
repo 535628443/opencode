@@ -1,4 +1,8 @@
 /** @jsxImportSource @opentui/solid */
+import { Model } from "@opencode/schema/model"
+import { Provider } from "@opencode/schema/provider"
+import { Event } from "@opencode/schema/event"
+import { Session } from "@opencode/schema/session"
 import { TextareaRenderable } from "@opentui/core"
 import { testRender } from "@opentui/solid"
 import { expect, test } from "bun:test"
@@ -53,7 +57,7 @@ async function wait(fn: () => boolean, timeout = 2000) {
 test("formatPendingCommandText formats single, queued, and multiple commands", () => {
   const single: PendingCommand = {
     id: "1",
-    sessionID: "s1",
+    sessionID: Session.ID.make("s1", { disableChecks: true }),
     name: "mcp-cmd",
     arguments: "arg1",
     delivery: "steer",
@@ -62,7 +66,7 @@ test("formatPendingCommandText formats single, queued, and multiple commands", (
 
   const queued: PendingCommand = {
     id: "2",
-    sessionID: "s1",
+    sessionID: Session.ID.make("s1", { disableChecks: true }),
     name: "mcp-cmd",
     arguments: "arg1",
     delivery: "queue",
@@ -75,7 +79,7 @@ test("formatPendingCommandText formats single, queued, and multiple commands", (
 test("PromptPendingCommands renders in narrow and wide terminal layouts", async () => {
   const command: PendingCommand = {
     id: "cmd_1",
-    sessionID: "s1",
+    sessionID: Session.ID.make("s1", { disableChecks: true }),
     name: "slow-prompt",
     arguments: "hello world",
     delivery: "steer",
@@ -126,7 +130,7 @@ test("PromptPendingCommands renders in narrow and wide terminal layouts", async 
 })
 
 async function mountProductionPrompt(input: {
-  sessionID: string
+  sessionID: Session.ID
   fetch?: FetchHandler
   width?: number
   height?: number
@@ -155,7 +159,12 @@ async function mountProductionPrompt(input: {
     if (url.pathname === "/api/model") return json({ location, data: [model("first")] })
     if (url.pathname === "/api/command") return json({ location, data: commands })
     if (/^\/api\/session\/[^/]+$/.test(url.pathname))
-      return json({ data: session(url.pathname.split("/").at(-1)!, { providerID: "provider", id: "first" }) })
+      return json({
+        data: session(Session.ID.make(url.pathname.split("/").at(-1)!, { disableChecks: true }), {
+          providerID: Provider.ID.make("provider"),
+          id: Model.ID.make("first"),
+        }),
+      })
   }, events)
 
   const [activeSession, setActiveSession] = createSignal(input.sessionID)
@@ -289,7 +298,7 @@ test("production Prompt shows pending state immediately on slash command submit 
   let commandCalled = false
 
   const harness = await mountProductionPrompt({
-    sessionID: "ses_prompt_success",
+    sessionID: Session.ID.make("ses_prompt_success", { disableChecks: true }),
     fetch: (url, request) => {
       if (url.pathname === "/api/session/ses_prompt_success/command" && request.method === "POST") {
         commandCalled = true
@@ -315,16 +324,20 @@ test("production Prompt shows pending state immediately on slash command submit 
     expect(textarea.plainText).toBe("")
 
     // Verify pending command is in store and visible in TUI frame
-    expect(PendingCommands.list("ses_prompt_success")).toHaveLength(1)
-    expect(PendingCommands.list("ses_prompt_success")[0].name).toBe("mcp-slow")
-    expect(PendingCommands.list("ses_prompt_success")[0].arguments).toBe("hello world")
+    expect(PendingCommands.list(Session.ID.make("ses_prompt_success", { disableChecks: true }))).toHaveLength(1)
+    expect(PendingCommands.list(Session.ID.make("ses_prompt_success", { disableChecks: true }))[0].name).toBe(
+      "mcp-slow",
+    )
+    expect(PendingCommands.list(Session.ID.make("ses_prompt_success", { disableChecks: true }))[0].arguments).toBe(
+      "hello world",
+    )
 
     await harness.app.renderOnce()
     expect(harness.app.captureCharFrame()).toContain("Resolving /mcp-slow hello world…")
 
     // Resolve command
     commandSettled.resolve(new Response(null, { status: 204 }))
-    await wait(() => PendingCommands.list("ses_prompt_success").length === 0)
+    await wait(() => PendingCommands.list(Session.ID.make("ses_prompt_success", { disableChecks: true })).length === 0)
 
     // Verify pending indicator cleared
     await harness.app.renderOnce()
@@ -340,7 +353,7 @@ test("production Prompt shows pending state on failing command and restores draf
   let commandCalled = false
 
   const harness = await mountProductionPrompt({
-    sessionID: "ses_prompt_fail",
+    sessionID: Session.ID.make("ses_prompt_fail", { disableChecks: true }),
     fetch: (url, request) => {
       if (url.pathname === "/api/session/ses_prompt_fail/command" && request.method === "POST") {
         commandCalled = true
@@ -363,13 +376,13 @@ test("production Prompt shows pending state on failing command and restores draf
     await wait(() => commandCalled)
 
     // Verify pending state active
-    expect(PendingCommands.list("ses_prompt_fail")).toHaveLength(1)
+    expect(PendingCommands.list(Session.ID.make("ses_prompt_fail", { disableChecks: true }))).toHaveLength(1)
     await harness.app.renderOnce()
     expect(harness.app.captureCharFrame()).toContain("Resolving /mcp-fail test-args…")
 
     // Fail the command
     commandSettled.reject(new Error("MCP server timeout"))
-    await wait(() => PendingCommands.list("ses_prompt_fail").length === 0)
+    await wait(() => PendingCommands.list(Session.ID.make("ses_prompt_fail", { disableChecks: true })).length === 0)
 
     // Verify pending indicator cleared and composer restored draft
     await harness.app.renderOnce()
@@ -386,7 +399,7 @@ test("production Prompt preserves newly typed input when an in-flight command fa
   let commandCalled = false
 
   const harness = await mountProductionPrompt({
-    sessionID: "ses_prompt_typing",
+    sessionID: Session.ID.make("ses_prompt_typing", { disableChecks: true }),
     fetch: (url, request) => {
       if (url.pathname === "/api/session/ses_prompt_typing/command" && request.method === "POST") {
         commandCalled = true
@@ -413,7 +426,7 @@ test("production Prompt preserves newly typed input when an in-flight command fa
 
     // Command fails
     commandSettled.reject(new Error("MCP server error"))
-    await wait(() => PendingCommands.list("ses_prompt_typing").length === 0)
+    await wait(() => PendingCommands.list(Session.ID.make("ses_prompt_typing", { disableChecks: true })).length === 0)
 
     // Newly typed text is PRESERVED, not clobbered by old draft
     await harness.app.renderOnce()
@@ -430,7 +443,7 @@ test("production Prompt handles multiple concurrent slash command submissions", 
   const called: string[] = []
 
   const harness = await mountProductionPrompt({
-    sessionID: "ses_prompt_multi",
+    sessionID: Session.ID.make("ses_prompt_multi", { disableChecks: true }),
     fetch: async (url, request) => {
       if (url.pathname === "/api/session/ses_prompt_multi/command" && request.method === "POST") {
         const body = (await request.json()) as { name: string }
@@ -459,13 +472,13 @@ test("production Prompt handles multiple concurrent slash command submissions", 
     await wait(() => called.includes("second-cmd"))
 
     // Both are pending concurrently
-    expect(PendingCommands.list("ses_prompt_multi")).toHaveLength(2)
+    expect(PendingCommands.list(Session.ID.make("ses_prompt_multi", { disableChecks: true }))).toHaveLength(2)
     await harness.app.renderOnce()
     expect(harness.app.captureCharFrame()).toContain("Resolving /first-cmd foo (+1 more)…")
 
     // Resolve first command
     firstSettled.resolve(new Response(null, { status: 204 }))
-    await wait(() => PendingCommands.list("ses_prompt_multi").length === 1)
+    await wait(() => PendingCommands.list(Session.ID.make("ses_prompt_multi", { disableChecks: true })).length === 1)
 
     // Second command is now the primary visible pending command
     await harness.app.renderOnce()
@@ -473,7 +486,7 @@ test("production Prompt handles multiple concurrent slash command submissions", 
 
     // Resolve second command
     secondSettled.resolve(new Response(null, { status: 204 }))
-    await wait(() => PendingCommands.list("ses_prompt_multi").length === 0)
+    await wait(() => PendingCommands.list(Session.ID.make("ses_prompt_multi", { disableChecks: true })).length === 0)
 
     await harness.app.renderOnce()
     expect(harness.app.captureCharFrame()).not.toContain("Resolving")
@@ -488,7 +501,7 @@ test("production Prompt preserves failed command draft after blank Enter", async
   let called = false
 
   const harness = await mountProductionPrompt({
-    sessionID: "ses_review_blank",
+    sessionID: Session.ID.make("ses_review_blank", { disableChecks: true }),
     fetch: (url, request) => {
       if (url.pathname.endsWith("/command") && request.method === "POST") {
         called = true
@@ -514,7 +527,7 @@ test("production Prompt preserves failed command draft after blank Enter", async
 
     // Reject the pending command
     deferred.reject(new Error("MCP resolution failed"))
-    await wait(() => PendingCommands.list("ses_review_blank").length === 0)
+    await wait(() => PendingCommands.list(Session.ID.make("ses_review_blank", { disableChecks: true })).length === 0)
     await harness.app.renderOnce()
 
     // Original command draft is restored successfully
@@ -530,7 +543,7 @@ test("production Prompt pending indicator follows keyed session remounts", async
   let called = false
 
   const harness = await mountProductionPrompt({
-    sessionID: "ses_review_switch",
+    sessionID: Session.ID.make("ses_review_switch", { disableChecks: true }),
     fetch: (url, request) => {
       if (url.pathname.endsWith("/command") && request.method === "POST") {
         called = true
@@ -550,19 +563,19 @@ test("production Prompt pending indicator follows keyed session remounts", async
     await wait(() => called)
 
     // Switch to another session
-    harness.setActiveSession("ses_review_other")
-    await harness.data.session.sync("ses_review_other")
+    harness.setActiveSession(Session.ID.make("ses_review_other", { disableChecks: true }))
+    await harness.data.session.sync(Session.ID.make("ses_review_other", { disableChecks: true }))
     await harness.app.renderOnce()
     expect(harness.app.captureCharFrame()).not.toContain("Resolving /mcp-slow")
 
     // Switch back to original session
-    harness.setActiveSession("ses_review_switch")
+    harness.setActiveSession(Session.ID.make("ses_review_switch", { disableChecks: true }))
     await harness.app.renderOnce()
     expect(harness.app.captureCharFrame()).toContain("Resolving /mcp-slow first session")
 
     // Resolve command
     deferred.resolve(new Response(null, { status: 204 }))
-    await wait(() => PendingCommands.list("ses_review_switch").length === 0)
+    await wait(() => PendingCommands.list(Session.ID.make("ses_review_switch", { disableChecks: true })).length === 0)
     await harness.app.renderOnce()
     expect(harness.app.captureCharFrame()).not.toContain("Resolving /mcp-slow")
   } finally {
@@ -577,7 +590,10 @@ for (const layout of [{ width: 40 }, { width: 120 }, { width: 120, promptWidth: 
     test(`production Prompt with long arguments bounds footer and preserves interrupt at ${layout.width}x12 composer=${layout.promptWidth ?? layout.width} animations=${animations}`, async () => {
       PendingCommands.clear()
       const deferred = Promise.withResolvers<Response>()
-      const sessionID = `ses_matrix_${layout.width}_${layout.promptWidth ?? layout.width}_${animations}`
+      const sessionID = Session.ID.make(
+        `ses_matrix_${layout.width}_${layout.promptWidth ?? layout.width}_${animations}`,
+        { disableChecks: true },
+      )
       let called = false
 
       const harness = await mountProductionPrompt({
@@ -601,7 +617,7 @@ for (const layout of [{ width: 40 }, { width: 120 }, { width: 120, promptWidth: 
 
         // Mark session as running
         harness.events.emit({
-          id: `evt_${sessionID}`,
+          id: Event.ID.make(`evt_${sessionID}`, { disableChecks: true }),
           created: 0,
           type: "session.execution.started",
           durable: { aggregateID: sessionID, seq: 1, version: 1 },
@@ -672,7 +688,7 @@ test("production Prompt newer meaningful submission suppresses older failed draf
   const called: string[] = []
 
   const harness = await mountProductionPrompt({
-    sessionID: "ses_epoch_meaningful",
+    sessionID: Session.ID.make("ses_epoch_meaningful", { disableChecks: true }),
     fetch: async (url, request) => {
       if (url.pathname.endsWith("/command") && request.method === "POST") {
         const payload = (await request.json()) as { name: string }
@@ -697,16 +713,22 @@ test("production Prompt newer meaningful submission suppresses older failed draf
     harness.app.mockInput.pressEnter()
     await wait(() => called.includes("second-cmd"))
 
-    expect(PendingCommands.list("ses_epoch_meaningful")).toHaveLength(2)
+    expect(PendingCommands.list(Session.ID.make("ses_epoch_meaningful", { disableChecks: true }))).toHaveLength(2)
 
     // Resolve second command
     second.resolve(new Response(null, { status: 204 }))
-    await wait(() => PendingCommands.list("ses_epoch_meaningful").length === 1)
-    expect(PendingCommands.list("ses_epoch_meaningful")[0].name).toBe("first-cmd")
+    await wait(
+      () => PendingCommands.list(Session.ID.make("ses_epoch_meaningful", { disableChecks: true })).length === 1,
+    )
+    expect(PendingCommands.list(Session.ID.make("ses_epoch_meaningful", { disableChecks: true }))[0].name).toBe(
+      "first-cmd",
+    )
 
     // Fail first command
     first.reject(new Error("older command failed"))
-    await wait(() => PendingCommands.list("ses_epoch_meaningful").length === 0)
+    await wait(
+      () => PendingCommands.list(Session.ID.make("ses_epoch_meaningful", { disableChecks: true })).length === 0,
+    )
     expect(textarea.plainText).toBe("")
   } finally {
     first.resolve(new Response(null, { status: 204 }))
@@ -721,7 +743,7 @@ test("production Prompt session switching preserves each new draft and pending f
   let called = false
 
   const harness = await mountProductionPrompt({
-    sessionID: "ses_draft_a",
+    sessionID: Session.ID.make("ses_draft_a", { disableChecks: true }),
     fetch: (url, request) => {
       if (url.pathname.endsWith("/command") && request.method === "POST") {
         called = true
@@ -747,8 +769,8 @@ test("production Prompt session switching preserves each new draft and pending f
     await harness.app.renderOnce()
 
     // Switch to session B
-    harness.setActiveSession("ses_draft_b")
-    await harness.data.session.sync("ses_draft_b")
+    harness.setActiveSession(Session.ID.make("ses_draft_b", { disableChecks: true }))
+    await harness.data.session.sync(Session.ID.make("ses_draft_b", { disableChecks: true }))
     await harness.app.renderOnce()
     expect(harness.app.captureCharFrame()).not.toContain("Resolving")
 
@@ -756,18 +778,18 @@ test("production Prompt session switching preserves each new draft and pending f
     await harness.app.renderOnce()
 
     // Switch back to session A
-    harness.setActiveSession("ses_draft_a")
+    harness.setActiveSession(Session.ID.make("ses_draft_a", { disableChecks: true }))
     await harness.app.renderOnce()
     expect(focused().plainText).toBe("draft A")
     expect(harness.app.captureCharFrame()).toContain("Resolving /mcp-slow")
 
     // Reject command on session A
     deferred.reject(new Error("MCP failure after switching"))
-    await wait(() => PendingCommands.list("ses_draft_a").length === 0)
+    await wait(() => PendingCommands.list(Session.ID.make("ses_draft_a", { disableChecks: true })).length === 0)
     expect(focused().plainText).toBe("draft A")
 
     // Switch to session B
-    harness.setActiveSession("ses_draft_b")
+    harness.setActiveSession(Session.ID.make("ses_draft_b", { disableChecks: true }))
     await harness.app.renderOnce()
     expect(focused().plainText).toBe("draft B")
   } finally {
@@ -780,7 +802,7 @@ for (const animations of [false, true]) {
   test(`production Prompt recomputes pending width when its container and terminal resize animations=${animations}`, async () => {
     PendingCommands.clear()
     const deferred = Promise.withResolvers<Response>()
-    const sessionID = `ses_resize_${animations}`
+    const sessionID = Session.ID.make(`ses_resize_${animations}`, { disableChecks: true })
     let called = false
     const harness = await mountProductionPrompt({
       sessionID,
@@ -801,7 +823,7 @@ for (const animations of [false, true]) {
       const textarea = harness.app.renderer.currentFocusedEditor
       if (!(textarea instanceof TextareaRenderable)) throw new Error("expected focused prompt textarea")
       harness.events.emit({
-        id: `evt_${sessionID}`,
+        id: Event.ID.make(`evt_${sessionID}`, { disableChecks: true }),
         created: 0,
         type: "session.execution.started",
         durable: { aggregateID: sessionID, seq: 1, version: 1 },
@@ -853,7 +875,7 @@ test("production Prompt shows pending feedback during selection preparation and 
   let preparing = false
   let commandCalled = false
   const harness = await mountProductionPrompt({
-    sessionID: "ses_prepare_failure",
+    sessionID: Session.ID.make("ses_prepare_failure", { disableChecks: true }),
     fetch: (url, request) => {
       if (url.pathname === "/api/session/ses_prepare_failure/model" && request.method === "POST") {
         preparing = true
@@ -876,12 +898,12 @@ test("production Prompt shows pending feedback during selection preparation and 
     await wait(() => preparing)
     await harness.app.renderOnce()
     expect(textarea.plainText).toBe("")
-    expect(PendingCommands.list("ses_prepare_failure")).toHaveLength(1)
+    expect(PendingCommands.list(Session.ID.make("ses_prepare_failure", { disableChecks: true }))).toHaveLength(1)
     expect(harness.app.captureCharFrame()).toContain("Resolving /mcp-slow retained arguments")
     expect(commandCalled).toBeFalse()
 
     prepared.reject(new Error("Model preparation failed"))
-    await wait(() => PendingCommands.list("ses_prepare_failure").length === 0)
+    await wait(() => PendingCommands.list(Session.ID.make("ses_prepare_failure", { disableChecks: true })).length === 0)
     await harness.app.renderOnce()
     expect(commandCalled).toBeFalse()
     expect(textarea.plainText).toBe("/mcp-slow retained arguments")
