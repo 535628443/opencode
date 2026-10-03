@@ -1,3 +1,5 @@
+import type { Project } from "@opencode/schema/project"
+import { Session } from "@opencode/schema/session"
 import { batch, createEffect, createMemo, createResource, createSignal, onCleanup, Show } from "solid-js"
 import type { OpenCodeEvent, SessionInfo } from "@opencode/client"
 import path from "path"
@@ -28,10 +30,10 @@ const RECENT_LIMIT = 8
 export const DialogOpenKey = Symbol("DialogOpen")
 
 type OpenTarget =
-  | { type: "session"; sessionID: string }
-  | { type: "project"; directory: string; projectID?: string }
+  | { type: "session"; sessionID: Session.ID }
+  | { type: "project"; directory: string; projectID?: Project.ID }
 
-type OpenView = { type: "projects" } | { type: "worktrees"; projectID: string }
+type OpenView = { type: "projects" } | { type: "worktrees"; projectID: Project.ID }
 
 type OpenSelection = { view: OpenView; filter: string; selected?: OpenTarget }
 
@@ -141,7 +143,7 @@ export function DialogOpen(props: { sessions: SessionInfo[]; onLoad: (sessions: 
   const [matched] = createResource(
     () => {
       const value = filter().trim()
-      return /^ses_[0-9A-Za-z]{26}$/.test(value) ? value : undefined
+      return /^ses_[0-9A-Za-z]{26}$/.test(value) ? Session.ID.make(value) : undefined
     },
     (sessionID) =>
       client.api.session
@@ -209,7 +211,9 @@ export function DialogOpen(props: { sessions: SessionInfo[]; onLoad: (sessions: 
       .list()
       .filter((project) => project.canonical !== "/")
       // Historical project identities can share a checkout. The list is newest-active first.
-      .filter((project, index, projects) => projects.findIndex((item) => item.canonical === project.canonical) === index)
+      .filter(
+        (project, index, projects) => projects.findIndex((item) => item.canonical === project.canonical) === index,
+      )
       .map((project) => ({ directory: project.canonical, project }))
       .map((item) => {
         const title =
@@ -233,8 +237,7 @@ export function DialogOpen(props: { sessions: SessionInfo[]; onLoad: (sessions: 
           } as OpenTarget,
           category: "Projects",
           gutter:
-            item.directory === current.directory ||
-            item.directory === location.current?.project.canonical
+            item.directory === current.directory || item.directory === location.current?.project.canonical
               ? () => <text fg={theme.text.formfield.selected}>●</text>
               : undefined,
         }
@@ -285,8 +288,7 @@ export function DialogOpen(props: { sessions: SessionInfo[]; onLoad: (sessions: 
           title,
           footer: footer + " ".repeat(Math.max(0, width - stringWidth(footer))),
           value: { type: "project", directory } as OpenTarget,
-          gutter:
-            directory === current.directory ? () => <text fg={theme.text.formfield.selected}>●</text> : undefined,
+          gutter: directory === current.directory ? () => <text fg={theme.text.formfield.selected}>●</text> : undefined,
         }
       })
   })

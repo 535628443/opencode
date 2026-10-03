@@ -1,3 +1,4 @@
+import type { SessionMessage } from "@opencode/schema/session-message"
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { RGBA } from "@opentui/core"
 import { useRenderer, type JSX } from "@opentui/solid"
@@ -8,7 +9,13 @@ import { SplitBorder } from "../../ui/border"
 import { Locale } from "../../util/locale"
 import { EntryAnchor, GroupAnchor, visitEntries } from "./anchor-view"
 import { groupID } from "./anchors"
-import { instructionPaths, type PartRef, type SessionEntry, type SessionGroup, type SessionNode } from "./grouping/session"
+import {
+  instructionPaths,
+  type PartRef,
+  type SessionEntry,
+  type SessionGroup,
+  type SessionNode,
+} from "./grouping/session"
 import { summarizeActivity } from "./activity-summary"
 import { InlineToolRow, reasoningContent, toolDisplay } from "./message-parts"
 import { use } from "./render-context"
@@ -16,7 +23,7 @@ import { resolvePart } from "./rows"
 import { generateThinkingSyntax } from "./thinking-syntax"
 
 type Renderers = {
-  message: (messageID: string) => SessionMessageInfo | undefined
+  message: (messageID: SessionMessage.ID) => SessionMessageInfo | undefined
   entry: (entry: SessionEntry, images?: boolean) => JSX.Element
   images: (parts: readonly SessionMessageAssistantTool[]) => JSX.Element
 }
