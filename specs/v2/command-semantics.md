@@ -1,8 +1,8 @@
 # Command Execution and Mentions
 
-Status: **Implemented in this branch.**
+Status: **Current V2 behavior; design confirmation requested.**
 
-This record selects the native command contract described below and records why each choice was made. It corresponds to [#34847](https://github.com/anomalyco/opencode/issues/34847); upstream acceptance remains a separate review decision. Core owns the runtime contract, Schema owns configuration and prompt shapes, and the command documentation explains the user-facing behavior.
+This record describes the native command contract already implemented on V2 and proposes retaining these choices to resolve [#34847](https://github.com/anomalyco/opencode/issues/34847). Upstream design confirmation is requested through this record. Core owns the runtime contract, Schema owns configuration and prompt shapes, and the command documentation explains the user-facing behavior.
 
 ## Decisions
 

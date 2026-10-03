@@ -67,14 +67,14 @@ Define commands under `commands` in any OpenCode JSON or JSONC [configuration fi
 
 Markdown frontmatter and JSON entries accept the same fields, except that Markdown gets `template` from the file body.
 
-| Field         | Required  | Behavior                                                                       |
-| ------------- | --------- | ------------------------------------------------------------------------------ |
-| `template`    | JSON only | Prompt template.                                                               |
-| `description` | No        | Text shown in command lists and discovery.                                     |
-| `agent`       | No        | Agent selected when the command runs.                                          |
-| `model`       | No        | Model override in `provider/model` or `provider/model#variant` format.         |
-| `subagent`    | No        | `true` runs in a background child session; `false` forces the current session. |
-| `subtask`     | No        | Deprecated alias for `subagent`.                                               |
+| Field | Required | Behavior |
+| --- | --- | --- |
+| `template` | JSON only | Prompt template. |
+| `description` | No | Text shown in command lists and discovery. |
+| `agent` | No | Agent selected when the command runs. |
+| `model` | No | Model override in `provider/model` or `provider/model#variant` format. |
+| `subagent` | No | `true` runs in a background child session; `false` forces the current session. |
+| `subtask` | No | Deprecated alias for `subagent`. |
 
 For example, this JSON command sets every current optional field:
 
@@ -228,13 +228,13 @@ subagent: true
 Audit $ARGUMENTS for bugs and missing tests.
 ```
 
-The parent stays available and keeps its agent and model. OpenCode sends the child's result, failure, or cancellation notice back to the parent
-when the child finishes.
+The parent stays available and keeps its agent and model. OpenCode sends the child's result, failure, or cancellation
+notice back to the parent when the child finishes.
 
-| Value   | Behavior                                                                             |
-| ------- | ------------------------------------------------------------------------------------ |
-| `true`  | Always use a child, even when the selected agent has `mode: primary`.                |
-| `false` | Always use the current session, even when the selected agent has `mode: subagent`.   |
+| Value | Behavior |
+| --- | --- |
+| `true` | Always use a child, even when the selected agent has `mode: primary`. |
+| `false` | Always use the current session, even when the selected agent has `mode: subagent`. |
 | Omitted | Use a child only when the command explicitly selects an agent with `mode: subagent`. |
 
 The child uses the command model, then the selected agent's model, then the parent's model. Native JSON and Markdown
