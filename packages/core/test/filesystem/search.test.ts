@@ -282,7 +282,22 @@ describe("FileSystemSearch", () => {
                     )
                   }
                   if (command.command === "rg") {
-                    const output = Stream.succeed(new TextEncoder().encode("remote.ts\n"))
+                    const output = Stream.succeed(
+                      new TextEncoder().encode(
+                        command.args.includes("--json")
+                          ? JSON.stringify({
+                              type: "match",
+                              data: {
+                                path: { text: "remote.ts" },
+                                lines: { text: "needle\n" },
+                                line_number: 1,
+                                absolute_offset: 0,
+                                submatches: [{ match: { text: "needle" }, start: 0, end: 6 }],
+                              },
+                            }) + "\n"
+                          : "remote.ts\n",
+                      ),
+                    )
                     return Effect.succeed(
                       makeHandle({
                         pid: ProcessId(1),
@@ -314,49 +329,63 @@ describe("FileSystemSearch", () => {
           destroy: () => Effect.void,
         })
 
-        const layer = AppNodeBuilder.build(LayerNode.group([Database.node, Workspace.node, FileSystemSearch.node]), [
-          ...(legacyEnvironment
-            ? [
-                Environment.node.replace(
-                  Layer.effect(
-                    Environment.Service,
-                    fakeDriver.connect({ workspaceID, binding: { workspaceID }, saveBinding: () => Effect.void }).pipe(
-                      Effect.orDie,
-                      Effect.map((driver) =>
-                        Environment.Service.of({ files: Environment.makeFiles(driver), spawner: driver.spawner }),
-                      ),
+        const layer = AppNodeBuilder.build(
+          LayerNode.group([Database.node, Workspace.node, FileSystemSearch.node, Ripgrep.node]),
+          [
+            ...(legacyEnvironment
+              ? [
+                  Environment.node.replace(
+                    Layer.effect(
+                      Environment.Service,
+                      fakeDriver
+                        .connect({ workspaceID, binding: { workspaceID }, saveBinding: () => Effect.void })
+                        .pipe(
+                          Effect.orDie,
+                          Effect.map((driver) =>
+                            Environment.Service.of({ files: Environment.makeFiles(driver), spawner: driver.spawner }),
+                          ),
+                        ),
                     ),
                   ),
+                ]
+              : []),
+            RipgrepBinary.node.replace(
+              Layer.succeed(RipgrepBinary.Service, {
+                filepath: Effect.fail(new Error("Workspace search must not resolve the host ripgrep binary")),
+              }),
+            ),
+            WorkspaceDriver.node.replace(WorkspaceDriver.registryNode({ fake: fakeDriver })),
+            Location.node.replace(
+              Layer.succeed(
+                Location.Service,
+                Location.Service.of(
+                  location(ref, { vcs: { type: "git", store: AbsolutePath.make(path.join(directory, ".git")) } }),
                 ),
-              ]
-            : []),
-          RipgrepBinary.node.replace(
-            Layer.succeed(RipgrepBinary.Service, {
-              filepath: Effect.fail(new Error("Workspace search must not resolve the host ripgrep binary")),
-            }),
-          ),
-          WorkspaceDriver.node.replace(WorkspaceDriver.registryNode({ fake: fakeDriver })),
-          Location.node.replace(
-            Layer.succeed(
-              Location.Service,
-              Location.Service.of(
-                location(ref, { vcs: { type: "git", store: AbsolutePath.make(path.join(directory, ".git")) } }),
               ),
             ),
-          ),
-        ])
+          ],
+        )
 
         yield* Effect.gen(function* () {
           const workspace = yield* Workspace.Service
           yield* workspace.create({ id: workspaceID, provider: "fake" })
           const search = yield* FileSystemSearch.Service
           const entries = yield* search.find({ query: "remote", type: "file" })
-          expect(commands).toHaveLength(1)
-          expect(commands[0]?.command).toBe("rg")
-          expect(commands[0]?.options.cwd).toBe(directory)
-          expect(commands[0]?.options.extendEnv).toBe(true)
-          expect(commands[0]?.options.env).toBeUndefined()
           expect(entries.map((entry) => entry.path)).toEqual([RelativePath.make("remote.ts")])
+          const ripgrep = yield* Ripgrep.Service
+          const files = yield* ripgrep.glob({ cwd: directory, pattern: "*.ts", limit: 10 })
+          expect(files.map((entry) => entry.path)).toEqual([RelativePath.make("remote.ts")])
+          const matches = yield* ripgrep.grep({ cwd: directory, pattern: "needle", limit: 10 })
+          expect(matches).toHaveLength(1)
+          expect(matches[0]?.entry.path).toBe(RelativePath.make("remote.ts"))
+          expect(matches[0]?.submatches[0]?.text).toBe("needle")
+          expect(commands).toHaveLength(3)
+          commands.forEach((command) => {
+            expect(command.command).toBe("rg")
+            expect(command.options.cwd).toBe(directory)
+            expect(command.options.extendEnv).toBe(true)
+            expect(command.options.env).toBeUndefined()
+          })
         }).pipe(Effect.provide(layer))
       }),
     )
