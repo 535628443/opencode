@@ -26,8 +26,8 @@ test("retains legacy subagent IDs from tool metadata", () => {
               time: { created: 0 },
               state: {
                 status: "completed",
+                content: [{ type: "text", text: "" }],
                 input: { description: "Earlier child", agent: "explore" },
-                output: "",
                 metadata: { status: "running", sessionID: "legacy-child" },
               },
             },
@@ -39,7 +39,12 @@ test("retains legacy subagent IDs from tool metadata", () => {
       shells: () => [],
     })
     expect(background.tasks()).toEqual([
-      { id: "legacy-child", type: "subagent", label: "Earlier child", agent: "explore" },
+      {
+        id: SessionID.make("legacy-child", { disableChecks: true }),
+        type: "subagent",
+        label: "Earlier child",
+        agent: "explore",
+      },
     ])
     dispose()
   })
