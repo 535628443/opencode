@@ -1,3 +1,4 @@
+import { SessionID } from "@opencode/schema/session-id"
 import { createEffect, onCleanup } from "solid-js"
 import type { PermissionRequest } from "@opencode/client/promise"
 import type { Data } from "@opencode/client/solid"
@@ -49,10 +50,13 @@ export function createPermissionAutoApprover(input: { sdk: ServerSDK; data: Data
   async function sweepWithRetry(generation: number, attempt: number) {
     const complete = await sweep()
     if (complete || attempt >= retryLimit) return
-    setTimeout(() => {
-      if (state.disposed || !enabled() || generation !== state.generation) return
-      void sweepWithRetry(generation, attempt + 1)
-    }, retryDelayMs * (attempt + 1))
+    setTimeout(
+      () => {
+        if (state.disposed || !enabled() || generation !== state.generation) return
+        void sweepWithRetry(generation, attempt + 1)
+      },
+      retryDelayMs * (attempt + 1),
+    )
   }
 
   async function sweep() {
@@ -80,7 +84,7 @@ export function createPermissionAutoApprover(input: { sdk: ServerSDK; data: Data
   // one case that stays uncovered.
   async function sweepLocations() {
     const active = await input.sdk.api.session.active().catch(() => undefined)
-    const ids = Object.keys(active ?? {})
+    const ids = Object.keys(active ?? {}).map((id) => SessionID.make(id, { disableChecks: true }))
     // Resync every active session rather than trusting cached info: another
     // client may have moved one while this client was disconnected, and the
     // cached location would list permissions from the old location. A failed
@@ -102,9 +106,7 @@ export function createPermissionAutoApprover(input: { sdk: ServerSDK; data: Data
       ...input.data.session.list().map((session) => session.location),
     ]
     return {
-      locations: [
-        ...new Map(locations.map((item) => [item.directory, item])).values(),
-      ],
+      locations: [...new Map(locations.map((item) => [item.directory, item])).values()],
       complete: active !== undefined && synced.every(Boolean),
     }
   }

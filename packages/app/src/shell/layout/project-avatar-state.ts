@@ -1,3 +1,4 @@
+import type { SessionID } from "@opencode/schema/session-id"
 import { createMemo, type Accessor } from "solid-js"
 import { useGlobal, useServerCtx } from "@/runtime/server/runtime"
 import { sessionPermissionRequest, sessionFormRequest } from "@/session/requests/session-request-tree"
@@ -6,7 +7,7 @@ import { useSettings } from "@/settings/model"
 
 export function useSessionTabAvatarState(
   server: Accessor<ServerConnection.Key>,
-  sessionId: Accessor<string>,
+  sessionId: Accessor<SessionID>,
   root?: Accessor<boolean>,
 ) {
   const global = useGlobal()
@@ -45,7 +46,9 @@ export function useSessionTabAvatarState(
     if (root?.())
       return data.session
         .list()
-        .some((session) => data.session.root(session.id) === sessionId() && data.session.status(session.id) === "running")
+        .some(
+          (session) => data.session.root(session.id) === sessionId() && data.session.status(session.id) === "running",
+        )
     return data.session.status(sessionId()) === "running"
   })
   return { unread, loading }

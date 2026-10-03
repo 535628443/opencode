@@ -1,3 +1,4 @@
+import type { SessionID } from "@opencode/schema/session-id"
 import type { SessionInfo } from "@opencode/client/promise"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { Button } from "@opencode/ui/button"
@@ -283,7 +284,7 @@ export function createHomeSessionsController(home: HomeController) {
       showProjectName: () => !home.project.selected(),
       server: () => home.selection.value().server,
       canCreate: () => !!home.project.newSession(),
-      lookup: async (sessionID: string) => {
+      lookup: async (sessionID: SessionID) => {
         const ctx = home.server.focusedContext()
         if (!ctx) return
         const result = await ctx.sdk.api.session.get({ sessionID })
@@ -363,7 +364,8 @@ function groupSessions(records: HomeSessionRecord[], language: ReturnType<typeof
   const now = new Date()
   const today = localDay(now)
   const yesterday = localDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))
-  const day = (record: HomeSessionRecord) => localDay(new Date(record.session.time.updated ?? record.session.time.created))
+  const day = (record: HomeSessionRecord) =>
+    localDay(new Date(record.session.time.updated ?? record.session.time.created))
   const todaySessions = records.filter((record) => day(record) === today)
   const yesterdaySessions = records.filter((record) => day(record) === yesterday)
   const olderSessions = records.filter((record) => day(record) !== today && day(record) !== yesterday)
