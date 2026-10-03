@@ -1,5 +1,4 @@
 import { useParams } from "@solidjs/router"
-import { mergeProps, splitProps } from "solid-js"
 import { SessionID } from "@opencode/schema/session-id"
 import { base64Encode } from "@opencode/util/encode"
 import { ServerConnection } from "@/runtime/server/registry"
@@ -31,9 +30,15 @@ export async function rootSession<T extends SessionParent>(session: T, get: (ses
 // Route tokens retain server-owned validation while internal consumers carry their ID identity.
 export function useSessionParams() {
   const params = useParams<{ id?: string; dir?: string; serverKey: string }>()
-  return mergeProps(splitProps(params, ["id"])[1], {
+  return {
     get id() {
       return params.id ? SessionID.make(params.id, { disableChecks: true }) : undefined
     },
-  })
+    get dir() {
+      return params.dir
+    },
+    get serverKey() {
+      return params.serverKey
+    },
+  }
 }
