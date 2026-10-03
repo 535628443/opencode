@@ -29,6 +29,24 @@ const provide = (directory: string, workspaceID?: Workspace.ID) =>
     }),
   )
 
+const provideWorkspace = (directory: string, driver: Environment.MemoryDriver, files = Environment.makeFiles(driver)) =>
+  Effect.provide(
+    LayerNode.compile(FileSystem.node, {
+      replacements: [
+        Location.node.replace(
+          Layer.succeed(
+            Location.Service,
+            location({
+              directory: AbsolutePath.make(directory),
+              workspaceID: Workspace.ID.make("wrk_review_filesystem"),
+            }),
+          ),
+        ),
+        Environment.node.replace(Layer.succeed(Environment.Service, { files, spawner: driver.spawner })),
+      ],
+    }),
+  )
+
 const withTmp = <A, E, R>(f: (directory: string) => Effect.Effect<A, E, R>) =>
   Effect.acquireRelease(
     Effect.promise(() => tmpdir()),
@@ -373,6 +391,86 @@ describe("FileSystem", () => {
       }),
     ),
   )
+
+  it.live("preserves workspace binary bytes and directory navigation semantics", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const current = path.join(directory, "current")
+        const driver = Environment.makeMemoryDriver()
+        const files = Environment.makeFiles(driver)
+        yield* files.mkdir(path.join(current, "z-dir"))
+        yield* files.mkdir(path.join(current, "a-dir"))
+        yield* files.write(path.join(current, "z.bin"), new Uint8Array([0, 255, 10, 13, 128]))
+        yield* files.write(path.join(current, "a.txt\n"), new TextEncoder().encode("newline name"))
+        yield* files.write(path.join(directory, "outside", "remote.txt"), new Uint8Array([255]))
+        yield* driver.symlink("z.bin", path.join(current, "binary-link"))
+        yield* driver.symlink("../outside", path.join(current, "directory-link"))
+        yield* driver.symlink("missing", path.join(current, "dangling-link"))
+        yield* Effect.gen(function* () {
+          const service = yield* FileSystem.Service
+          expect((yield* service.list()).map((entry) => [entry.path, entry.type])).toEqual([
+            [RelativePath.make("a-dir/"), "directory"],
+            [RelativePath.make("z-dir/"), "directory"],
+            [RelativePath.make("a.txt\n"), "file"],
+            [RelativePath.make("z.bin"), "file"],
+          ])
+          expect((yield* service.read({ path: RelativePath.make("binary-link") })).content).toEqual(
+            new Uint8Array([0, 255, 10, 13, 128]),
+          )
+          expect(yield* service.list({ path: "directory-link" })).toEqual([
+            FileSystem.Entry.make({ path: RelativePath.make("directory-link/remote.txt"), type: "file" }),
+          ])
+          const missing = yield* service.read({ path: RelativePath.make("dangling-link") }).pipe(Effect.flip)
+          expect(missing).toMatchObject({ _tag: "FileSystem.NotFoundError", path: "dangling-link" })
+          const readDirectory = yield* service.read({ path: RelativePath.make("a-dir") }).pipe(Effect.exit)
+          expect(Exit.isFailure(readDirectory)).toBe(true)
+          if (Exit.isFailure(readDirectory)) {
+            expect(readDirectory.cause.reasons.filter(Cause.isDieReason)).toMatchObject([
+              { defect: new Error("Path is not a file") },
+            ])
+          }
+          const listFile = yield* service.list({ path: "z.bin" }).pipe(Effect.exit)
+          expect(Exit.isFailure(listFile)).toBe(true)
+          if (Exit.isFailure(listFile)) {
+            expect(listFile.cause.reasons.filter(Cause.isDieReason)).toMatchObject([
+              { defect: new Error("Path is not a directory") },
+            ])
+          }
+        }).pipe(provideWorkspace(current, driver, files))
+      }),
+    ),
+  )
+
+  for (const operation of ["realPath", "read", "list"] as const) {
+    it.live(`preserves workspace ${operation} backend failures`, () =>
+      withTmp((directory) =>
+        Effect.gen(function* () {
+          const driver = Environment.makeMemoryDriver()
+          const base = Environment.makeFiles(driver)
+          yield* base.mkdir(directory)
+          yield* base.write(path.join(directory, "file.txt"), new TextEncoder().encode("workspace"))
+          const error = new Environment.Failed({ path: directory, cause: new Error("Backend unavailable") })
+          const files: Environment.Files = {
+            ...base,
+            ...(operation === "realPath"
+              ? { realPath: (target: string) => (target === directory ? base.realPath(target) : Effect.fail(error)) }
+              : {}),
+            ...(operation === "read" ? { read: () => Effect.fail(error) } : {}),
+            ...(operation === "list" ? { list: () => Effect.fail(error) } : {}),
+          }
+          const result = yield* Effect.gen(function* () {
+            const service = yield* FileSystem.Service
+            if (operation === "list") return yield* service.list()
+            return yield* service.read({ path: RelativePath.make("file.txt") })
+          }).pipe(provideWorkspace(directory, driver, files), Effect.exit)
+          expect(Exit.isFailure(result)).toBe(true)
+          if (Exit.isFailure(result)) {
+            expect(result.cause.reasons.filter(Cause.isDieReason)).toMatchObject([{ defect: error }])
+          }
+        }),
+      ),
+    )
+  }
 
   it.live("returns typed NotFoundError for missing files in local locations", () =>
     withTmp((directory) =>
