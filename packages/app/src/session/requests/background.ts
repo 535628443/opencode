@@ -38,7 +38,8 @@ export function createSessionBackground(input: {
           const description = part.state.input.description
           const agent = part.state.input.agent
           subagents.push({
-            id: SessionID.make(sessionID),
+            // Tool metadata retains its existing string contract.
+            id: SessionID.make(sessionID, { disableChecks: true }),
             type: "subagent",
             label: typeof description === "string" ? description : sessionID,
             agent: typeof agent === "string" ? agent : undefined,
