@@ -48,12 +48,12 @@ You can add custom commands through the OpenCode config or by creating markdown 
 
 ### JSON
 
-Use the `commands` option in your OpenCode [config](/docs/config):
+Use the `command` option in your OpenCode [config](/docs/config):
 
 ```json title="opencode.jsonc" {4-12}
 {
   "$schema": "https://opencode.ai/config.json",
-  "commands": {
+  "command": {
     // This becomes the name of the command
     "test": {
       // This is the prompt that will be sent to the LLM
@@ -136,8 +136,6 @@ You can also access individual arguments using positional parameters:
 - `$3` - Third argument
 - And so on...
 
-The highest-numbered placeholder includes any remaining arguments.
-
 For example:
 
 ```md title=".opencode/commands/create-file.md"
@@ -152,7 +150,7 @@ with the following content: $3
 Run the command:
 
 ```bash frame="none"
-/create-file config.json src '{ "key": "value" }'
+/create-file config.json src "{ \"key\": \"value\" }"
 ```
 
 This replaces:
@@ -193,14 +191,13 @@ Recent git commits:
 Review these changes and suggest any improvements.
 ```
 
-Shell interpolation runs in the session's working directory, which may be a subdirectory of your project, and its output becomes part of the prompt.
-It finishes before the command prompt is submitted, including commands that run a background subagent.
+Commands run in your project's root directory and their output becomes part of the prompt.
 
 ---
 
-### Mentions and attachments
+### File references
 
-Mentions such as `@src/components/Button.tsx` or `@reviewer` in command templates remain literal plain text in the prompt for the model and tools to interpret:
+Include files in your command using `@` followed by the filename.
 
 ```md title=".opencode/commands/review-component.md"
 ---
@@ -211,7 +208,7 @@ Review the component in @src/components/Button.tsx.
 Check for performance issues and suggest improvements.
 ```
 
-Command templates do not automatically synthesize file or agent attachments from mention text. When invoking a command, any explicit attachments provided in the prompt composer or API are preserved and forwarded directly to the session or subagent.
+The file content gets included in the prompt automatically.
 
 ---
 
@@ -227,7 +224,7 @@ The `template` option defines the prompt that will be sent to the LLM when the c
 
 ```json title="opencode.json"
 {
-  "commands": {
+  "command": {
     "test": {
       "template": "Run the full test suite with coverage report and show any failures.\nFocus on the failing tests and suggest fixes."
     }
@@ -245,9 +242,8 @@ Use the `description` option to provide a brief description of what the command 
 
 ```json title="opencode.json"
 {
-  "commands": {
+  "command": {
     "test": {
-      "template": "Run tests with coverage",
       "description": "Run tests with coverage"
     }
   }
@@ -261,14 +257,13 @@ This is shown as the description in the TUI when you type in the command.
 ### Agent
 
 Use the `agent` config to optionally specify which [agent](/docs/agents) should execute this command.
-If this is a [subagent](/docs/agents/#subagents) the command will trigger a background subagent invocation by default.
-To disable this behavior and run in the parent session instead, set `subagent` to `false`.
+If this is a [subagent](/docs/agents/#subagents) the command will trigger a subagent invocation by default.
+To disable this behavior, set `subtask` to `false`.
 
 ```json title="opencode.json"
 {
-  "commands": {
+  "command": {
     "review": {
-      "template": "Review $ARGUMENTS",
       "agent": "plan"
     }
   }
@@ -276,49 +271,37 @@ To disable this behavior and run in the parent session instead, set `subagent` t
 ```
 
 This is an **optional** config option. If not specified, defaults to your current agent.
-For commands that run in the parent session, specifying `agent` switches the session's selected agent. Later prompts continue using that agent until you switch it again.
 
 ---
 
-### Subagent
+### Subtask
 
-Use the `subagent` boolean (or legacy alias `subtask`) to force the command to trigger a background [subagent](/docs/agents/#subagents) invocation.
-This runs the command prompt in a background child session. The parent keeps its selected agent and model and receives a completion notice containing the child's result when done.
+Use the `subtask` boolean to force the command to trigger a [subagent](/docs/agents/#subagents) invocation.
+This is useful if you want the command to not pollute your primary context and will **force** the agent to act as a subagent,
+even if `mode` is set to `primary` on the [agent](/docs/agents) configuration.
 
 ```json title="opencode.json"
 {
-  "commands": {
+  "command": {
     "analyze": {
-      "template": "Analyze $ARGUMENTS",
-      "subagent": true
+      "subtask": true
     }
   }
 }
 ```
 
-:::note
-In native `commands` config or Markdown frontmatter, use `subagent: true` (or legacy alias `subtask: true`). For legacy `command` config (singular), use `subtask: true`.
-:::
-
 This is an **optional** config option.
-
-When both `subagent` and `subtask` are present in native config or Markdown frontmatter, `subagent` takes precedence, including `false`. Setting it to `false` runs in the parent session, switching the parent's agent and model when specified by the command.
 
 ---
 
 ### Model
 
-Use the `model` config to select the model for this command.
-The command's `model` takes precedence over the configured model of its specified `agent`.
-If neither supplies a model, a parent command keeps the current session model; a child command uses the selected agent's model, falling back to the parent model.
-For commands that run in the parent session, selecting a model changes the session's selected model for later prompts too.
-Background child commands select their own agent and model and keep the parent's selections unchanged.
+Use the `model` config to override the default model for this command.
 
 ```json title="opencode.json"
 {
-  "commands": {
+  "command": {
     "analyze": {
-      "template": "Analyze $ARGUMENTS",
       "model": "anthropic/claude-3-5-sonnet-20241022"
     }
   }
