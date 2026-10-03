@@ -1,11 +1,16 @@
 import fs from "fs/promises"
 import { describe, expect } from "bun:test"
 import path from "path"
-import { Effect, Layer } from "effect"
+import { Context, Deferred, Effect, Exit, Fiber, Layer, Schedule, Scope } from "effect"
 import { LanguageModel } from "@opencode/ai"
+import { LLMClient } from "@opencode/ai/route"
 import { OpenAIChat } from "@opencode/ai/protocols/openai-chat"
 import { TestLLM } from "@opencode/ai/testing"
+import { Database } from "@opencode/core/database/database"
 import { Agent } from "@opencode/core/agent"
+import { Bus } from "@opencode/core/bus"
+import { Job } from "@opencode/core/job"
+import { KV } from "@opencode/core/kv"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { LayerNodePlatform } from "@opencode/core/effect/app-node-platform"
 import { Watcher } from "@opencode/core/filesystem/watcher"
@@ -15,6 +20,9 @@ import { Provider } from "@opencode/core/provider"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
 import { Skill } from "@opencode/core/skill"
+import { SessionExecution } from "@opencode/core/session/execution"
+import { SessionEvent } from "@opencode/core/session/event"
+import { SessionRestart } from "@opencode/core/session/execution/restart"
 import { SessionRunnerModel } from "@opencode/core/session/runner/model"
 import { LayerNode } from "@opencode/util/effect/layer-node"
 import { Global } from "@opencode/util/global"
@@ -25,14 +33,23 @@ import { testEffect } from "../lib/effect"
 import PROMPT_REVIEW from "../../src/plugin/command/review.txt"
 
 const llmLayer = TestLLM.testLayer({ fallback: TestLLM.text("Review complete", "review") })
-const it = testEffect(
-  Layer.merge(
-    llmLayer,
-    AppNodeBuilder.build(LayerNode.group([Session.node, LocationServiceMap.node]), [
-      Global.node.replace(tempGlobalLayer),
+function appLayer(global = tempGlobalLayer, client = llmLayer, database = Database.layer()) {
+  return AppNodeBuilder.build(
+    LayerNode.group([
+      Session.node,
+      LocationServiceMap.node,
+      SessionRestart.node,
+      SessionExecution.node,
+      Job.node,
+      Bus.node,
+      KV.node,
+    ]),
+    [
+      Global.node.replace(global),
+      Database.node.replace(database.pipe(Layer.provide(global))),
       offlineModels,
       Watcher.node.replace(Watcher.configured({ enabled: false })),
-      LayerNodePlatform.llmClient.replace(llmLayer),
+      LayerNodePlatform.llmClient.replace(client),
       SessionRunnerModel.node.replace(
         Layer.succeed(SessionRunnerModel.Service, {
           resolve: (session) =>
@@ -48,13 +65,192 @@ const it = testEffect(
             ),
         }),
       ),
-    ]),
-  ),
-)
+    ],
+  )
+}
+
+const it = testEffect(Layer.merge(llmLayer, appLayer()))
+const restartIt = testEffect(Layer.merge(llmLayer, tempGlobalLayer))
 
 const parentModel = Model.Ref.make({ id: Model.ID.make("parent"), providerID: Provider.ID.make("test") })
 
 describe("command subagents", () => {
+  for (const subagent of [false, true]) {
+    it.live(`waits for gated shell output before ${subagent ? "creating a child" : "parent admission"}`, () =>
+      Effect.gen(function* () {
+        const parent = yield* project(
+          {
+            subagent,
+            agent: "reviewer",
+            template:
+              "Review !`printf started > shell-started; while [ ! -f shell-release ]; do sleep 0.01; done; cat shell-result`",
+          },
+          "json",
+        )
+        const sessions = yield* Session.Service
+        const llm = yield* TestLLM.Test
+        const command = yield* sessions
+          .command({ sessionID: parent.id, command: "review", text: "" })
+          .pipe(Effect.forkScoped)
+        yield* Effect.promise(() => Bun.file(path.join(parent.location.directory, "shell-started")).exists()).pipe(
+          Effect.repeat({ until: (exists) => exists, schedule: Schedule.spaced("10 millis") }),
+        )
+        expect(command.pollUnsafe()).toBeUndefined()
+        expect(yield* sessions.context(parent.id)).toEqual([])
+        expect(yield* sessions.inbox(parent.id)).toEqual([])
+        expect((yield* sessions.list({ parentID: parent.id })).data).toEqual([])
+        expect(yield* sessions.get(parent.id)).toMatchObject({ agent: "build", model: parentModel })
+        expect(yield* llm.requests()).toEqual([])
+        yield* Effect.promise(async () => {
+          await Bun.write(path.join(parent.location.directory, "shell-result"), "SHELL_FINISHED")
+          await Bun.write(path.join(parent.location.directory, "shell-release"), "release")
+        })
+        yield* Fiber.join(command)
+        yield* llm.wait(subagent ? 2 : 1)
+        yield* sessions.wait(parent.id)
+        expect(JSON.stringify((yield* llm.requests())[0])).toContain("SHELL_FINISHED")
+        expect((yield* sessions.list({ parentID: parent.id })).data).toHaveLength(subagent ? 1 : 0)
+      }),
+    )
+  }
+
+  it.live("cancels a command child and durably delivers one cancellation even across restart replay", () =>
+    Effect.gen(function* () {
+      const parent = yield* project({ subagent: true, agent: "reviewer" }, "json")
+      const sessions = yield* Session.Service
+      const llm = yield* TestLLM.Test
+      const jobs = yield* Job.Service
+      const bus = yield* Bus.Service
+      const admitted = yield* Deferred.make<Job.Background>()
+      yield* bus.project(SessionEvent.InboxEnqueued, (event) =>
+        Effect.gen(function* () {
+          if (event.data.sessionID !== parent.id || event.data.item.type !== "synthetic") return
+          const marker = (yield* jobs.pendingBackground).find((item) => item.notificationID === event.data.inboxID)
+          if (marker) yield* Deferred.succeed(admitted, marker)
+        }),
+      )
+      const gate = yield* llm.gate()
+      yield* sessions.command({ sessionID: parent.id, command: "review", text: "cancel this" })
+      yield* gate.started
+      const child = (yield* sessions.list({ parentID: parent.id })).data[0]
+      if (!child) return yield* Effect.die("Expected command child")
+      expect((yield* jobs.pendingBackground)[0]).toMatchObject({
+        id: child.id,
+        status: "running",
+        recovery: { childSessionID: child.id, parentSessionID: parent.id },
+      })
+      yield* sessions.interrupt(child.id)
+      yield* sessions.wait(child.id)
+      const execution = yield* SessionExecution.Service
+      expect(yield* execution.isActive(child.id)).toBe(false)
+      expect(
+        (yield* sessions.context(child.id)).filter(
+          (message) =>
+            message.type === "assistant" && message.time.completed !== undefined && message.error === undefined,
+        ),
+      ).toEqual([])
+      const marker = yield* Deferred.await(admitted)
+      expect(marker.status).toBe("cancelled")
+      yield* llm.wait(2)
+      yield* gate.release
+      yield* sessions.wait(child.id)
+      yield* sessions.wait(parent.id)
+      yield* jobs.pendingBackground.pipe(Effect.repeat({ until: (pending) => pending.length === 0 }))
+      const notices = (yield* sessions.context(parent.id)).filter((message) => message.type === "synthetic")
+      expect(notices).toMatchObject([
+        { id: marker.notificationID, metadata: { childID: child.id, state: "cancelled" } },
+      ])
+      expect(notices[0]?.text).toContain("Subagent cancelled")
+      expect(yield* sessions.get(parent.id)).toMatchObject({ agent: "build", model: parentModel })
+      const kv = yield* KV.Service
+      yield* kv.set(`job.background/${marker.notificationID}`, marker)
+      const restart = yield* SessionRestart.Service
+      yield* restart.resumeSuspendedSessions
+      yield* sessions.wait(parent.id)
+      expect((yield* sessions.context(parent.id)).filter((message) => message.type === "synthetic")).toEqual(notices)
+      expect(yield* jobs.pendingBackground).toEqual([])
+    }),
+  )
+
+  restartIt.live("resumes a command-created child after the production app scope closes and reopens", () =>
+    Effect.gen(function* () {
+      const global = yield* Global.Service
+      const llm = yield* TestLLM.Test
+      const layer = appLayer(
+        Layer.succeed(Global.Service, global),
+        Layer.merge(Layer.succeed(LLMClient.Service, llm), Layer.succeed(TestLLM.Test, llm)),
+        Database.layer({ path: path.join(global.data, "command-recovery.db") }),
+      )
+      const scope = yield* Effect.acquireRelease(Scope.make(), (scope) => Scope.close(scope, Exit.void))
+      const context = yield* Layer.buildWithScope(layer, scope)
+      const sessions = Context.get(context, Session.Service)
+      const jobs = Context.get(context, Job.Service)
+      const parent = yield* project({ subagent: true, agent: "reviewer" }, "json").pipe(Effect.provide(context))
+      const gate = yield* llm.gate()
+      yield* sessions.command({ sessionID: parent.id, command: "review", text: "survive restart" })
+      yield* gate.started
+      const child = (yield* sessions.list({ parentID: parent.id })).data[0]
+      if (!child) return yield* Effect.die("Expected command child")
+      const marker = (yield* jobs.pendingBackground)[0]
+      expect(marker).toMatchObject({ id: child.id, status: "running" })
+      yield* Scope.close(scope, Exit.void)
+      yield* gate.release
+
+      const restartedScope = yield* Effect.acquireRelease(Scope.make(), (scope) => Scope.close(scope, Exit.void))
+      const restarted = yield* Layer.buildWithScope(layer, restartedScope)
+      const current = Context.get(restarted, Session.Service)
+      const currentJobs = Context.get(restarted, Job.Service)
+      expect(yield* currentJobs.pendingBackground).toEqual([marker])
+      yield* Context.get(restarted, SessionRestart.Service).resumeSuspendedSessions
+      yield* llm.wait(3)
+      yield* current.wait(child.id)
+      yield* current.wait(parent.id)
+      yield* currentJobs.pendingBackground.pipe(Effect.repeat({ until: (pending) => pending.length === 0 }))
+      const notices = (yield* current.context(parent.id)).filter((message) => message.type === "synthetic")
+      expect(notices).toMatchObject([
+        { id: marker?.notificationID, metadata: { childID: child.id, state: "completed" } },
+      ])
+      expect(notices[0]?.text).toContain("Review complete")
+      expect(yield* current.get(parent.id)).toMatchObject({ agent: "build", model: parentModel })
+      expect((yield* current.context(child.id)).filter((message) => message.type === "user")).toHaveLength(1)
+      expect(
+        (yield* current.context(child.id)).some(
+          (message) => message.type === "synthetic" && message.metadata?.notice === "restart",
+        ),
+      ).toBe(true)
+      const requests = yield* llm.requests()
+      expect(requests.map((request) => String(request.model.id))).toEqual(["child", "child", "parent"])
+      yield* Context.get(restarted, SessionRestart.Service).resumeSuspendedSessions
+      yield* current.wait(parent.id)
+      expect((yield* current.context(parent.id)).filter((message) => message.type === "synthetic")).toEqual(notices)
+    }),
+  )
+
+  for (const fixture of [
+    { command: { agent: "reviewer", subagent: false }, agent: "reviewer", model: "child" },
+    { command: { agent: "build", subagent: false }, agent: "build", model: "parent" },
+    { command: { model: "test/override" }, agent: "build", model: "override" },
+  ]) {
+    it.live(`retains ordinary command selection for later prompts: ${JSON.stringify(fixture.command)}`, () =>
+      Effect.gen(function* () {
+        const parent = yield* project(fixture.command, "json")
+        const sessions = yield* Session.Service
+        const llm = yield* TestLLM.Test
+        yield* sessions.command({ sessionID: parent.id, command: "review", text: "initial" })
+        yield* sessions.wait(parent.id)
+        expect((yield* sessions.list({ parentID: parent.id })).data).toEqual([])
+        expect(yield* sessions.get(parent.id)).toMatchObject({ agent: fixture.agent, model: { id: fixture.model } })
+        yield* sessions.prompt({ sessionID: parent.id, text: "Follow up" })
+        yield* sessions.wait(parent.id)
+        expect((yield* llm.requests()).map((request) => String(request.model.id))).toEqual([
+          fixture.model,
+          fixture.model,
+        ])
+        expect(yield* sessions.get(parent.id)).toMatchObject({ agent: fixture.agent, model: { id: fixture.model } })
+      }),
+    )
+  }
+
   it.live("built-in review admits a normal parent prompt with explicit attachments", () =>
     Effect.gen(function* () {
       const parent = yield* project({}, "json", "custom-review")
