@@ -860,7 +860,9 @@ function VerticalSessionTabs(props: {
               const separatorUpperColor = createMemo(() =>
                 tint(background(), previousGlowHue(), 0.1 * previousGlowLevel()),
               )
-              const separatorLowerColor = createMemo(() => tint(background(), glowHue(), 0.12 * glowLevel()))
+              const separatorLowerColor = createMemo(() =>
+                tint(background(), glowHue(), 0.12 * glowLevel()),
+              )
               const titleColor = (index: number, separator: boolean) => {
                 const level = titleGlow.value().level
                 const color =
@@ -925,7 +927,9 @@ function VerticalSessionTabs(props: {
                         edge="top"
                         width={width()}
                         color={pulseBackground()}
-                        background={highlighted(items()[index() - 1]?.sessionID) ? highlightColor() : background()}
+                        background={
+                          highlighted(items()[index() - 1]?.sessionID) ? highlightColor() : background()
+                        }
                       />
                       <SessionTabHalfRow
                         top={1}

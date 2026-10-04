@@ -1,4 +1,3 @@
-import { Agent } from "@opencode/schema/agent"
 import { describe, expect, test } from "bun:test"
 import { normalizeTool, toolInlineInfo, toolOutputText, toolPath, toolScroll } from "../../src/mini/tool"
 import { canonicalToolPart } from "./fixture/tool-part"

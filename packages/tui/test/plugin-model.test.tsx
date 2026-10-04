@@ -1,4 +1,3 @@
-import { Provider } from "@opencode/schema/provider"
 import { Model } from "@opencode/schema/model"
 import { expect, test } from "bun:test"
 import { createPluginContext, type Registry, type usePluginHost } from "../src/plugin/api"

@@ -156,24 +156,23 @@ test.skipIf(process.platform === "win32").each([80, 120, 180])(
       expect(terminalFrame()).not.toBe(terminalBefore)
       expect(setup.renderer.currentFocusedRenderable).toBe(sessionFocus)
 
-      setup.mockInput.pressKey("x", { ctrl: true })
-      setup.mockInput.pressArrow("right")
-      await setup.waitForVisualIdle()
-      const findHandle = (root: Renderable): BoxRenderable | undefined =>
-        root instanceof BoxRenderable && root.zIndex === 10 && root.width === 2
-          ? root
-          : root.getChildren().map(findHandle).find(Boolean)
-      const handle = findHandle(setup.renderer.root)
-      if (!handle) throw new Error("Separator handle not found")
-      const start = handle.x
-      await setup.mockMouse.drag(start, 10, start + 4, 10)
-      await setup.waitForVisualIdle()
-      expect(handle.x).toBe(start + 4)
-      expect(setup.renderer.currentFocusedRenderable).toBe(terminal)
-    } finally {
-      setup.renderer.destroy()
-      await task
-      await server.stop()
-    }
-  },
-)
+    setup.mockInput.pressKey("x", { ctrl: true })
+    setup.mockInput.pressArrow("right")
+    await setup.waitForVisualIdle()
+    const findHandle = (root: Renderable): BoxRenderable | undefined =>
+      root instanceof BoxRenderable && root.zIndex === 10 && root.width === 2
+        ? root
+        : root.getChildren().map(findHandle).find(Boolean)
+    const handle = findHandle(setup.renderer.root)
+    if (!handle) throw new Error("Separator handle not found")
+    const start = handle.x
+    await setup.mockMouse.drag(start, 10, start + 4, 10)
+    await setup.waitForVisualIdle()
+    expect(handle.x).toBe(start + 4)
+    expect(setup.renderer.currentFocusedRenderable).toBe(terminal)
+  } finally {
+    setup.renderer.destroy()
+    await task
+    await server.stop()
+  }
+})

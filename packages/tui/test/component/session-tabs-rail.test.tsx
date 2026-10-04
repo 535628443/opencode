@@ -71,7 +71,19 @@ test("compact rail renders and controls session tabs", async () => {
         .split("\n")
         .slice(0, 11)
         .map((line) => line.slice(0, 5)),
-    ).toEqual(["▄▄▄▄▄", "  ⌕  ", "▄▄▄▄▄", "  F  ", "▀▀▀▀▀", "  S  ", "     ", "  T  ", "     ", "  +  ", "     "])
+    ).toEqual([
+      "▄▄▄▄▄",
+      "  ⌕  ",
+      "▄▄▄▄▄",
+      "  F  ",
+      "▀▀▀▀▀",
+      "  S  ",
+      "     ",
+      "  T  ",
+      "     ",
+      "  +  ",
+      "     ",
+    ])
     expect(app.captureCharFrame().split("\n")[0].indexOf("transcript")).toBe(5)
     expect(app.captureCharFrame()).not.toContain("First session")
     expect(
@@ -85,7 +97,11 @@ test("compact rail renders and controls session tabs", async () => {
 
     setIndicators("numbers")
     await app.waitForFrame((frame) => frame.split("\n")[5].slice(0, 5).trim() === "2")
-    expect([3, 5, 7].map((row) => app.captureCharFrame().split("\n")[row].slice(0, 5).trim())).toEqual(["1", "2", "3"])
+    expect([3, 5, 7].map((row) => app.captureCharFrame().split("\n")[row].slice(0, 5).trim())).toEqual([
+      "1",
+      "2",
+      "3",
+    ])
     setIndicators("status")
     setStatus(EMPTY_SESSION_TAB_STATUS)
 

@@ -56,7 +56,7 @@ export function setupSessionLinks(root: HTMLElement, open: () => ((id: SessionID
     const handler = open()
     if (!handler) return
     event.stopPropagation()
-    handler(SessionID.make(button.dataset.sessionId!))
+    handler(SessionID.make(button.dataset.sessionId!, { disableChecks: true }))
   }
   root.addEventListener("click", click)
   return () => root.removeEventListener("click", click)

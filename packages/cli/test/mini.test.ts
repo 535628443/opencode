@@ -1,5 +1,3 @@
-import { Session } from "@opencode/schema/session"
-import { Agent } from "@opencode/schema/agent"
 import { Model } from "@opencode/schema/model"
 import { Provider } from "@opencode/schema/provider"
 import { describe, expect, test } from "bun:test"

@@ -363,7 +363,9 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
         onSelect: (value) =>
           adapter
             .controls()
-            .model.selection.variant.set(value === "default" || !value ? undefined : Model.VariantID.make(value)),
+            .model.selection.variant.set(
+              value === "default" || value === undefined ? undefined : Model.VariantID.make(value),
+            ),
         keybind: () => command.keybindParts("model.variant.cycle"),
       },
       submit: {

@@ -999,19 +999,30 @@ test("completes exploration and keeps live rows when a queued prompt is promoted
         },
       },
     })
-    await wait(() => data.session.message.get(sessionID, "message-assistant") !== undefined)
+    await wait(
+      () => data.session.message.get(sessionID, SessionMessage.ID.make("message-assistant", { disableChecks: true })) !== undefined,
+    )
     emitEvent(events, {
-      id: "evt_text_started",
+      id: Event.ID.make("evt_text_started", { disableChecks: true }),
       created: 1,
       type: "session.text.started",
       durable: durable(sessionID, 1),
-      data: { sessionID, assistantMessageID: "message-assistant", ordinal: 0 },
+      data: {
+        sessionID,
+        assistantMessageID: SessionMessage.ID.make("message-assistant", { disableChecks: true }),
+        ordinal: 0,
+      },
     })
     emitEvent(events, {
-      id: "evt_text_delta",
+      id: Event.ID.make("evt_text_delta", { disableChecks: true }),
       created: 1,
       type: "session.text.delta",
-      data: { sessionID, assistantMessageID: "message-assistant", ordinal: 0, delta: "Looking" },
+      data: {
+        sessionID,
+        assistantMessageID: SessionMessage.ID.make("message-assistant", { disableChecks: true }),
+        ordinal: 0,
+        delta: "Looking",
+      },
     })
     emitEvent(events, {
       id: Event.ID.make("evt_tool_started", { disableChecks: true }),
@@ -1318,7 +1329,10 @@ test("loads older pages until the oldest exploration group is complete before re
     const group = rows[1]
     if (group?.type !== "group") throw new Error("Expected exploration group")
     expect(group.size).toBe(50)
-    expect(groupRefs(group)[0]).toEqual({ messageID: "msg_001", partID: "read-0" })
+    expect(groupRefs(group)[0]).toEqual({
+      messageID: SessionMessage.ID.make("msg_001", { disableChecks: true }),
+      partID: "read-0",
+    })
     // The transcript keys rows by store object, so a new object would remount the answer.
     expect(answer()).toBe(mounted)
   } finally {

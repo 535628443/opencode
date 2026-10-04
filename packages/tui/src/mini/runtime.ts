@@ -280,10 +280,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
     onFormReply: async (next) => {
       if (state.demo?.formReply(next)) return
       try {
-        await state.sdk.session.form.reply(
-          next,
-          formRequestOptions(next.sessionID === "global" ? next.location : undefined),
-        )
+        await state.sdk.session.form.reply(next, formRequestOptions(next.sessionID === "global" ? next.location : undefined))
       } catch (error) {
         if (!formAlreadySettled(error)) throw error
       }
@@ -292,10 +289,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
     onFormCancel: async (next) => {
       if (state.demo?.formCancel(next)) return
       try {
-        await state.sdk.session.form.cancel(
-          next,
-          formRequestOptions(next.sessionID === "global" ? next.location : undefined),
-        )
+        await state.sdk.session.form.cancel(next, formRequestOptions(next.sessionID === "global" ? next.location : undefined))
       } catch (error) {
         if (!formAlreadySettled(error)) throw error
       }

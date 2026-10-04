@@ -597,8 +597,7 @@ function assertPromiseEndpoint(endpoint: Endpoint) {
   const payloadEncoding =
     payload === undefined
       ? undefined
-      : (resolveHttpApiEncoding(payload.ast)?._tag ??
-        (HttpMethod.hasBody(endpoint.endpoint.method) ? "Json" : "FormUrlEncoded"))
+      : (resolveHttpApiEncoding(payload.ast)?._tag ?? (HttpMethod.hasBody(endpoint.endpoint.method) ? "Json" : "FormUrlEncoded"))
   if (payloadEncoding !== undefined && payloadEncoding !== "Json" && payloadEncoding !== "Uint8Array") {
     throw new GenerationError({ reason: `Unsupported Promise payload encoding: ${name}` })
   }

@@ -205,24 +205,24 @@ function tab(child: ChildState): FooterSubagentTab {
 }
 
 export function createSubagentTracker(input: SubagentTrackerInput): SubagentTracker {
-  const children = new Map<string, ChildState>()
+  const children = new Map<Session.ID, ChildState>()
   // Live subagent tool calls in the parent, so tool.success metadata
   // can be joined with the call's input metadata.
   const pendingCalls = new Map<string, Record<string, unknown>>()
   // Recently resolved non-family sessions. Retention is bounded so unrelated
   // process activity cannot grow tracker state for the lifetime of the TUI.
-  const checked = new Set<string>()
+  const checked = new Set<Session.ID>()
   // Foreign events buffered while a session.get discovery is in flight, so a
   // fast child (including its settled event) is not lost mid-discovery.
-  const pendingEvents = new Map<string, V2Event[]>()
-  const hydrationEvents = new Map<string, V2Event[]>()
-  const hydrationOverflow = new Set<string>()
-  const hydrations = new Map<string, Promise<void>>()
-  const blockerEvents = new Map<string, V2Event[]>()
-  const blockerHydrations = new Map<string, Promise<void>>()
-  const blockerRetryTimers = new Map<string, ReturnType<typeof setTimeout>>()
-  const blockerRetryAttempts = new Map<string, number>()
-  const discoveryJobs = new Map<string, DiscoveryJob>()
+  const pendingEvents = new Map<Session.ID, V2Event[]>()
+  const hydrationEvents = new Map<Session.ID, V2Event[]>()
+  const hydrationOverflow = new Set<Session.ID>()
+  const hydrations = new Map<Session.ID, Promise<void>>()
+  const blockerEvents = new Map<Session.ID, V2Event[]>()
+  const blockerHydrations = new Map<Session.ID, Promise<void>>()
+  const blockerRetryTimers = new Map<Session.ID, ReturnType<typeof setTimeout>>()
+  const blockerRetryAttempts = new Map<Session.ID, number>()
+  const discoveryJobs = new Map<Session.ID, DiscoveryJob>()
   const discoveryQueue: DiscoveryJob[] = []
   let activeDiscoveries = 0
   let selected: Session.ID | undefined

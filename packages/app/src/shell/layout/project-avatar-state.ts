@@ -46,9 +46,7 @@ export function useSessionTabAvatarState(
     if (root?.())
       return data.session
         .list()
-        .some(
-          (session) => data.session.root(session.id) === sessionId() && data.session.status(session.id) === "running",
-        )
+        .some((session) => data.session.root(session.id) === sessionId() && data.session.status(session.id) === "running")
     return data.session.status(sessionId()) === "running"
   })
   return { unread, loading }
