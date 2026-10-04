@@ -11,12 +11,11 @@ import type {
   FormInfo,
   SessionFormReplyInput,
   IntegrationInfo,
-  LocationRef,
   LocationGetOutput,
+  LocationRef,
   McpResource,
   McpServer,
   ModelInfo,
-  ModelRef,
   PermissionSavedInfo,
   PermissionRequest,
   PermissionReplyInput,
@@ -29,6 +28,7 @@ import type {
   SessionMessageAssistantText,
   SessionMessageAssistantTool,
   SessionInfo,
+  SessionCreateInput,
   SessionInboxInfo,
   SessionInboxCompaction,
   ShellInfo,
@@ -40,6 +40,11 @@ import type {
 } from "../promise"
 import { Worktree } from "@opencode/schema/worktree"
 import { SessionID } from "@opencode/schema/session-id"
+import { ProjectID } from "@opencode/schema/project-id"
+import { WorkspaceID } from "@opencode/schema/workspace-id"
+import { Agent } from "@opencode/schema/agent"
+import { Model } from "@opencode/schema/model"
+import { Provider } from "@opencode/schema/provider"
 import { SessionMessage } from "@opencode/schema/session-message"
 import {
   isFormAlreadySettledError,
@@ -50,6 +55,9 @@ import {
 import { createStore, produce, reconcile } from "solid-js/store"
 import type { SessionInbox } from "@opencode/schema/session-inbox"
 import { batch, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+
+type LocationInput = { directory: string; workspaceID?: string }
+type ModelRef = NonNullable<SessionCreateInput["model"]>
 
 export type DataSessionStatus = "idle" | "running"
 type OpenCodeEventMap = { [Type in OpenCodeEvent["type"]]: Extract<OpenCodeEvent, { type: Type }> }
@@ -73,7 +81,8 @@ export type CreateDataInput = {
   readonly onError?: (error: unknown) => void
 }
 
-const messageIDFromEvent = (eventID: string) => eventID.replace(/^evt_/, "msg_")
+const messageIDFromEvent = (eventID: string) =>
+  SessionMessage.ID.make(eventID.replace(/^evt_/, "msg_"), { disableChecks: true })
 const messagePageLimit = 20
 // Trailing window for event bursts that each ask for the same refetch.
 export const settleMs = 150
@@ -126,15 +135,15 @@ type Store = {
   location: Record<string, LocationData>
 }
 
-export function locationKey(location: LocationRef) {
+export function locationKey(location: LocationInput) {
   return JSON.stringify([location.directory, location.workspaceID])
 }
 
-function locationQuery(ref: LocationRef) {
+function locationQuery(ref: LocationInput) {
   return { directory: ref.directory }
 }
 
-function formRequestOptions(sessionID: string, ref?: LocationRef) {
+function formRequestOptions(sessionID: string, ref?: LocationInput) {
   if (sessionID !== "global" || !ref) return undefined
   return {
     headers: {
@@ -282,7 +291,7 @@ export function createData(config: CreateDataInput) {
     )
   }
 
-  function removeForm(sessionID: string, formID: string, ref?: LocationRef) {
+  function removeForm(sessionID: string, formID: string, ref?: LocationInput) {
     const forms = store.session.form[sessionID]
     if (!forms) return false
     const location = ref && locationKey(ref)
@@ -296,7 +305,7 @@ export function createData(config: CreateDataInput) {
     return true
   }
 
-  function settleForm(input: SessionFormCancelInput, ref: LocationRef | undefined, request: Promise<void>) {
+  function settleForm(input: SessionFormCancelInput, ref: LocationInput | undefined, request: Promise<void>) {
     return request
       .catch((error: unknown) => {
         if ((!isFormNotFoundError(error) && !isFormAlreadySettledError(error)) || error.id !== input.formID) throw error
@@ -1048,7 +1057,8 @@ export function createData(config: CreateDataInput) {
             (item) =>
               item.type === "assistant" &&
               item.content.some(
-                (part) => part.type === "tool" && (part.state.status === "streaming" || part.state.status === "running"),
+                (part) =>
+                  part.type === "tool" && (part.state.status === "streaming" || part.state.status === "running"),
               ),
           )
         ) {
@@ -1176,7 +1186,10 @@ export function createData(config: CreateDataInput) {
     if (event.type === "credential.updated" || event.type === "credential.switched") {
       Object.keys(store.location).forEach((key) => {
         const ref = JSON.parse(key) as [string, string | null]
-        const location = { directory: ref[0], workspaceID: ref[1] ?? undefined }
+        const location = {
+          directory: ref[0],
+          workspaceID: ref[1] === null ? undefined : WorkspaceID.make(ref[1], { disableChecks: true }),
+        }
         if (event.type === "credential.updated") {
           result.location.integration.invalidate(location)
           refresh(() => result.location.integration.sync(location))
@@ -1305,8 +1318,8 @@ export function createData(config: CreateDataInput) {
   ) {
     const publish = (key: string, value: LocationData[Field]) => setStore("location", key, { [field]: value })
     return {
-      list: (ref?: LocationRef) => store.location[locationKey(ref ?? defaultLocation())]?.[field],
-      sync: (ref?: LocationRef) => {
+      list: (ref?: LocationInput) => store.location[locationKey(ref ?? defaultLocation())]?.[field],
+      sync: (ref?: LocationInput) => {
         const location = ref ?? defaultLocation()
         const id = locationKey(location)
         return sync.run(`location.${field}:${id}`, async () => {
@@ -1316,7 +1329,7 @@ export function createData(config: CreateDataInput) {
           if (options?.alias && key !== id) publish(id, response.data)
         })
       },
-      invalidate: (ref?: LocationRef) => sync.invalidate(`location.${field}:${locationKey(ref ?? defaultLocation())}`),
+      invalidate: (ref?: LocationInput) => sync.invalidate(`location.${field}:${locationKey(ref ?? defaultLocation())}`),
     }
   }
 
@@ -1403,7 +1416,7 @@ export function createData(config: CreateDataInput) {
               const snapshot = await api().session.inbox.list({ sessionID })
               // Events can overtake this HTTP response on a remote connection.
               // Reconcile them before an older snapshot can resurrect delivered input.
-              const current = new Map(snapshot.map((item) => [item.id, item]))
+              const current = new Map<string, SessionInboxInfo>(snapshot.map((item) => [item.id, item]))
               updates.forEach((item, id) => {
                 if (item === undefined) current.delete(id)
                 else if (typeof item === "string") {
@@ -1449,11 +1462,11 @@ export function createData(config: CreateDataInput) {
         title?: string
         agent?: string
         model?: ModelRef
-        location?: LocationRef
+        location?: LocationInput
         projectID?: string
       }) {
         const { projectID, ...payload } = input
-        const id = payload.id ?? SessionID.create()
+        const id = payload.id === undefined ? SessionID.create() : SessionID.make(payload.id, { disableChecks: true })
         const location = payload.location ?? defaultLocation()
         const fresh = !store.session.info[id]
         if (fresh) {
@@ -1461,9 +1474,13 @@ export function createData(config: CreateDataInput) {
           sessionOutbox.add(id)
           result.session.remember({
             id,
-            projectID: projectID ?? store.location[locationKey(location)]?.info?.project.id ?? "",
-            agent: payload.agent,
-            model: payload.model,
+            projectID: ProjectID.make(projectID ?? store.location[locationKey(location)]?.info?.project.id ?? ""),
+            agent: payload.agent === undefined ? undefined : Agent.ID.make(payload.agent),
+            model: payload.model && {
+              id: Model.ID.make(payload.model.id),
+              providerID: Provider.ID.make(payload.model.providerID),
+              variant: payload.model.variant === undefined ? undefined : Model.VariantID.make(payload.model.variant),
+            },
             cost: 0,
             tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
             time: { created: now, updated: now },
@@ -1503,7 +1520,7 @@ export function createData(config: CreateDataInput) {
           outbox.add(id)
           admitLocal({
             id,
-            sessionID: input.sessionID,
+            sessionID: SessionID.make(input.sessionID, { disableChecks: true }),
             time: { created: Date.now() },
             type: "compaction",
             delivery: "steer",
@@ -1543,7 +1560,10 @@ export function createData(config: CreateDataInput) {
       // double-admit.
       prompt(input: SessionPromptInput & { gate?: Promise<unknown>; prepare?: () => Promise<unknown> }) {
         const { gate, prepare, ...request } = input
-        const id = request.id ?? SessionMessage.ID.create()
+        const id =
+          request.id === undefined || request.id === null
+            ? SessionMessage.ID.create()
+            : SessionMessage.ID.make(request.id, { disableChecks: true })
         // A retry may reuse an ID that is already rendered — and possibly
         // already durable. Admit optimistically only for new IDs so a failed
         // retry cannot roll back acknowledged state.
@@ -1554,7 +1574,7 @@ export function createData(config: CreateDataInput) {
           outbox.add(id)
           admitLocal({
             id,
-            sessionID: request.sessionID,
+            sessionID: SessionID.make(request.sessionID, { disableChecks: true }),
             time: { created: Date.now() },
             type: "user",
             delivery: request.delivery ?? "steer",
@@ -1744,14 +1764,14 @@ export function createData(config: CreateDataInput) {
         },
       },
       form: {
-        list(sessionID: string, ref?: LocationRef) {
+        list(sessionID: string, ref?: LocationInput) {
           const forms = store.session.form[sessionID]
           if (sessionID !== "global") return forms
           if (!ref) return
           const key = locationKey(ref)
           return forms?.filter((form) => form.location && locationKey(form.location) === key)
         },
-        sync(sessionID: string, ref?: LocationRef) {
+        sync(sessionID: string, ref?: LocationInput) {
           const key = `session.form:${sessionID}:${sessionID === "global" ? locationKey(ref ?? defaultLocation()) : ""}`
           return sync.run(key, async () => {
             if (sessionID === "global") {
@@ -1773,15 +1793,15 @@ export function createData(config: CreateDataInput) {
             setStore("session", "form", sessionID, await api().session.form.list({ sessionID }))
           })
         },
-        invalidate(sessionID: string, ref?: LocationRef) {
+        invalidate(sessionID: string, ref?: LocationInput) {
           sync.invalidate(
             `session.form:${sessionID}:${sessionID === "global" ? locationKey(ref ?? defaultLocation()) : ""}`,
           )
         },
-        reply(input: SessionFormReplyInput, ref?: LocationRef) {
+        reply(input: SessionFormReplyInput, ref?: LocationInput) {
           return settleForm(input, ref, api().session.form.reply(input, formRequestOptions(input.sessionID, ref)))
         },
-        cancel(input: SessionFormCancelInput, ref?: LocationRef) {
+        cancel(input: SessionFormCancelInput, ref?: LocationInput) {
           return settleForm(input, ref, api().session.form.cancel(input, formRequestOptions(input.sessionID, ref)))
         },
       },
@@ -1817,7 +1837,7 @@ export function createData(config: CreateDataInput) {
       },
     },
     shell: {
-      list(location?: LocationRef) {
+      list(location?: LocationInput) {
         return Object.values(shells.list(location) ?? {})
       },
       listBySession(sessionID: string) {
@@ -1834,13 +1854,13 @@ export function createData(config: CreateDataInput) {
       invalidate: shells.invalidate,
     },
     location: {
-      info(ref?: LocationRef) {
+      info(ref?: LocationInput) {
         return store.location[locationKey(ref ?? defaultLocation())]?.info
       },
       default() {
         return defaultLocation()
       },
-      syncInfo(ref?: LocationRef) {
+      syncInfo(ref?: LocationInput) {
         const current = ref ?? defaultLocation()
         return sync.run(`location:${locationKey(current)}`, async () => {
           const location = await api().location.get({ location: locationQuery(current) })
@@ -1852,7 +1872,7 @@ export function createData(config: CreateDataInput) {
           }
         })
       },
-      async sync(ref?: LocationRef) {
+      async sync(ref?: LocationInput) {
         await result.location.syncInfo(ref)
         const location = ref ?? defaultLocation()
         await Promise.all([
@@ -1870,7 +1890,7 @@ export function createData(config: CreateDataInput) {
           result.session.form.sync("global", location),
         ])
       },
-      invalidate(ref?: LocationRef) {
+      invalidate(ref?: LocationInput) {
         const location = ref ?? defaultLocation()
         sync.invalidate(`location:${locationKey(location)}`)
         result.location.vcs.invalidate(location)
@@ -1906,10 +1926,10 @@ export function createData(config: CreateDataInput) {
       provider: locationResource("provider", (location) => api().provider.list({ location }), { alias: true }),
       reference: locationResource("reference", (location) => api().reference.list({ location })),
       websearch: {
-        list(location?: LocationRef) {
+        list(location?: LocationInput) {
           return store.location[locationKey(location ?? defaultLocation())]?.websearch
         },
-        async refresh(ref?: LocationRef) {
+        async refresh(ref?: LocationInput) {
           const input = { location: locationQuery(ref ?? defaultLocation()) }
           const providers = await api().websearch.providers(input)
           const key = locationKey(providers.location)
