@@ -1,3 +1,6 @@
+import { Agent } from "@opencode/schema/agent"
+import { Model } from "@opencode/schema/model"
+import { Provider } from "@opencode/schema/provider"
 import { Service, type Endpoint } from "@opencode/client/effect/service"
 import { ClientError, OpenCode, type OpenCodeClient } from "@opencode/client/promise"
 import type { MiniFrontendInput } from "@opencode/tui/mini"
@@ -25,8 +28,6 @@ export type MiniCommandInput = {
   config?: MiniFrontendInput["config"]
   paths: { home: string; state: string; log: string }
 }
-
-type Model = MiniFrontendInput["model"]
 
 class MiniInputError extends Error {}
 
@@ -56,7 +57,7 @@ export async function runMini(input: MiniCommandInput) {
               session: input.session,
               fork: input.fork,
               model: requested,
-              agent: input.agent,
+              agent: input.agent === undefined ? undefined : Agent.ID.make(input.agent),
               environment,
               prepare,
               signal,
@@ -82,19 +83,19 @@ export async function runMini(input: MiniCommandInput) {
         client: OpenCodeClient,
         next: {
           location: { directory: string }
-          agent: string | undefined
-          model: Model
-          variant: string | undefined
+          agent: MiniFrontendInput["agent"]
+          model: MiniFrontendInput["model"]
+          variant: MiniFrontendInput["variant"]
         },
         signal?: AbortSignal,
       ) =>
         resolveSessionTarget({
           client,
           location: { directory: next.location.directory },
-          agent: next.agent,
+          agent: next.agent === undefined ? undefined : Agent.ID.make(next.agent),
           environment,
           model: next.model
-            ? { providerID: next.model.providerID, id: next.model.modelID, variant: next.variant }
+            ? { providerID: Provider.ID.make(next.model.providerID), id: Model.ID.make(next.model.modelID), variant: next.variant === undefined ? undefined : Model.VariantID.make(next.variant) }
             : undefined,
           prepare,
           signal,
@@ -115,7 +116,7 @@ export async function runMini(input: MiniCommandInput) {
         target: resolveTarget,
         reconnect: connection.reconnect,
         createSession: create,
-        agent: input.agent,
+        agent: input.agent === undefined ? undefined : Agent.ID.make(input.agent),
         model,
         variant: requested?.variant,
         files: [],
@@ -217,7 +218,10 @@ function parseModel(value?: string) {
 }
 
 function prepareTarget(requestedAgent?: string): SessionTargetPreparation {
-  return async (input) => ({ model: input.model, agent: requestedAgent ?? input.agent })
+  return async (input) => ({
+    model: input.model,
+    agent: requestedAgent === undefined ? input.agent : Agent.ID.make(requestedAgent),
+  })
 }
 
 function fail(message: string): never {
