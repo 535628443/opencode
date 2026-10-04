@@ -283,7 +283,7 @@ describe("createTimelineProjection", () => {
     expect(result.sessionMessageByID.get(SessionMessage.ID.make("assistant-1", { disableChecks: true }))).toBe(
       messages[3],
     )
-    expect(result.assistantMessagesByParent.get("user-1")?.map((message) => message.id)).toEqual(["assistant-1"])
+    expect<unknown>(result.assistantMessagesByParent.get("user-1")?.map((message) => message.id)).toEqual(["assistant-1"])
     expect(result.assistantMessagesByParent.has("user-2")).toBe(false)
     expect(result.userContextByID.get("user-1")).toEqual({ agent: "build", model: assistantModel })
     expect<unknown>(result.userContextByID.get("user-2")).toEqual({

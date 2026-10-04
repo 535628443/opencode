@@ -97,7 +97,7 @@ function promptAdmission(
   sessionID = Session.ID.make("ses_1", { disableChecks: true }),
 ) {
   return {
-    id: input.id ?? SessionMessage.ID.make("msg_prompt", { disableChecks: true }),
+    id: SessionMessage.ID.make(input.id ?? "msg_prompt", { disableChecks: true }),
     sessionID: Session.ID.make(sessionID, { disableChecks: true }),
     type: "user" as const,
     payload: {
@@ -869,7 +869,7 @@ describe("V2 mini transport", () => {
     const snapshots = ui.events.flatMap((event) => (event.type === "stream.subagent" ? [event.state] : []))
 
     expect(snapshots.at(-1)?.tabs.map((item) => item.sessionID)).toEqual(["ses_child", "ses_grandchild"])
-    expect(snapshots.at(-1)?.forms.map((item) => item.id)).toEqual(["frm_child", "frm_grandchild"])
+    expect<unknown>(snapshots.at(-1)?.forms.map((item) => item.id)).toEqual(["frm_child", "frm_grandchild"])
     expect(
       ui.events.find(
         (event) =>
@@ -3789,7 +3789,7 @@ describe("V2 mini transport", () => {
         })
       })
       return ok({
-        id: input.id ?? SessionMessage.ID.make("msg_skill_attachment", { disableChecks: true }),
+        id: SessionMessage.ID.make(input.id ?? "msg_skill_attachment", { disableChecks: true }),
         sessionID: Session.ID.make("ses_1", { disableChecks: true }),
         type: "user" as const,
         payload: { text: input.text },

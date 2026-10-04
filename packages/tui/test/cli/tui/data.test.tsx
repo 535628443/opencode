@@ -399,7 +399,7 @@ test("refreshes resources into reactive getters", async () => {
     await data.location.websearch.refresh()
 
     expect(data.session.get(Session.ID.make("ses_test", { disableChecks: true }))?.title).toBe("Test session")
-    expect(
+    expect<unknown>(
       data.session.message.list(Session.ID.make("ses_test", { disableChecks: true })).map((message) => message.id),
     ).toEqual(["msg_first", "msg_second"])
     expect<unknown>(
@@ -411,8 +411,8 @@ test("refreshes resources into reactive getters", async () => {
     await app.renderOnce()
     expect<unknown>(app.captureCharFrame()).toContain("msg_second")
     expect(data.location.default()).toEqual({ directory, workspaceID: undefined })
-    expect(data.location.agent.list(location)?.map((agent) => agent.id)).toEqual(["build"])
-    expect(data.location.websearch.list(location)).toEqual([{ id: "standalone", name: "Standalone" }])
+    expect<unknown>(data.location.agent.list(location)?.map((agent) => agent.id)).toEqual(["build"])
+    expect<unknown>(data.location.websearch.list(location)).toEqual([{ id: "standalone", name: "Standalone" }])
   } finally {
     app.renderer.destroy()
   }
@@ -646,7 +646,7 @@ test("truncates committed revert messages without changing lifetime usage", asyn
     })
     await wait(() => data.session.message.list(sessionID).length === 1)
     expect(data.session.get(sessionID)?.cost).toBe(0.75)
-    expect(data.session.message.list(sessionID).map((message) => message.id)).toEqual(["msg_revert_boundary"])
+    expect<unknown>(data.session.message.list(sessionID).map((message) => message.id)).toEqual(["msg_revert_boundary"])
     expect(data.session.get(sessionID)?.revert).toBeUndefined()
     expect(data.session.get(sessionID)?.tokens).toEqual(tokens)
   } finally {
@@ -713,7 +713,7 @@ test("updates session location when moved", async () => {
     await wait(
       () => data.session.get(Session.ID.make("ses_test", { disableChecks: true }))?.location.directory === destination,
     )
-    expect(data.session.get(Session.ID.make("ses_test", { disableChecks: true }))?.projectID).toBe("project-moved")
+    expect<unknown>(data.session.get(Session.ID.make("ses_test", { disableChecks: true }))?.projectID).toBe("project-moved")
     expect(data.session.get(Session.ID.make("ses_test", { disableChecks: true }))?.subpath).toBe("packages/cli")
     expect(data.session.message.list(Session.ID.make("ses_test", { disableChecks: true }))).toContainEqual({
       id: SessionMessage.ID.make("msg_moved_1", { disableChecks: true }),
@@ -1169,7 +1169,7 @@ test("updates and removes queued inputs from durable lifecycle events", async ()
     await wait(
       () => !data.session.input.has(sessionID, SessionMessage.ID.make("message-cancelled", { disableChecks: true })),
     )
-    expect(data.session.pending.list(sessionID).map((item) => item.id)).toEqual(["message-queued"])
+    expect<unknown>(data.session.pending.list(sessionID).map((item) => item.id)).toEqual(["message-queued"])
     expect(
       data.session.message.get(sessionID, SessionMessage.ID.make("message-cancelled", { disableChecks: true })),
     ).toBeUndefined()
@@ -2142,7 +2142,7 @@ test("restores queued compaction from durable pending input", async () => {
       },
     })
     await wait(() => data.session.pending.list(sessionID).length === 1)
-    expect(data.session.pending.list(sessionID).map((item) => item.id)).toEqual(["message-compaction-later"])
+    expect<unknown>(data.session.pending.list(sessionID).map((item) => item.id)).toEqual(["message-compaction-later"])
 
     emitEvent(events, {
       id: Event.ID.make("evt_compaction_ended", { disableChecks: true }),
@@ -2156,7 +2156,7 @@ test("restores queued compaction from durable pending input", async () => {
         recent: "",
       },
     })
-    expect(data.session.pending.list(sessionID).map((item) => item.id)).toEqual(["message-compaction-later"])
+    expect<unknown>(data.session.pending.list(sessionID).map((item) => item.id)).toEqual(["message-compaction-later"])
 
     pending = []
     data.session.pending.invalidate(sessionID)
@@ -2549,7 +2549,7 @@ test("keeps shell state scoped to location", async () => {
     await data.shell.sync({ directory: other })
 
     expect<unknown>(data.shell.list().map((shell) => shell.id)).toEqual(["sh_default"])
-    expect(data.shell.list({ directory: other }).map((shell) => shell.id)).toEqual(["sh_other"])
+    expect<unknown>(data.shell.list({ directory: other }).map((shell) => shell.id)).toEqual(["sh_other"])
     expect(
       data.shell
         .listBySession(Session.ID.make("ses_shared", { disableChecks: true }))
@@ -2661,7 +2661,7 @@ test("adds and dismisses permission requests from live events", async () => {
       },
     })
     await wait(() => data.session.permission.list(Session.ID.make("ses_1", { disableChecks: true }))?.length === 1)
-    expect(data.session.permission.list(Session.ID.make("ses_1", { disableChecks: true }))?.[0]?.id).toBe("per_2")
+    expect<unknown>(data.session.permission.list(Session.ID.make("ses_1", { disableChecks: true }))?.[0]?.id).toBe("per_2")
 
     emitEvent(events, {
       id: Event.ID.make("evt_permission_replied_2", { disableChecks: true }),
@@ -2995,7 +2995,7 @@ test("tracks global forms by location", async () => {
       },
     })
     await wait(() => data.session.form.list("global", other)?.length === 0)
-    expect(data.session.form.list("global", { directory })?.map((form) => form.id)).toEqual(["frm_default"])
+    expect<unknown>(data.session.form.list("global", { directory })?.map((form) => form.id)).toEqual(["frm_default"])
   } finally {
     app.renderer.destroy()
   }
@@ -3058,8 +3058,8 @@ test("syncs global forms once for each requested location", async () => {
     expect(requests).toHaveLength(1)
     expect(requests[0]?.searchParams.get("location[directory]")).toBe(other.directory)
     expect(requests[0]?.searchParams.has("location[workspace]")).toBe(false)
-    expect(data.session.form.list("global", other)?.map((form) => form.id)).toEqual(["frm_other"])
-    expect(data.session.form.list("global", { directory })?.map((form) => form.id)).toEqual(["frm_default"])
+    expect<unknown>(data.session.form.list("global", other)?.map((form) => form.id)).toEqual(["frm_other"])
+    expect<unknown>(data.session.form.list("global", { directory })?.map((form) => form.id)).toEqual(["frm_default"])
 
     data.session.form.invalidate("global", other)
     await data.session.form.sync("global", other)
@@ -3678,9 +3678,9 @@ test("syncs direct child session info with a navigated root", async () => {
   const { data, app } = await mountData({ child: "root", sibling: "root", grandchild: "child" })
   try {
     await data.session.sync(Session.ID.make("root", { disableChecks: true }), { children: true })
-    expect(data.session.get(Session.ID.make("root", { disableChecks: true }))?.id).toBe("root")
-    expect(data.session.get(Session.ID.make("child", { disableChecks: true }))?.parentID).toBe("root")
-    expect(data.session.get(Session.ID.make("sibling", { disableChecks: true }))?.parentID).toBe("root")
+    expect<unknown>(data.session.get(Session.ID.make("root", { disableChecks: true }))?.id).toBe("root")
+    expect<unknown>(data.session.get(Session.ID.make("child", { disableChecks: true }))?.parentID).toBe("root")
+    expect<unknown>(data.session.get(Session.ID.make("sibling", { disableChecks: true }))?.parentID).toBe("root")
     expect(data.session.get(Session.ID.make("grandchild", { disableChecks: true }))).toBeUndefined()
     expect(data.session.family(Session.ID.make("root", { disableChecks: true }))).toEqual(["root", "child", "sibling"])
   } finally {

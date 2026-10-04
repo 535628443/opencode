@@ -175,7 +175,7 @@ test("unviewed families and newly discovered descendants are evicted", async () 
     await scope.data.session.message.sync(Session.ID.make("kept-child", { disableChecks: true }))
     scope.remember("kept-child", "current", 10)
     expect(scope.cached("kept-child")).toBe(true)
-    expect(
+    expect<unknown>(
       scope.data.session
         .list()
         .map((session) => session.id)

@@ -17,7 +17,7 @@ const integration = (value: Partial<IntegrationInfo> & Pick<IntegrationInfo, "id
 
 describe("integrationOptions", () => {
   test("keeps popular integrations first and sorts the rest alphabetically", () => {
-    expect(
+    expect<unknown>(
       integrationOptions([
         integration({ id: Integration.ID.make("mistral", { disableChecks: true }), name: "Mistral" }),
         integration({ id: Integration.ID.make("openai", { disableChecks: true }), name: "OpenAI" }),
@@ -30,7 +30,7 @@ describe("integrationOptions", () => {
   })
 
   test("keeps MCP integrations above popular integrations without relying on their IDs", () => {
-    expect(
+    expect<unknown>(
       integrationOptions([
         integration({ id: Integration.ID.make("openai", { disableChecks: true }), name: "OpenAI" }),
         integration({
@@ -70,7 +70,7 @@ describe("connectMethods", () => {
 
 describe("credentialConnections", () => {
   test("returns removable credential connections only", () => {
-    expect(
+    expect<unknown>(
       credentialConnections(
         integration({
           id: Integration.ID.make("example", { disableChecks: true }),

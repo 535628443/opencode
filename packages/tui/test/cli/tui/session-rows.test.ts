@@ -407,7 +407,7 @@ test("closes turn usage on the idle marker so steered steps share one footer", (
     { type: "message", messageID: "steer-2" },
     { type: "assistant-footer", messageID: "assistant-4" },
   ])
-  expect(
+  expect<unknown>(
     reduceSessionRows([...messages, idle("idle-2", 6)], new Set(), true).filter((row) => row.type === "turn-usage"),
   ).toEqual([
     {
@@ -488,7 +488,7 @@ test("assigns assistant boundaries to the first rendered row instead of the firs
   ]
   const rows = reduceSessionRows(messages)
 
-  expect(messageBoundaryIDs(rows, messages)).toEqual(["user-1", "assistant-1", undefined, undefined])
+  expect<unknown>(messageBoundaryIDs(rows, messages)).toEqual(["user-1", "assistant-1", undefined, undefined])
 })
 
 test("assigns stable IDs to tool rows for direct navigation", () => {
