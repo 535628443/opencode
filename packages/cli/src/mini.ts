@@ -1,6 +1,4 @@
 import { Agent } from "@opencode/schema/agent"
-import { Model } from "@opencode/schema/model"
-import { Provider } from "@opencode/schema/provider"
 import { Service, type Endpoint } from "@opencode/client/effect/service"
 import { ClientError, OpenCode, type OpenCodeClient } from "@opencode/client/promise"
 import type { MiniFrontendInput } from "@opencode/tui/mini"
@@ -92,10 +90,10 @@ export async function runMini(input: MiniCommandInput) {
         resolveSessionTarget({
           client,
           location: { directory: next.location.directory },
-          agent: next.agent === undefined ? undefined : Agent.ID.make(next.agent),
+          agent: next.agent,
           environment,
           model: next.model
-            ? { providerID: Provider.ID.make(next.model.providerID), id: Model.ID.make(next.model.modelID), variant: next.variant === undefined ? undefined : Model.VariantID.make(next.variant) }
+            ? { providerID: next.model.providerID, id: next.model.modelID, variant: next.variant }
             : undefined,
           prepare,
           signal,
