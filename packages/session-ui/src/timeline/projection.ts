@@ -1,3 +1,4 @@
+import type { SessionMessage } from "@opencode/schema/session-message"
 import type {
   ModelRef,
   SessionMessageAssistant,
@@ -38,12 +39,12 @@ export type TimelineProjectionInput = {
   shellToolDefaultOpen?: boolean
   editToolDefaultOpen?: boolean
   timelineDetail?: TimelineDetail
-  pendingUserMessageIDs?: ReadonlySet<string>
+  pendingUserMessageIDs?: ReadonlySet<SessionMessage.ID>
   previousRows?: TimelineRow.TimelineRow[]
 }
 
 export function createTimelineProjection(input: TimelineProjectionInput) {
-  const sessionMessageByID = new Map<string, SessionMessageInfo>(
+  const sessionMessageByID = new Map<SessionMessage.ID, SessionMessageInfo>(
     input.sessionMessages.map((message) => [message.id, message] as const),
   )
   const projection = Timeline.constructSessionMessageRows(
@@ -58,9 +59,9 @@ export function createTimelineProjection(input: TimelineProjectionInput) {
   )
   const rows = reuseTimelineRows(input.previousRows, projection.rows)
   const rowByKey = new Map(rows.map((row) => [TimelineRow.key(row), row] as const))
-  const messageRowIndex = new Map<string, number>()
-  const messageLastRowIndex = new Map<string, number>()
-  const lastAssistantGroupKey = new Map<string, string>()
+  const messageRowIndex = new Map<SessionMessage.ID, number>()
+  const messageLastRowIndex = new Map<SessionMessage.ID, number>()
+  const lastAssistantGroupKey = new Map<SessionMessage.ID, string>()
 
   rows.forEach((row, index) => {
     if (!messageRowIndex.has(row.userMessageID)) messageRowIndex.set(row.userMessageID, index)
@@ -89,10 +90,13 @@ export function createReactiveTimelineProjection(input: {
   shellToolDefaultOpen?: Accessor<boolean>
   editToolDefaultOpen?: Accessor<boolean>
   timelineDetail?: Accessor<TimelineDetail>
-  pendingUserMessageIDs?: Accessor<ReadonlySet<string>>
+  pendingUserMessageIDs?: Accessor<ReadonlySet<SessionMessage.ID>>
 }) {
   const sessionMessageByID = createMemo(
-    () => new Map<string, SessionMessageInfo>(input.sessionMessages().map((message) => [message.id, message] as const)),
+    () =>
+      new Map<SessionMessage.ID, SessionMessageInfo>(
+        input.sessionMessages().map((message) => [message.id, message] as const),
+      ),
   )
   const userContextByID = createMemo(() => indexUserContext(input.sessionMessages()))
   const assistantMessagesByParent = createMemo(() => indexAssistantMessages(input.sessionMessages()))
@@ -130,7 +134,7 @@ export function createReactiveTimelineProjection(input: {
   )
   const rowByKey = createMemo(() => new Map(rows().map((row) => [TimelineRow.key(row), row] as const)))
   const messageRowIndex = createMemo(() => {
-    const result = new Map<string, number>()
+    const result = new Map<SessionMessage.ID, number>()
     rows().forEach((row, index) => {
       if (result.has(row.userMessageID)) return
       result.set(row.userMessageID, index)
@@ -138,12 +142,12 @@ export function createReactiveTimelineProjection(input: {
     return result
   })
   const messageLastRowIndex = createMemo(() => {
-    const result = new Map<string, number>()
+    const result = new Map<SessionMessage.ID, number>()
     rows().forEach((row, index) => result.set(row.userMessageID, index))
     return result
   })
   const lastAssistantGroupKey = createMemo(() => {
-    const result = new Map<string, string>()
+    const result = new Map<SessionMessage.ID, string>()
     rows().forEach((row) => {
       if (row._tag === "AssistantPart") result.set(row.userMessageID, row.group.key)
     })
@@ -169,14 +173,14 @@ export namespace Timeline {
     messages: SessionMessageInfo[],
     showReasoning: boolean,
     status: SessionStatus,
-    pendingUserMessageIDs?: ReadonlySet<string>,
+    pendingUserMessageIDs?: ReadonlySet<SessionMessage.ID>,
     shellToolDefaultOpen = false,
     editToolDefaultOpen = false,
     isRenderable = renderable,
     detail?: TimelineDetail,
   ) {
     type Turn = {
-      id: string
+      id: SessionMessage.ID
       time: { created: number }
       user?: SessionMessageUser
       shell?: SessionMessageShell
@@ -184,7 +188,7 @@ export namespace Timeline {
     }
 
     const turns: Turn[] = []
-    const turnByUserID = new Map<string, Turn>()
+    const turnByUserID = new Map<SessionMessage.ID, Turn>()
     const leading: Notice[] = []
     let current: Turn | undefined
 
@@ -295,7 +299,7 @@ export namespace Timeline {
 
   export function constructMessageRows(
     userMessage: SessionMessageUser | undefined,
-    turnID: string,
+    turnID: SessionMessage.ID,
     entries: Entry[],
     index: number,
     showReasoning: boolean,
@@ -440,7 +444,11 @@ function shellFailed(message: SessionMessageShell) {
   )
 }
 
-function groupMessages(rows: TimelineRow.TimelineRow[], detail: TimelineDetail, separate: ReadonlySet<string>) {
+function groupMessages(
+  rows: TimelineRow.TimelineRow[],
+  detail: TimelineDetail,
+  separate: ReadonlySet<SessionMessage.ID>,
+) {
   return rows.reduce<TimelineRow.TimelineRow[]>((result, row) => {
     const previous = result.at(-1)
     const current =
@@ -502,10 +510,10 @@ export function reuseTimelineRows(previous: TimelineRow.TimelineRow[] | undefine
 }
 
 function indexUserContext(messages: SessionMessageInfo[]) {
-  const result = new Map<string, { agent: string; model: ModelRef }>()
+  const result = new Map<SessionMessage.ID, { agent: string; model: ModelRef }>()
   let agent = ""
   let model: ModelRef = { id: Model.ID.make(""), providerID: Provider.ID.make("") }
-  let userID: string | undefined
+  let userID: SessionMessage.ID | undefined
 
   messages.forEach((message) => {
     if (message.type === "agent-switched") agent = message.agent
@@ -550,8 +558,8 @@ function indexUserContext(messages: SessionMessageInfo[]) {
 }
 
 function indexAssistantMessages(messages: SessionMessageInfo[]) {
-  const result = new Map<string, SessionMessageAssistant[]>()
-  let userID: string | undefined
+  const result = new Map<SessionMessage.ID, SessionMessageAssistant[]>()
+  let userID: SessionMessage.ID | undefined
 
   messages.forEach((message) => {
     if (message.type === "user") userID = message.id
@@ -616,7 +624,7 @@ function renderable(content: Content, showReasoning: boolean, detail?: TimelineD
 }
 
 function groupContent(
-  items: { messageID: string; partID: string; content: Content }[],
+  items: { messageID: SessionMessage.ID; partID: string; content: Content }[],
   shellToolDefaultOpen: boolean,
   editToolDefaultOpen: boolean,
   detail?: TimelineDetail,

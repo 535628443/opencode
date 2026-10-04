@@ -247,7 +247,12 @@ describe("current session timeline rows", () => {
         time: { created: 2 },
       },
     ] satisfies SessionMessageInfo[]
-    const result = Timeline.constructSessionMessageRows(source, true, { type: "busy" }, new Set(["msg_queued"]))
+    const result = Timeline.constructSessionMessageRows(
+      source,
+      true,
+      { type: "busy" },
+      new Set([SessionMessage.ID.make("msg_queued", { disableChecks: true })]),
+    )
 
     expect<unknown>(result.activeMessageID).toBe("msg_active")
     expect(result.rows.map(TimelineRow.key)).toEqual([
@@ -452,7 +457,7 @@ describe("current session timeline rows", () => {
       ],
       true,
       document.status,
-      new Set(["queued"]),
+      new Set([SessionMessage.ID.make("queued", { disableChecks: true })]),
     )
     expect(result.rows.map((row) => row._tag)).toEqual(["UserMessage", "Thinking", "TurnGap", "UserMessage"])
     expect(result.rows[1].userMessageID).toBe(document.messages[0].id)
