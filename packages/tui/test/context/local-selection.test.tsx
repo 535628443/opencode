@@ -20,11 +20,11 @@ test("cycles all recent models in a stable order in both directions", async () =
   expect<unknown>(setup.local.model.current()?.modelID).toBe("first")
   for (const id of ["second", "third", "first"]) {
     setup.local.model.cycle(1)
-    expect(setup.local.model.current()?.modelID).toBe(Model.ID.make(id, { disableChecks: true }))
+    expect<unknown>(setup.local.model.current()?.modelID).toBe(Model.ID.make(id, { disableChecks: true }))
   }
-  for (const id of ["third", "second", "first"]) {
+  for (const id of [\"third\", \"second\", \"first\"]) {
     setup.local.model.cycle(-1)
-    expect(setup.local.model.current()?.modelID).toBe(Model.ID.make(id, { disableChecks: true }))
+    expect<unknown>(setup.local.model.current()?.modelID).toBe(Model.ID.make(id, { disableChecks: true }))
   }
 })
 
@@ -154,12 +154,21 @@ test("agent and model drafts are isolated across sessions and survive navigation
   setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_first", { disableChecks: true }) })
   setup.local.agent.set("plan")
   setup.local.model.variant.set("low")
+<<<<<<< HEAD
   setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_second", { disableChecks: true }) })
   expect<unknown>(setup.local.agent.current()?.id).toBe("plan")
   expect(setup.local.model.variant.current()).toBe(Model.VariantID.make("high", { disableChecks: true }))
   setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_first", { disableChecks: true }) })
   expect<unknown>(setup.local.agent.current()?.id).toBe("plan")
   expect(setup.local.model.variant.current()).toBe(Model.VariantID.make("low", { disableChecks: true }))
+=======
+  setup.route.navigate({ type: "session", sessionID: "ses_second" })
+  expect(setup.local.agent.current()?.id).toBe("plan")
+  expect<unknown>(setup.local.model.variant.current()).toBe("high")
+  setup.route.navigate({ type: "session", sessionID: "ses_first" })
+  expect(setup.local.agent.current()?.id).toBe("plan")
+  expect<unknown>(setup.local.model.variant.current()).toBe("low")
+>>>>>>> b2147f10d1 (refactor(tui): prepare canonical client outputs)
   setup.local.agent.set("build")
   expect<unknown>(setup.local.model.selection()).toEqual({
     providerID: "provider",
