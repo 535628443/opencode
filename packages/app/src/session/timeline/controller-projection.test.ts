@@ -69,7 +69,7 @@ describe("visibleTimelineMessages", () => {
   test("keeps work above an undelivered steer without adding a thinking row", () => {
     const source = [...messages.slice(0, 3), work]
     const visible = visibleTimelineMessages(source, [steer])
-    expect(visible.map((message) => message.id)).toEqual(["msg_1", "msg_2", "msg_5", "msg_3"])
+    expect<unknown>(visible.map((message) => message.id)).toEqual(["msg_1", "msg_2", "msg_5", "msg_3"])
     expect<unknown>(source.map((message) => message.id)).toEqual(["msg_1", "msg_2", "msg_3", "msg_5"])
     expect(visible[2]).toBe(work)
 
@@ -90,7 +90,7 @@ describe("visibleTimelineMessages", () => {
         ["TurnGap", "msg_3"],
         ["UserMessage", "msg_3"],
       ])
-      expect(
+      expect<unknown>(
         projection
           .assistantMessagesByParent()
           .get(SessionMessage.ID.make("msg_1", { disableChecks: true }))
@@ -105,7 +105,7 @@ describe("visibleTimelineMessages", () => {
         ["msg_1", 1],
         ["msg_3", 3],
       ])
-      expect([...projection.lastAssistantGroupKey()]).toEqual([["msg_1", "context:msg_5:tool_read"]])
+      expect<unknown>([...projection.lastAssistantGroupKey()]).toEqual([["msg_1", "context:msg_5:tool_read"]])
       expect(projection.rowByKey().get("user-message:msg_1")).toBe(projection.rows()[0])
       expect(projection.rowByKey().size).toBe(projection.rows().length)
       dispose()
@@ -139,7 +139,7 @@ describe("visibleTimelineMessages", () => {
       "msg_3",
       "msg_4",
     ])
-    expect(
+    expect<unknown>(
       visibleTimelineMessages(source, pending, SessionMessage.ID.make("msg_4", { disableChecks: true })).map(
         (message) => message.id,
       ),
@@ -158,11 +158,11 @@ describe("visibleTimelineMessages", () => {
       },
     ] satisfies SessionInboxInfo[]
 
-    expect(visibleTimelineMessages(messages, pending).map((message) => message.id)).toEqual(["msg_1", "msg_2", "msg_4"])
+    expect<unknown>(visibleTimelineMessages(messages, pending).map((message) => message.id)).toEqual(["msg_1", "msg_2", "msg_4"])
   })
 
   test("hides the staged revert boundary and later messages", () => {
-    expect(
+    expect<unknown>(
       visibleTimelineMessages(messages, [], SessionMessage.ID.make("msg_4", { disableChecks: true })).map(
         (message) => message.id,
       ),
