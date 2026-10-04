@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber, Option, Layer, Schema, Scope, Stream } from "effect"
+import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber, Layer, Schema, Scope, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import { Credential } from "@opencode/core/credential"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
@@ -801,7 +801,7 @@ describe("Integration.connection.recover", () => {
         })
       })
 
-      const attempt = yield* integrations.oauth.connect({ integrationID, methodID })
+      yield* integrations.oauth.connect({ integrationID, methodID })
       yield* Effect.yieldNow
       const cred = (yield* credentials.list(integrationID))[0]
       expect(cred).toBeDefined()
@@ -888,7 +888,7 @@ describe("Integration.connection.recover", () => {
         })
       })
 
-      const attempt = yield* integrations.oauth.connect({ integrationID, methodID })
+      yield* integrations.oauth.connect({ integrationID, methodID })
       yield* Effect.yieldNow
       const cred = (yield* credentials.list(integrationID))[0]
 
@@ -961,7 +961,7 @@ describe("Integration.connection.recover", () => {
         })
       })
 
-      const attempt = yield* integrations.oauth.connect({ integrationID, methodID })
+      yield* integrations.oauth.connect({ integrationID, methodID })
       yield* Effect.yieldNow
       const cred = (yield* credentials.list(integrationID))[0]
 
@@ -1027,7 +1027,7 @@ describe("Integration.connection.recover", () => {
         })
       })
 
-      const attempt = yield* integrations.oauth.connect({ integrationID, methodID })
+      yield* integrations.oauth.connect({ integrationID, methodID })
       yield* Effect.yieldNow
       const cred = (yield* credentials.list(integrationID))[0]
 
