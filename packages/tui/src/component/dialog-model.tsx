@@ -1,3 +1,5 @@
+import type { Provider } from "@opencode/schema/provider"
+import type { Model } from "@opencode/schema/model"
 import { createMemo, createSignal } from "solid-js"
 import { useLocal } from "../context/local"
 import { DialogSelect } from "../ui/dialog-select"
@@ -11,7 +13,7 @@ import { modelPreferenceKey } from "../model-preference"
 import { useLocation } from "../context/location"
 import type { ProviderInfo } from "@opencode/client"
 
-export function DialogModel(props: { providerID?: string }) {
+export function DialogModel(props: { providerID?: Provider.ID }) {
   const local = useLocal()
   const data = useData()
   const dialog = useDialog()
@@ -22,7 +24,7 @@ export function DialogModel(props: { providerID?: string }) {
   const connected = useConnected()
   const providers = createMemo(
     () =>
-      new Map<string, ProviderInfo>((data.location.provider.list(location.ref) ?? []).map((item) => [item.id, item])),
+      new Map<Provider.ID, ProviderInfo>((data.location.provider.list(location.ref) ?? []).map((item) => [item.id, item])),
   )
   const models = createMemo(() => data.location.model.list(location.ref) ?? [])
 
@@ -125,7 +127,7 @@ export function DialogModel(props: { providerID?: string }) {
     return value.name
   })
 
-  function onSelect(providerID: string, modelID: string) {
+  function onSelect(providerID: Provider.ID, modelID: Model.ID) {
     local.model.set({ providerID, modelID }, { recent: true })
     const list = local.model.variant.list()
     const cur = local.model.variant.current()
@@ -161,7 +163,7 @@ export function DialogModel(props: { providerID?: string }) {
           title: "Favorite",
           hidden: !connected(),
           onTrigger: (option) => {
-            local.model.toggleFavorite(option.value as { providerID: string; modelID: string })
+            local.model.toggleFavorite(option.value as { providerID: Provider.ID; modelID: Model.ID })
           },
         },
       ]}
@@ -175,7 +177,7 @@ export function DialogModel(props: { providerID?: string }) {
   )
 }
 
-export function prioritizeFavorites<T extends { value: { providerID: string; modelID: string } }>(
+export function prioritizeFavorites<T extends { value: { providerID: Provider.ID; modelID: Model.ID } }>(
   options: T[],
   favorites: Set<string>,
 ) {
@@ -186,7 +188,7 @@ export function prioritizeFavorites<T extends { value: { providerID: string; mod
 
 export function sortModelOptions<
   T extends {
-    providerID?: string
+    providerID?: Provider.ID
     providerName?: string
     releaseDate: string | number
     title: string

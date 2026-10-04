@@ -393,7 +393,7 @@ test("closes turn usage on the idle marker so steered steps share one footer", (
     step("assistant-4", 4_000),
   ]
 
-  expect(reduceSessionRows(messages, new Set(), true)).toEqual([
+  expect<unknown>(reduceSessionRows(messages, new Set(), true)).toEqual([
     { type: "message", messageID: "user-1" },
     { type: "assistant-footer", messageID: "assistant-1" },
     { type: "message", messageID: "steer" },
@@ -812,7 +812,7 @@ test("renders a footer for a pre-output retry assistant after replay", () => {
     error: { type: "provider.transport", message: "Disconnected" },
   }
 
-  expect(reduceSessionRows([message])).toEqual([{ type: "assistant-footer", messageID: "assistant-retry" }])
+  expect<unknown>(reduceSessionRows([message])).toEqual([{ type: "assistant-footer", messageID: "assistant-retry" }])
 })
 
 test("places a running compaction barrier before every queued user message", () => {

@@ -105,7 +105,7 @@ test("switching agents restores their model and variant within the session", asy
     providerID: Provider.ID.make("provider", { disableChecks: true }),
     modelID: Model.ID.make("third", { disableChecks: true }),
   })
-  setup.local.model.variant.set("high")
+  setup.local.model.variant.set(Model.VariantID.make("high"))
   setup.local.agent.move(-1)
   expect<unknown>(setup.local.model.selection()).toEqual({
     providerID: "provider",
@@ -153,7 +153,7 @@ test("agent and model drafts are isolated across sessions and survive navigation
   ])
   setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_first", { disableChecks: true }) })
   setup.local.agent.set("plan")
-  setup.local.model.variant.set("low")
+  setup.local.model.variant.set(Model.VariantID.make("low"))
   setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_second", { disableChecks: true }) })
   expect<unknown>(setup.local.agent.current()?.id).toBe("plan")
   expect(setup.local.model.variant.current()).toBe(Model.VariantID.make("high", { disableChecks: true }))

@@ -22,22 +22,22 @@ test("plugins read and select variants of the selected model", async () => {
   await using setup = await renderLocal({ models: [model("first", ["low", "high"])] })
   const selected = pluginModel(setup.local)
 
-  expect(selected.current()).toEqual({ providerID: "provider", modelID: "first", variant: undefined })
-  expect(selected.variant.list()).toEqual(["low", "high"])
+  expect<unknown>(selected.current()).toEqual({ providerID: "provider", modelID: "first", variant: undefined })
+  expect<unknown>(selected.variant.list()).toEqual(["low", "high"])
 
-  expect(selected.variant.set("high")).toBe(true)
-  expect(selected.current()?.variant).toBe("high")
+  expect(selected.variant.set(Model.VariantID.make("high"))).toBe(true)
+  expect<unknown>(selected.current()?.variant).toBe("high")
   expect(setup.local.model.variant.current()).toBe(Model.VariantID.make("high", { disableChecks: true }))
 
   expect(selected.variant.set(undefined)).toBe(true)
-  expect(selected.current()?.variant).toBeUndefined()
+  expect<unknown>(selected.current()?.variant).toBeUndefined()
 })
 
 test("plugins cannot select unavailable variants or variants without a model", async () => {
   await using setup = await renderLocal({ models: [model("first", ["low", "high"])] })
   const selected = pluginModel(setup.local)
-  expect(selected.variant.set("max")).toBe(false)
-  expect(selected.current()?.variant).toBeUndefined()
+  expect(selected.variant.set(Model.VariantID.make("max"))).toBe(false)
+  expect<unknown>(selected.current()?.variant).toBeUndefined()
 
   await using empty = await renderLocal({ models: [] })
   const none = pluginModel(empty.local)

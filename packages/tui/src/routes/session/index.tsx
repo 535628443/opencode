@@ -1,3 +1,7 @@
+import type { ShellInfo } from "@opencode/client"
+import { ID } from "@opencode/schema/shell"
+import { SessionID } from "@opencode/schema/session-id"
+import type { SessionMessage } from "@opencode/schema/session-message"
 import {
   batch,
   createEffect,
@@ -164,7 +168,7 @@ export function Session(props: {
   const session = createMemo(() => data.session.get(route.sessionID))
   const messages = () => data.session.message.list(route.sessionID)
   const messageIndexes = createMemo(
-    () => new Map<string, number>(messages().map((message, index) => [message.id, index])),
+    () => new Map<SessionMessage.ID, number>(messages().map((message, index) => [message.id, index])),
   )
   const legacy = createMemo(() => legacyTurns(messages()))
   const messagesBeforeRevert = () => {
@@ -211,7 +215,7 @@ export function Session(props: {
     data.session.pending.list(route.sessionID).flatMap((item) => (item.type === "user" ? [item] : [])),
   )
   const pendingDeliveries = createMemo(
-    () => new Map<string, "steer" | "queue">(pendingUsers().map((item) => [item.id, item.delivery])),
+    () => new Map<SessionMessage.ID, "steer" | "queue">(pendingUsers().map((item) => [item.id, item.delivery])),
   )
   const queuedPrompts = createMemo(() =>
     pendingUsers().flatMap((item) =>
@@ -609,7 +613,7 @@ export function Session(props: {
   const dialog = useDialog()
   const renderer = useRenderer()
   const runPendingAction = createSingleFlight<string>()
-  const mutatePending = async (action: PendingAction, inboxID: string, failureLabel?: string) => {
+  const mutatePending = async (action: PendingAction, inboxID: SessionMessage.ID, failureLabel?: string) => {
     const result = await runPendingAction(inboxID, async () => {
       const request =
         action === "steer"
@@ -682,7 +686,7 @@ export function Session(props: {
     dialog.clear()
   }
 
-  const alignMessage = (messageID: string, top: number) => {
+  const alignMessage = (messageID: SessionMessage.ID, top: number) => {
     scroll.stickyScroll = false
     setNavigationMessage(messageID)
     updateAwayFromBottom()
@@ -724,7 +728,7 @@ export function Session(props: {
       dialog.clear()
     })
 
-  const jumpToMessage = (messageID: string) =>
+  const jumpToMessage = (messageID: SessionMessage.ID) =>
     ensureAllRows(() => {
       const child = anchors.forMessage(messageID)
       if (!child) return
@@ -1524,7 +1528,7 @@ export function Session(props: {
 
 type SessionRowViewProps = {
   row: SessionRow
-  message: (messageID: string) => SessionMessageInfo | undefined
+  message: (messageID: SessionMessage.ID) => SessionMessageInfo | undefined
   boundaryID?: string
 }
 
@@ -1590,9 +1594,9 @@ function SessionEntryView(props: { row: SessionEntry; message: SessionRowViewPro
 }
 
 function TurnTokenUsage(props: {
-  messageIDs: string[]
+  messageIDs: SessionMessage.ID[]
   previousCache?: CacheUsage
-  message: (messageID: string) => SessionMessageInfo | undefined
+  message: (messageID: SessionMessage.ID) => SessionMessageInfo | undefined
 }) {
   const config = useConfig()
   const theme = useTheme()
@@ -1817,7 +1821,7 @@ function SessionMessageView(props: { message: SessionMessageInfo }) {
 
 function SessionPartView(props: {
   partRef: PartRef
-  message: (messageID: string) => SessionMessageInfo | undefined
+  message: (messageID: SessionMessage.ID) => SessionMessageInfo | undefined
   images?: boolean
 }) {
   const message = createMemo(() => props.message(props.partRef.messageID))
@@ -1944,7 +1948,10 @@ function SessionNoticeMessageV2(props: { message: SessionMessageInfo }) {
   const metadata = () => (props.message.type === "synthetic" ? props.message.metadata : undefined)
   const source = () => stringValue(metadata()?.source)
   const completion = () => source() === "subagent" || source() === "shell"
-  const childID = () => (source() === "subagent" ? stringValue(metadata()?.childID) : undefined)
+  const childID = () => {
+    const id = source() === "subagent" ? stringValue(metadata()?.childID) : undefined
+    return id === undefined ? undefined : SessionID.make(id, { disableChecks: true })
+  }
   const state = () => stringValue(metadata()?.state)
   const actor = () => (source() === "shell" ? "Shell" : Locale.titlecase(stringValue(metadata()?.agent) ?? "Subagent"))
   const text = () => {
@@ -2785,7 +2792,10 @@ function Shell(props: ToolProps) {
   return (
     <ShellDisplay
       part={props.part}
-      shellID={stringValue(props.metadata.shellID)}
+      shellID={(() => {
+        const id = stringValue(props.metadata.shellID)
+        return id === undefined ? undefined : ID.make(id, { disableChecks: true })
+      })()}
       command={stringValue(props.input.command)}
       workdir={stringValue(props.input.workdir)}
       status={props.part.state.status}
@@ -2797,7 +2807,7 @@ function Shell(props: ToolProps) {
 
 function ShellDisplay(props: {
   part?: SessionMessageAssistantTool
-  shellID?: string
+  shellID?: ShellInfo["id"]
   command?: string
   workdir?: string
   status: SessionMessageAssistantTool["state"]["status"]
@@ -3087,7 +3097,10 @@ function WebSearch(props: ToolProps) {
 function Subagent(props: ToolProps) {
   const { navigate } = useRoute()
   const data = useData()
-  const sessionID = createMemo(() => stringValue(props.metadata.sessionID) ?? stringValue(props.metadata.sessionId))
+  const sessionID = createMemo(() => {
+    const id = stringValue(props.metadata.sessionID) ?? stringValue(props.metadata.sessionId)
+    return id === undefined ? undefined : SessionID.make(id, { disableChecks: true })
+  })
   const description = createMemo(() => stringValue(props.input.description))
   const continuation = createMemo(() => Boolean(stringValue(props.input.sessionID)))
   const model = createMemo(() => subagentModelLabel(stringValue(props.input.model), data.location.model.list()))

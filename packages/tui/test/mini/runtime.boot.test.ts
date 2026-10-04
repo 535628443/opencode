@@ -92,7 +92,7 @@ describe("run runtime boot", () => {
       ],
     } as never)
 
-    await expect(resolveModelInfo(sdk, { directory: "/workspace" })).resolves.toEqual({
+    await expect<unknown>(resolveModelInfo(sdk, { directory: "/workspace" })).resolves.toEqual({
       providers: [
         {
           id: "openai",
