@@ -1,3 +1,6 @@
+import { Event } from "@opencode/schema/event"
+import { Session } from "@opencode/schema/session"
+import { Shell } from "@opencode/schema/shell"
 /** @jsxImportSource @opentui/solid */
 import { ScrollBoxRenderable } from "@opentui/core"
 import { testRender } from "@opentui/solid"
@@ -24,13 +27,13 @@ async function setup(width: number, output = "") {
   const temporary = await tmpdir()
   const location = { directory: `${temporary.path}/original` }
   const shell: ShellInfo = {
-    id: "sh_fixture",
+    id: Shell.ID.make("sh_fixture", { disableChecks: true }),
     command: "render-scene --quality high",
     cwd: location.directory,
     shell: "/bin/sh",
     file: `${temporary.path}/capture.out`,
     status: "running",
-    metadata: { sessionID: "ses_fixture" },
+    metadata: { sessionID: Session.ID.make("ses_fixture", { disableChecks: true }) },
     time: { started: 0 },
   }
   const state = { output, missing: false, failure: false }
@@ -62,12 +65,20 @@ async function setup(width: number, output = "") {
     const data = useData()
     const [open, setOpen] = createSignal(true)
     onMount(() => void data.shell.sync(location))
-    return <Composer sessionID="ses_fixture" open={open()} defaultTab="shell" onClose={() => setOpen(false)} />
+    return (
+      <Composer
+        sessionID={Session.ID.make("ses_fixture", { disableChecks: true })}
+        open={open()}
+        defaultTab="shell"
+        onClose={() => setOpen(false)}
+      />
+    )
   }
 
   const app = await testRender(
     () => (
       <TestTuiContexts directory={temporary.path} paths={{ state: temporary.path }}>
+<<<<<<< HEAD
         <TuiAppProvider value={{ name: "test", version: "test", channel: "test" }}>
           <StorageProvider>
             <ConfigProvider config={createTuiResolvedConfig()}>
@@ -89,6 +100,27 @@ async function setup(width: number, output = "") {
             </ConfigProvider>
           </StorageProvider>
         </TuiAppProvider>
+=======
+        <ConfigProvider config={createTuiResolvedConfig()}>
+          <RouteProvider
+            initialRoute={{ type: "session", sessionID: Session.ID.make("ses_fixture", { disableChecks: true }) }}
+          >
+            <ClientProvider api={api}>
+              <DataProvider directory={temporary.path}>
+                <ThemeProvider mode={width === 40 ? "light" : "dark"} source={emptyThemeSource}>
+                  <Keymap.Provider>
+                    <ToastProvider>
+                      <DialogProvider>
+                        <Shells />
+                      </DialogProvider>
+                    </ToastProvider>
+                  </Keymap.Provider>
+                </ThemeProvider>
+              </DataProvider>
+            </ClientProvider>
+          </RouteProvider>
+        </ConfigProvider>
+>>>>>>> 150cd081a9 (test(tui): prepare tui-components schema IDs)
       </TestTuiContexts>
     ),
     { width, height: 30, kittyKeyboard: true },
@@ -135,7 +167,7 @@ test.each([40, 100])("shell output opens, follows, scrolls, and survives exit at
   app.shell.status = "exited"
   app.shell.exit = 0
   app.events.emit({
-    id: "evt_exit",
+    id: Event.ID.make("evt_exit", { disableChecks: true }),
     created: 0,
     type: "shell.exited",
     location: app.location,
