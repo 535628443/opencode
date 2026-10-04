@@ -1,3 +1,5 @@
+import type { Model } from "@opencode/schema/model"
+import type { Provider } from "@opencode/schema/provider"
 import type {
   AgentInfo,
   CommandInfo,
@@ -529,12 +531,12 @@ export interface UI {
   }
   readonly model: {
     /** The prompt's selected model; variant is undefined for the model default. Reactive when read in a Solid computation. */
-    current(): { readonly providerID: string; readonly modelID: string; readonly variant?: string } | undefined
+    current(): { readonly providerID: Provider.ID; readonly modelID: Model.ID; readonly variant?: Model.VariantID } | undefined
     readonly variant: {
       /** Variant IDs of the selected model. Reactive when read in a Solid computation. */
-      list(): readonly string[]
+      list(): readonly Model.VariantID[]
       /** Selects a variant of the selected model, or the model default when undefined. Returns false when no model is selected or the variant is unavailable. */
-      set(variant: string | undefined): boolean
+      set(variant: Model.VariantID | undefined): boolean
     }
   }
   /** Claims a place in the slot tree; see SlotClaim. */
