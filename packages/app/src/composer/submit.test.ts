@@ -1,3 +1,7 @@
+import { Provider } from "@opencode/schema/provider"
+import { Agent } from "@opencode/schema/agent"
+import { SessionID } from "@opencode/schema/session-id"
+import { Model } from "@opencode/schema/model"
 import { describe, expect, test } from "bun:test"
 import type { ModelSelection } from "@/providers/models/selection"
 import type { SessionMessageUser } from "@opencode/client/promise"
@@ -24,9 +28,9 @@ const selection = {
   setVisibility() {},
   variant: {
     configured: () => undefined,
-    selected: () => "balanced",
-    current: () => "balanced",
-    list: () => ["balanced"],
+    selected: () => Model.VariantID.make("balanced", { disableChecks: true }),
+    current: () => Model.VariantID.make("balanced", { disableChecks: true }),
+    list: () => [Model.VariantID.make("balanced", { disableChecks: true })],
     set() {},
     cycle() {},
   },
@@ -37,7 +41,7 @@ function controls(): ComposerControls {
     agents: {
       available: [{ name: "build", mode: "primary" }],
       options: ["build"],
-      current: "build",
+      current: Agent.ID.make("build"),
       visible: true,
       select() {},
     },
@@ -103,7 +107,7 @@ function session(input: {
   switchModel?: ComposerSession["api"]["switchModel"]
 }): ComposerSession {
   return {
-    id: "session-1",
+    id: SessionID.make("session-1", { disableChecks: true }),
     directory: "C:/repo",
     handoff: input.handoff,
     current: input.current ?? (() => undefined),
@@ -168,10 +172,23 @@ describe("Composer submission", () => {
   })
 
   test.each([
-    { current: { agent: "plan", model: { id: "old", providerID: "old" } }, calls: ["switch-agent", "switch-model"] },
+    {
+      current: {
+        agent: Agent.ID.make("plan"),
+        model: { id: Model.ID.make("old"), providerID: Provider.ID.make("old") },
+      },
+      calls: ["switch-agent", "switch-model"],
+    },
     // The model still commits: cached session state may lag behind an earlier switch.
     {
-      current: { agent: "build", model: { providerID: "provider-1", id: "model-1", variant: "balanced" } },
+      current: {
+        agent: Agent.ID.make("build"),
+        model: {
+          providerID: Provider.ID.make("provider-1"),
+          id: Model.ID.make("model-1"),
+          variant: Model.VariantID.make("balanced"),
+        },
+      },
       calls: ["switch-model"],
     },
   ])("applies the selection before sending one captured value: $calls", async (row) => {
@@ -206,13 +223,17 @@ describe("Composer submission", () => {
     const target = session({
       calls,
       switchAgent: async (request) => {
-        expect(request.agent).toBe("build")
+        expect<unknown>(request.agent).toBe("build")
         calls.push("agent")
         started.resolve()
         await agent.promise
       },
       switchModel: async (request) => {
-        expect(request.model).toEqual({ providerID: "provider-1", id: "model-1", variant: "balanced" })
+        expect<unknown>(request.model).toEqual({
+          providerID: "provider-1",
+          id: "model-1",
+          variant: "balanced",
+        })
         calls.push("model")
         await committed.promise
       },
@@ -227,9 +248,12 @@ describe("Composer submission", () => {
     selected.model.selection = {
       ...selection,
       trackSessionCommit: (_id, value) => {
-        expect(value).toEqual({
+        expect<unknown>(value).toEqual({
           agent: "build",
-          model: { providerID: "provider-1", modelID: "model-1" },
+          model: {
+            providerID: "provider-1",
+            modelID: "model-1",
+          },
           variant: "balanced",
         })
         calls.push("track")
@@ -244,8 +268,11 @@ describe("Composer submission", () => {
     ).submit(new Event("submit"))
     await started.promise
     expect(calls).toEqual(["track", "agent"])
-    selected.agents.current = "plan"
-    selected.model.selection = { ...selection, variant: { ...selection.variant, current: () => "high" } }
+    selected.agents.current = Agent.ID.make("plan")
+    selected.model.selection = {
+      ...selection,
+      variant: { ...selection.variant, current: () => Model.VariantID.make("high", { disableChecks: true }) },
+    }
     agent.resolve()
     committed.resolve()
     await completed.promise
