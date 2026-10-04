@@ -1,3 +1,4 @@
+import { SessionMessage } from "@opencode/schema/session-message"
 import type { SessionMessageUser } from "@opencode/client/promise"
 import { useLocation, useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, onCleanup, onMount } from "solid-js"
@@ -193,7 +194,6 @@ export const useSessionHashScroll = (input: {
 
     const pending = input.pendingMessage() === targetId
     const msg = messageById().get(targetId)
-
     if (!msg) return
 
     if (pending) input.setPendingMessage(undefined)

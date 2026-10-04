@@ -1,3 +1,4 @@
+import { WorkspaceID } from "@opencode/schema/workspace-id"
 import { createSimpleContext } from "@opencode/ui/context"
 import { isLocationNotFoundError, type LocationGetOutput, type LocationRef } from "@opencode/client/promise"
 import { retry } from "@opencode/util/retry"
@@ -23,10 +24,20 @@ const context = createSimpleContext({
     const data = useData()
 
     const ref = createMemo(
+<<<<<<< HEAD
       () => ({
         directory: props.directory,
         workspaceID: props.workspaceID,
       }),
+=======
+      () => {
+        const workspaceID = typeof props.workspaceID === "function" ? props.workspaceID() : props.workspaceID
+        return {
+          directory: typeof props.directory === "function" ? props.directory() : props.directory,
+          workspaceID: workspaceID === undefined ? undefined : WorkspaceID.make(workspaceID, { disableChecks: true }),
+        }
+      },
+>>>>>>> bfa686d8e0 (refactor(app): prepare canonical identifier outputs)
       undefined,
       {
         equals: (previous, next) => previous.directory === next.directory && previous.workspaceID === next.workspaceID,

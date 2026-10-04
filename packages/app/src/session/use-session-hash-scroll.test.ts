@@ -7,5 +7,5 @@ test.each([
   ["message-42", "42"],
   ["#review-panel", undefined],
 ])("reads the message ID from %s", (hash, id) => {
-  expect(messageIdFromHash(hash)).toBe(id ? SessionMessage.ID.make(id, { disableChecks: true }) : undefined)
+  expect<unknown>(messageIdFromHash(hash)).toBe(id ? SessionMessage.ID.make(id, { disableChecks: true }) : undefined)
 })
