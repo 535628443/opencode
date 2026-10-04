@@ -36,7 +36,7 @@ describe("sessionTreeIDs", () => {
       session({ id: "other" }),
     ]
 
-    expect(sessionTreeIDs(sessions, SessionID.make("child", { disableChecks: true }))).toEqual(["child", "grand"])
+    expect<unknown>(sessionTreeIDs(sessions, SessionID.make("child", { disableChecks: true }))).toEqual(["child", "grand"])
     expect<unknown>(sessionTreeIDs(sessions, SessionID.make("root", { disableChecks: true }))).toEqual([
       "root",
       "child",

@@ -1,3 +1,4 @@
+import type { SessionMessage } from "@opencode/schema/session-message"
 import {
   createVirtualizer,
   defaultRangeExtractor,
@@ -71,7 +72,7 @@ type Input = {
     row: TimelineRow.TimelineRow,
     disclosure: Readonly<Record<string, boolean | undefined>>,
   ) => boolean
-  setRevealMessage?: (fn: (id: string, partID?: string) => void) => void
+  setRevealMessage?: (fn: (id: SessionMessage.ID, partID?: string) => void) => void
   setScrollToEnd?: (fn: () => void) => void
 }
 

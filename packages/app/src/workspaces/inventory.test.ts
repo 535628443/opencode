@@ -84,10 +84,10 @@ describe("createWorktreeInventory", () => {
   test("keys are partitioned by server and use opaque project IDs", () => {
     const remote = "https://remote.example" as typeof ServerScope.local
     expect(worktreeInventoryKey(ServerScope.local, ProjectID.make("project", { disableChecks: true }))).not.toEqual(
-      worktreeInventoryKey(ServerScope.local, "project/"),
+      worktreeInventoryKey(ServerScope.local, ProjectID.make("project/", { disableChecks: true })),
     )
     expect(worktreeInventoryKey(ServerScope.local, ProjectID.make("/repo", { disableChecks: true }))).not.toEqual(
-      worktreeInventoryKey(remote, "/repo"),
+      worktreeInventoryKey(remote, ProjectID.make("/repo", { disableChecks: true })),
     )
   })
 
