@@ -16,6 +16,8 @@ import {
 } from "../message/current-tool-state"
 import { TimelineRow, type PartGroup, type PartRef, type TimelineRowMap } from "./timeline-row"
 import { timelineCategory, timelineNoticeRequired, type TimelineDetail } from "./detail"
+import { Model } from "@opencode/schema/model"
+import { Provider } from "@opencode/schema/provider"
 
 export { TimelineRow, type PartGroup, type PartRef, type TimelineRowMap }
 
@@ -41,7 +43,9 @@ export type TimelineProjectionInput = {
 }
 
 export function createTimelineProjection(input: TimelineProjectionInput) {
-  const sessionMessageByID = new Map(input.sessionMessages.map((message) => [message.id, message] as const))
+  const sessionMessageByID = new Map<string, SessionMessageInfo>(
+    input.sessionMessages.map((message) => [message.id, message] as const),
+  )
   const projection = Timeline.constructSessionMessageRows(
     input.sessionMessages,
     input.reasoningMode !== "hidden",
@@ -88,7 +92,7 @@ export function createReactiveTimelineProjection(input: {
   pendingUserMessageIDs?: Accessor<ReadonlySet<string>>
 }) {
   const sessionMessageByID = createMemo(
-    () => new Map(input.sessionMessages().map((message) => [message.id, message] as const)),
+    () => new Map<string, SessionMessageInfo>(input.sessionMessages().map((message) => [message.id, message] as const)),
   )
   const userContextByID = createMemo(() => indexUserContext(input.sessionMessages()))
   const assistantMessagesByParent = createMemo(() => indexAssistantMessages(input.sessionMessages()))
@@ -500,7 +504,7 @@ export function reuseTimelineRows(previous: TimelineRow.TimelineRow[] | undefine
 function indexUserContext(messages: SessionMessageInfo[]) {
   const result = new Map<string, { agent: string; model: ModelRef }>()
   let agent = ""
-  let model: ModelRef = { id: "", providerID: "" }
+  let model: ModelRef = { id: Model.ID.make(""), providerID: Provider.ID.make("") }
   let userID: string | undefined
 
   messages.forEach((message) => {
@@ -528,9 +532,9 @@ function indexUserContext(messages: SessionMessageInfo[]) {
           localModelID &&
           typeof localModel.providerID === "string"
             ? {
-                id: localModelID,
-                providerID: localModel.providerID,
-                variant: typeof localModel.variant === "string" ? localModel.variant : undefined,
+                id: Model.ID.make(localModelID),
+                providerID: Provider.ID.make(localModel.providerID),
+                variant: typeof localModel.variant === "string" ? Model.VariantID.make(localModel.variant) : undefined,
               }
             : model,
       })
