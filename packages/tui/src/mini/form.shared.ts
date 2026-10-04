@@ -1,3 +1,4 @@
+import type { Form } from "@opencode/schema/form"
 import type { FormAnswer, FormField, FormInfo, FormValue } from "@opencode/client/promise"
 import {
   formCustom,
@@ -17,7 +18,7 @@ import type { FormReply, MiniFormRequest } from "./types"
 export { formCustom, formLabel, formRows, formTextual, formValidateValue }
 
 export type FormBodyState = {
-  formID: string
+  formID: Form.ID
   field: number
   answers: Record<string, FormValue | undefined>
   custom: Record<string, string>

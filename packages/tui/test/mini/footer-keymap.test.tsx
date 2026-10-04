@@ -1,3 +1,4 @@
+import { Agent } from "@opencode/schema/agent"
 import { Session } from "@opencode/schema/session"
 /** @jsxImportSource @opentui/solid */
 import { testRender } from "@opentui/solid"
@@ -57,7 +58,7 @@ async function renderSubagent(interrupt: "ctrl+i" | "none") {
           commands={() => []}
           providers={() => undefined}
           currentAgent={() => "Build"}
-          currentAgentID={() => "build"}
+          currentAgentID={() => Agent.ID.make("build")}
           currentModel={() => undefined}
           variants={() => []}
           currentVariant={() => undefined}

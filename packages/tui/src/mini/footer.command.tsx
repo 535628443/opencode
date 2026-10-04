@@ -1,3 +1,6 @@
+import { Model } from "@opencode/schema/model"
+import type { Provider } from "@opencode/schema/provider"
+import type { Session } from "@opencode/schema/session"
 /** @jsxImportSource @opentui/solid */
 import { TextAttributes, type InputRenderable, type KeyEvent } from "@opentui/core"
 import { useKeyboard, useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
@@ -49,19 +52,19 @@ type CommandEntry =
   | (PanelEntry & { action: "exit" })
 
 type ModelEntry = PanelEntry & {
-  providerID: string
-  modelID: string
+  providerID: Provider.ID
+  modelID: Model.ID
   providerName: string
   current: boolean
 }
 
 type AgentEntry = PanelEntry & {
-  id: string
+  id: RunAgent["id"]
   current: boolean
 }
 
 type VariantEntry = PanelEntry & {
-  variant: string | undefined
+  variant: RunInput["variant"]
   current: boolean
 }
 
@@ -70,7 +73,7 @@ type QueuedPromptEntry = PanelEntry & {
 }
 
 type SubagentEntry = PanelEntry & {
-  sessionID: string
+  sessionID: Session.ID
   current: boolean
 }
 
@@ -393,7 +396,7 @@ export function RunCommandMenuBody(props: {
   commands: Accessor<RunCommand[] | undefined>
   subagents: Accessor<FooterSubagentTab[]>
   queued: Accessor<FooterQueuedPrompt[]>
-  variants: Accessor<string[]>
+  variants: Accessor<NonNullable<RunInput["variant"]>[]>
   variantCycle: string
   onClose: () => void
   onAgent: () => void
@@ -631,9 +634,9 @@ export function RunCommandMenuBody(props: {
 export function RunAgentSelectBody(props: {
   theme: Accessor<RunFooterTheme>
   agents: Accessor<RunAgent[]>
-  current: Accessor<string | undefined>
+  current: Accessor<RunInput["agent"]>
   onClose: () => void
-  onSelect: (agent: string) => void
+  onSelect: (agent: RunAgent["id"]) => void
   mono?: boolean
 }) {
   const entries = createMemo<AgentEntry[]>(() =>
@@ -863,9 +866,9 @@ export function RunSettingsBody(props: {
 export function RunSubagentSelectBody(props: {
   theme: Accessor<RunFooterTheme>
   tabs: Accessor<FooterSubagentTab[]>
-  current: Accessor<string | undefined>
+  current: Accessor<Session.ID | undefined>
   onClose: () => void
-  onSelect: (sessionID: string) => void
+  onSelect: (sessionID: Session.ID) => void
   onRows?: (rows: number) => void
   mono?: boolean
 }) {
@@ -1040,10 +1043,10 @@ export function RunQueuedPromptSelectBody(props: {
 
 export function RunVariantSelectBody(props: {
   theme: Accessor<RunFooterTheme>
-  variants: Accessor<string[]>
-  current: Accessor<string | undefined>
+  variants: Accessor<NonNullable<RunInput["variant"]>[]>
+  current: Accessor<RunInput["variant"]>
   onClose: () => void
-  onSelect: (variant: string | undefined) => void
+  onSelect: (variant: RunInput["variant"]) => void
   mono?: boolean
 }) {
   const entries = createMemo<VariantEntry[]>(() => [
@@ -1132,7 +1135,7 @@ export function RunModelSelectBody(props: {
                   : undefined
             return {
               providerID: provider.id,
-              modelID,
+              modelID: Model.ID.make(modelID),
               providerName: provider.name,
               category: provider.name,
               display: title,

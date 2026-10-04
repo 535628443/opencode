@@ -1,3 +1,4 @@
+import type { Session } from "@opencode/schema/session"
 import type {
   EventSubscribeOutput,
   JsonValue,
@@ -26,7 +27,7 @@ type File = {
 
 type Input = {
   client: OpenCodeClient
-  sessionID: string
+  sessionID: Session.ID
   location: LocationRef
   message: string
   files: File[]

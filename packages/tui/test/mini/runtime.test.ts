@@ -170,7 +170,7 @@ describe("run interactive runtime", () => {
       },
     })
     expect(lifecycle.onCycleVariant?.()).toMatchObject({ status: "variant low", variant: "low" })
-    lifecycle.onAgentSelect?.("review")
+    lifecycle.onAgentSelect?.(Agent.ID.make("review"))
     await ui.promptReady
     expect(ui.submit("hello")).toBe(true)
     await turnStarted.promise

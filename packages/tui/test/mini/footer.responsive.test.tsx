@@ -122,7 +122,7 @@ test.each([false, true])(
           modelID: Model.ID.make("gpt-5.6-sol", { disableChecks: true }),
         },
       })
-      app.footer.event({ type: "variants", variants: ["max"], current: "max" })
+      app.footer.event({ type: "variants", variants: [Model.VariantID.make("max")], current: Model.VariantID.make("max") })
       app.footer.event({ type: "stream.patch", patch: { usage: { tokens: 14100, percent: 1, cost: 0.04 } } })
       await app.settle()
       const initial = app.captureCharFrame()

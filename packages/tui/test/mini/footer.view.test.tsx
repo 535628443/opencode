@@ -196,10 +196,10 @@ async function renderFooter(
           commands={() => input.commands ?? []}
           providers={() => input.providers}
           currentAgent={() => input.currentAgent ?? "Build"}
-          currentAgentID={() => input.currentAgent?.toLowerCase() ?? "build"}
+          currentAgentID={() => Agent.ID.make(input.currentAgent?.toLowerCase() ?? "build")}
           currentModel={() => input.currentModel}
           variants={() => []}
-          currentVariant={() => input.currentVariant}
+          currentVariant={() => input.currentVariant === undefined ? undefined : Model.VariantID.make(input.currentVariant)}
           state={state}
           view={view}
           subagent={subagents}
@@ -863,7 +863,7 @@ test("direct command panel renders grouped actions without catalog commands", as
     command({ name: "deploy", description: "Deploy prompt", source: "mcp" }),
   ])
   const [subagents] = createSignal([])
-  const [variants] = createSignal(["high", "minimal"])
+  const [variants] = createSignal(["high", "minimal"].map((variant) => Model.VariantID.make(variant)))
   let status = 0
 
   const app = await testRender(
@@ -1083,7 +1083,7 @@ test("direct command panel shows subagent entry when available", async () => {
       description: "Inspect auth flow",
     }),
   ])
-  const [variants] = createSignal<string[]>([])
+  const [variants] = createSignal<Model.VariantID[]>([])
 
   const app = await testRender(
     () => (
@@ -1138,7 +1138,7 @@ test("direct command panel keeps completed subagents available", async () => {
       status: "completed",
     }),
   ])
-  const [variants] = createSignal<string[]>([])
+  const [variants] = createSignal<Model.VariantID[]>([])
 
   const app = await testRender(
     () => (
@@ -1197,7 +1197,7 @@ test("direct subagent panel toggles between active and inactive subagents", asyn
       status: "completed",
     }),
   ])
-  const [current] = createSignal<string | undefined>("s-1")
+  const [current] = createSignal<Session.ID | undefined>(Session.ID.make("s-1", { disableChecks: true }))
   let rows = 0
 
   const app = await testRender(
@@ -1262,7 +1262,7 @@ test("direct subagent panel closes when moving up from the first item", async ()
       description: "Write migration plan",
     }),
   ])
-  const [current] = createSignal<string | undefined>()
+  const [current] = createSignal<Session.ID | undefined>()
   let closed = 0
 
   const app = await testRender(
@@ -2607,7 +2607,7 @@ test("direct agent panel shows eligible agents and marks the current agent", asy
     { id: Agent.ID.make("explore", { disableChecks: true }), name: "Explore", mode: "subagent", hidden: false },
     { id: Agent.ID.make("secret", { disableChecks: true }), name: "Secret", mode: "all", hidden: true },
   ])
-  const [current] = createSignal("review")
+  const [current] = createSignal(Agent.ID.make("review"))
   let selected: string | undefined
 
   const app = await testRender(
@@ -2657,8 +2657,8 @@ test("direct agent panel shows eligible agents and marks the current agent", asy
 })
 
 test("direct variant panel renders current variant selector", async () => {
-  const [variants] = createSignal(["high", "minimal"])
-  const [current] = createSignal<string | undefined>("high")
+  const [variants] = createSignal(["high", "minimal"].map((variant) => Model.VariantID.make(variant)))
+  const [current] = createSignal<Model.VariantID | undefined>(Model.VariantID.make("high"))
 
   const app = await testRender(
     () => (

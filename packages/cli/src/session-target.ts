@@ -19,9 +19,9 @@ export type SessionTargetPreparation = (input: {
   location: LocationGetOutput
   session: SessionInfo | undefined
   model: ModelRef | undefined
-  agent: string | undefined
+  agent: Agent.ID | undefined
   signal?: AbortSignal
-}) => Promise<{ model: ModelRef | undefined; agent: string | undefined }>
+}) => Promise<{ model: ModelRef | undefined; agent: Agent.ID | undefined }>
 
 export class SessionTargetMutationError extends Error {
   override readonly name = "SessionTargetMutationError"
@@ -57,17 +57,16 @@ export async function resolveSessionTarget(input: {
     location,
     session: selected,
     model: input.model ?? selected?.model,
-    agent: input.agent ?? selected?.agent,
+    agent: input.agent === undefined ? selected?.agent : Agent.ID.make(input.agent),
     signal: input.signal,
   })
-  const agent = prepared.agent === undefined ? undefined : Agent.ID.make(prepared.agent)
   const session =
     selected ??
     (await input.client.session
       .create(
         {
           id: input.session === undefined ? undefined : Session.ID.make(input.session, { disableChecks: true }),
-          agent,
+          agent: prepared.agent,
           model: prepared.model,
           location: { directory: location.directory },
         },
@@ -86,7 +85,7 @@ export async function resolveSessionTarget(input: {
     session,
     location,
     model: prepared.model,
-    agent: agent ?? (session.agent === undefined ? undefined : Agent.ID.make(session.agent)),
+    agent: prepared.agent ?? session.agent,
     resume: selected !== undefined,
   }
 }

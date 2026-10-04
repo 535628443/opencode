@@ -1,3 +1,5 @@
+import type { SessionMessage } from "@opencode/schema/session-message"
+import type { Session } from "@opencode/schema/session"
 // RunFooter -- the mutable control surface for direct interactive mode.
 //
 // In the split-footer architecture, scrollback is immutable (append-only)
@@ -68,8 +70,8 @@ import type {
 type CycleResult = {
   modelLabel?: string
   status?: string
-  variant?: string | undefined
-  variants?: string[]
+  variant?: RunInput["variant"]
+  variants?: NonNullable<RunInput["variant"]>[]
 }
 
 type RunFooterOptions = {
@@ -79,10 +81,10 @@ type RunFooterOptions = {
   references: RunReference[]
   wrote?: boolean
   startup?: { version: string; detail: string }
-  agent: string | undefined
+  agent: RunInput["agent"]
   modelLabel: string
   model: RunInput["model"]
-  variant: string | undefined
+  variant: RunInput["variant"]
   first: boolean
   history?: RunPrompt[]
   theme: RunTheme
@@ -96,15 +98,15 @@ type RunFooterOptions = {
   onFormReply: (input: FormReply) => void | Promise<void>
   onFormCancel: (input: FormCancel) => void | Promise<void>
   onCycleVariant?: () => CycleResult | void
-  onAgentSelect?: (agent: string) => void
+  onAgentSelect?: (agent: RunAgent["id"]) => void
   onModelSelect?: (model: NonNullable<RunInput["model"]>) => CycleResult | void | Promise<CycleResult | void>
-  onVariantSelect?: (variant: string | undefined) => CycleResult | void | Promise<CycleResult | void>
+  onVariantSelect?: (variant: RunInput["variant"]) => CycleResult | void | Promise<CycleResult | void>
   onInterrupt?: () => void
   onBackground?: () => void
-  onQueuedPromptAction?: (action: QueuedPromptAction, inboxID: string) => Promise<void>
+  onQueuedPromptAction?: (action: QueuedPromptAction, inboxID: SessionMessage.ID) => Promise<void>
   onEditorOpen: (input: { value: string }) => Promise<string | undefined>
-  onSubagentSelect?: (sessionID: string | undefined) => void
-  onSubagentInterrupt?: (sessionID: string) => void
+  onSubagentSelect?: (sessionID: Session.ID | undefined) => void
+  onSubagentInterrupt?: (sessionID: Session.ID) => void
   subscribeThemeSignal: (listener: () => void) => () => void
 }
 
@@ -183,14 +185,14 @@ export class RunFooter implements FooterApi {
   private providers: Accessor<RunProvider[] | undefined>
   private setProviders: Setter<RunProvider[] | undefined>
   private currentAgent: Accessor<string>
-  private currentAgentID: Accessor<string | undefined>
-  private setCurrentAgentID: Setter<string | undefined>
+  private currentAgentID: Accessor<RunInput["agent"]>
+  private setCurrentAgentID: Setter<RunInput["agent"]>
   private currentModel: Accessor<RunInput["model"]>
   private setCurrentModel: Setter<RunInput["model"]>
-  private variants: Accessor<string[]>
-  private setVariants: Setter<string[]>
-  private currentVariant: Accessor<string | undefined>
-  private setCurrentVariant: Setter<string | undefined>
+  private variants: Accessor<NonNullable<RunInput["variant"]>[]>
+  private setVariants: Setter<NonNullable<RunInput["variant"]>[]>
+  private currentVariant: Accessor<RunInput["variant"]>
+  private setCurrentVariant: Setter<RunInput["variant"]>
   private theme: Accessor<RunTheme>
   private setTheme: Setter<RunTheme>
   private state: Accessor<FooterState>
@@ -281,7 +283,7 @@ export class RunFooter implements FooterApi {
     const [currentModel, setCurrentModel] = createSignal<RunInput["model"]>(options.model)
     this.currentModel = currentModel
     this.setCurrentModel = setCurrentModel
-    const [variants, setVariants] = createSignal<string[]>([])
+    const [variants, setVariants] = createSignal<NonNullable<RunInput["variant"]>[]>([])
     this.variants = variants
     this.setVariants = setVariants
     const [currentVariant, setCurrentVariant] = createSignal(options.variant)
@@ -872,14 +874,14 @@ export class RunFooter implements FooterApi {
       .catch(() => {})
   }
 
-  private handleAgentSelect = (agent: string): void => {
+  private handleAgentSelect = (agent: RunAgent["id"]): void => {
     if (this.isClosed || this.currentAgentID() === agent) return
     this.setCurrentAgentID(agent)
     this.options.onAgentSelect?.(agent)
     this.setNotice(`agent ${this.currentAgent()}`)
   }
 
-  private handleVariantSelect = (variant: string | undefined): void => {
+  private handleVariantSelect = (variant: RunInput["variant"]): void => {
     if (this.isClosed) {
       return
     }

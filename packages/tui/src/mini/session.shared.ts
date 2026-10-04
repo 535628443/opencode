@@ -1,3 +1,4 @@
+import type { Session } from "@opencode/schema/session"
 import type { SessionMessageInfo, SessionMessageUser } from "@opencode/client/promise"
 import { projectedPromptInput } from "../prompt/codec"
 import { requestOptions } from "./catalog.shared"
@@ -72,7 +73,7 @@ export function createSession(messages: SessionMessages): RunSession {
 
 export async function resolveCurrentSession(
   sdk: RunInput["sdk"],
-  sessionID: string,
+  sessionID: Session.ID,
   signal?: AbortSignal,
   limit = LIMIT,
 ): Promise<RunSession> {
