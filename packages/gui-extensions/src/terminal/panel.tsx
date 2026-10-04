@@ -1,3 +1,4 @@
+import { Pty } from "@opencode/schema/pty"
 import { For, Show, createMemo, onCleanup, onMount, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
@@ -184,13 +185,13 @@ export default function TerminalPanel(props: { model: TerminalModel; session: Mo
     },
   )
 
-  const recoverTerminal = (key: string, id: string, clone: (id: string) => Promise<void>) => {
+  const recoverTerminal = (key: string, id: Pty.ID, clone: (id: Pty.ID) => Promise<void>) => {
     if (store.recovered[key]) return
     setStore("recovered", key, true)
     void clone(id)
   }
 
-  const markTerminalConnected = (key: string, id: string, trim: (id: string) => void) => {
+  const markTerminalConnected = (key: string, id: Pty.ID, trim: (id: Pty.ID) => void) => {
     setStore("recovered", key, false)
     trim(id)
     const index = store.surfaces.findIndex((surface) => surface.key === key)
@@ -258,7 +259,7 @@ export default function TerminalPanel(props: { model: TerminalModel; session: Mo
           const source = event.operation.source
 
           if (!event.canceled && isSortable(source) && source.initialIndex !== source.index) {
-            terminal().move(source.id.toString(), source.index)
+            terminal().move(Pty.ID.make(source.id.toString(), { disableChecks: true }), source.index)
           }
 
           handleTerminalDragEnd()
@@ -269,7 +270,7 @@ export default function TerminalPanel(props: { model: TerminalModel; session: Mo
             <Tabs
               variant="panel"
               value={terminal().active()}
-              onChange={(id) => terminal().open(id)}
+              onChange={(id) => terminal().open(Pty.ID.make(id, { disableChecks: true }))}
               class="!h-full min-w-0 !flex-1"
             >
               <Tabs.List
