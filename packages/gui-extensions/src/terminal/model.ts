@@ -1,3 +1,4 @@
+import type { Pty } from "@opencode/schema/pty"
 import { batch, createMemo, createRoot, getOwner, onCleanup, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createKeyed, type Mutable, type Storage, type ServerRef, type MountedSession, type Sessions } from "../sdk"
@@ -20,7 +21,7 @@ type CacheEntry = {
   dispose: VoidFunction
 }
 
-type FocusRequest = { request: number; id?: string; pending: boolean }
+type FocusRequest = { request: number; id?: Pty.ID; pending: boolean }
 
 const importGhostty = () => import("ghostty-web").then(async (mod) => ({ mod, ghostty: await mod.Ghostty.load() }))
 
@@ -144,14 +145,14 @@ function createWorkspace(input: { storage: Storage; server: ServerRef; directory
   const [ui, setUi] = createStore<{ focus?: FocusRequest }>({})
   const focus = { request: 0 }
 
-  const requestFocus = (id?: string, pending = false) => {
+  const requestFocus = (id?: Pty.ID, pending = false) => {
     focus.request += 1
     setUi("focus", { request: focus.request, id, pending })
 
     return focus.request
   }
 
-  const focusRequested = (id?: string) => {
+  const focusRequested = (id?: Pty.ID) => {
     if (!id) return false
 
     if (!ui.focus || ui.focus.pending) return false
@@ -159,7 +160,7 @@ function createWorkspace(input: { storage: Storage; server: ServerRef; directory
     return !ui.focus.id || ui.focus.id === id
   }
 
-  const consumeFocus = (id: string) => {
+  const consumeFocus = (id: Pty.ID) => {
     if (!focusRequested(id)) return
 
     setUi("focus", undefined)
@@ -208,7 +209,7 @@ function createWorkspace(input: { storage: Storage; server: ServerRef; directory
     )
   }
 
-  const removeExited = (id: string) => {
+  const removeExited = (id: Pty.ID) => {
     const list = all()
     const index = list.findIndex((x) => x.id === id)
 
@@ -235,7 +236,7 @@ function createWorkspace(input: { storage: Storage; server: ServerRef; directory
       ),
   )
 
-  const update = (pty: Partial<LocalPTY> & { id: string }) => {
+  const update = (pty: Partial<LocalPTY> & { id: Pty.ID }) => {
     const index = all().findIndex((x) => x.id === pty.id)
     const previous = index >= 0 ? all()[index] : undefined
 
@@ -263,7 +264,7 @@ function createWorkspace(input: { storage: Storage; server: ServerRef; directory
     })
   }
 
-  const clone = async (id: string) => {
+  const clone = async (id: Pty.ID) => {
     const index = all().findIndex((x) => x.id === id)
     const pty = all()[index]
 
@@ -352,7 +353,7 @@ function createWorkspace(input: { storage: Storage; server: ServerRef; directory
         })
     },
     update,
-    trim(id: string) {
+    trim(id: Pty.ID) {
       const index = all().findIndex((x) => x.id === id)
 
       if (index === -1) return
@@ -367,12 +368,12 @@ function createWorkspace(input: { storage: Storage; server: ServerRef; directory
       })
     },
     clone,
-    open(id: string) {
+    open(id: Pty.ID) {
       stored.update((draft) => {
         draft.active = id
       })
     },
-    requestFocus(id?: string) {
+    requestFocus(id?: Pty.ID) {
       requestFocus(id)
     },
     focusRequested,
@@ -380,7 +381,7 @@ function createWorkspace(input: { storage: Storage; server: ServerRef; directory
     cancelFocus() {
       cancelFocus()
     },
-    async close(id: string) {
+    async close(id: Pty.ID) {
       const index = all().findIndex((f) => f.id === id)
 
       if (index !== -1) {
@@ -397,7 +398,7 @@ function createWorkspace(input: { storage: Storage; server: ServerRef; directory
         console.error("Failed to close terminal", error)
       })
     },
-    move(id: string, to: number) {
+    move(id: Pty.ID, to: number) {
       const index = all().findIndex((f) => f.id === id)
 
       if (index === -1) return
