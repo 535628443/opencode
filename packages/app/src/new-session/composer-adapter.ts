@@ -1,4 +1,6 @@
-import { Predicate } from "effect"
+import type { SessionMessage } from \"@opencode/schema/session-message\"
+import type { SessionID } from \"@opencode/schema/session-id\"
+import { Predicate } from \"effect\"
 import { base64Encode } from "@opencode/util/encode"
 import type { SessionMessageUser } from "@opencode/client/promise"
 import { Session } from "@opencode/schema/session"
@@ -196,7 +198,7 @@ export function createNewSessionComposerAdapter(props: {
   }
 }
 
-function createMessageHandoff(key: string, sessionID: string, event: ServerSDK["event"]) {
+function createMessageHandoff(key: string, sessionID: SessionID, event: ServerSDK["event"]) {
   let unsubscribe: VoidFunction | undefined
 
   return {
@@ -210,7 +212,7 @@ function createMessageHandoff(key: string, sessionID: string, event: ServerSDK["
         clearSessionMessageHandoff(key, message.id)
       })
     },
-    clear(messageID: string) {
+    clear(messageID: SessionMessage.ID) {
       unsubscribe?.()
       unsubscribe = undefined
       clearSessionMessageHandoff(key, messageID)

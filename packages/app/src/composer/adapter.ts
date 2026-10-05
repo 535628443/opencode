@@ -1,8 +1,15 @@
+<<<<<<< HEAD
 import type { Agent } from \"@opencode/schema/agent\"
 import type { Model } from \"@opencode/schema/model\"
 import type { Provider } from \"@opencode/schema/provider\"
 import type { SessionID } from \"@opencode/schema/session-id\"
 import type { SessionMessage } from \"@opencode/schema/session-message\"
+=======
+import type { Agent } from "@opencode/schema/agent"
+import type { Model } from "@opencode/schema/model"
+import type { Provider } from "@opencode/schema/provider"
+import type { SessionMessage } from "@opencode/schema/session-message"
+>>>>>>> 7c1b4a6959 (refactor(app): preserve canonical model selections)
 import type { Data } from "@opencode/client/solid"
 import type { SessionMessageUser } from "@opencode/client/promise"
 import type { Accessor } from "solid-js"
@@ -15,7 +22,7 @@ export type ComposerControls = {
   agents: {
     available: { name: string; hidden?: boolean; mode: string }[]
     options: string[]
-    current: string
+    current: Agent.ID | ""
     visible: boolean
     select: (name: string | undefined) => void
   }
@@ -27,9 +34,9 @@ export type ComposerControls = {
 }
 
 export type ComposerSelection = {
-  agent: string
-  model: { providerID: string; modelID: string }
-  variant?: string
+  agent: Agent.ID
+  model: { providerID: Provider.ID; modelID: Model.ID }
+  variant?: Model.VariantID
 }
 
 export type ComposerDelivery = "steer" | "queue"
@@ -58,7 +65,7 @@ export type ComposerSession = {
   directory: string
   handoff?: {
     set: (message: SessionMessageUser) => void
-    clear: (messageID: string) => void
+    clear: (messageID: SessionMessage.ID) => void
   }
   api: {
     command: (
@@ -87,14 +94,11 @@ export type ComposerSession = {
     }
   }
   current: Accessor<
-    | {
-        agent?: string
-        model?: { id: string; providerID: string; variant?: string }
-        revert?: { messageID: string }
-      }
+    |
+      { agent?: Agent.ID; model?: { id: Model.ID; providerID: Provider.ID; variant?: Model.VariantID }; revert?: { messageID: SessionMessage.ID } }
     | undefined
   >
-  admitted: (messageID: string) => boolean
+  admitted: (messageID: SessionMessage.ID) => boolean
 }
 
 type ComposerAdapterBase = {
