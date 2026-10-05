@@ -1,3 +1,4 @@
+import type { SessionID } from "@opencode/schema/session-id"
 import { createEffect, createMemo, onCleanup, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useMutation } from "@tanstack/solid-query"
@@ -28,7 +29,7 @@ type EditStash = {
 }
 
 export function createSessionQueue(input: {
-  sessionID: string
+  sessionID: SessionID
   draft: ComposerStateTarget
   working: Accessor<boolean>
   behavior: Accessor<ComposerDelivery>
@@ -38,19 +39,19 @@ export function createSessionQueue(input: {
   const server = useServerSDK()
   const location = useWorkspaceLocation()
   const language = useLanguage()
-  const [state, setState] = createStore<{ editing?: { id: string; stash: EditStash } }>({})
+  const [state, setState] = createStore<{ editing?: { id: SessionMessage.ID; stash: EditStash } }>({})
   const notify = () => showToast({ title: language.t("common.requestFailed") })
 
   const mutation = useMutation(() => ({
     mutationFn: async (
       change:
-        | { type: "reorder"; inboxIDs: string[] }
-        | { type: "undo"; item: QueuedPrompt; prompt: Prompt; context: ContextItem[] }
+        | { type: \"reorder\"; inboxIDs: SessionMessage.ID[] }
+        | { type: \"undo\"; item: QueuedPrompt; prompt: Prompt; context: ContextItem[] }
         | {
             type: "edit"
-            inboxIDs: string[]
-            original: string
-            replacement: string
+            inboxIDs: SessionMessage.ID[]
+            original: SessionMessage.ID
+            replacement: SessionMessage.ID
             item: QueuedPrompt | undefined
             prompt: Prompt
             text: string
@@ -132,11 +133,15 @@ export function createSessionQueue(input: {
   })
   onCleanup(() => cancelEdit())
 
+<<<<<<< HEAD
   // `replace` substitutes an edited prompt for the original at its position in the same rewrite.
   const rewrite = async (
     inboxIDs: string[],
     replace?: { original: string; admission: Parameters<typeof data.session.prompt>[0] },
   ) => {
+=======
+  const rewrite = async (inboxIDs: SessionMessage.ID[]) => {
+>>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
     const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
 
     if (pending.some((item) => item.delivery === "queue" && item.type !== "user"))
@@ -195,7 +200,7 @@ export function createSessionQueue(input: {
     }
   }
 
-  const steer = (id: string) => {
+  const steer = (id: SessionMessage.ID) => {
     if (state.editing?.id === id) cancelEdit()
 
     return server.api.session.inbox
@@ -203,13 +208,13 @@ export function createSessionQueue(input: {
       .catch(() => notify())
   }
 
-  const remove = (id: string) => {
+  const remove = (id: SessionMessage.ID) => {
     if (state.editing?.id === id) cancelEdit()
 
     return server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: id }).catch(() => notify())
   }
 
-  const undo = (id: string) => {
+  const undo = (id: SessionMessage.ID) => {
     if (mutation.isPending || state.editing) return
     const item = queued().find((entry) => entry.id === id)
 
@@ -234,6 +239,7 @@ export function createSessionQueue(input: {
       context: [...context.comments, ...context.files],
     })
   }
+<<<<<<< HEAD
 
   // Re-admitting a queued prompt commits a staged revert, which drops every prompt queued after its boundary.
   const refuseReverted = () => {
@@ -252,6 +258,15 @@ export function createSessionQueue(input: {
   const edit = (id: string) => {
     if (mutation.isPending || refuseReverted()) return false
 
+=======
+  const reorder = (inboxIDs: SessionMessage.ID[]) => {
+    if (mutation.isPending) return Promise.resolve()
+    return mutation.mutateAsync({ type: "reorder", inboxIDs }).catch(() => undefined)
+  }
+
+  const edit = (id: SessionMessage.ID) => {
+    if (mutation.isPending) return false
+>>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
     if (state.editing?.id === id) return true
     const item = queued().find((entry) => entry.id === id)
 
@@ -366,7 +381,10 @@ export type SessionQueueView = Pick<
   "rows" | "editing" | "working" | "busy" | "steer" | "remove" | "undo" | "edit" | "reorder"
 >
 
-export function queuedPromptRows(items: QueuedPrompt[], replacement?: { original: string; replacement: string }) {
+export function queuedPromptRows(
+  items: QueuedPrompt[],
+  replacement?: { original: SessionMessage.ID; replacement: SessionMessage.ID },
+) {
   const replaced = replacement && items.some((item) => item.id === replacement.replacement)
 
   return items.flatMap((item) =>
@@ -440,7 +458,7 @@ function isComposerAttachment(file: NonNullable<QueuedPrompt["payload"]["files"]
 // review comments) stays out: it belongs to the next fresh prompt, not to a
 // queued edit.
 async function editedPromptInput(
-  sessionID: string,
+  sessionID: SessionID,
   directory: string,
   item: QueuedPrompt | undefined,
   prompt: Prompt,

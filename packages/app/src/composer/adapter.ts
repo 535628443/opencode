@@ -1,3 +1,8 @@
+import type { Agent } from \"@opencode/schema/agent\"
+import type { Model } from \"@opencode/schema/model\"
+import type { Provider } from \"@opencode/schema/provider\"
+import type { SessionID } from \"@opencode/schema/session-id\"
+import type { SessionMessage } from \"@opencode/schema/session-message\"
 import type { Data } from "@opencode/client/solid"
 import type { SessionMessageUser } from "@opencode/client/promise"
 import type { Accessor } from "solid-js"
@@ -49,7 +54,7 @@ export type ComposerQueue = {
 }
 
 export type ComposerSession = {
-  id: string
+  id: SessionID
   directory: string
   handoff?: {
     set: (message: SessionMessageUser) => void

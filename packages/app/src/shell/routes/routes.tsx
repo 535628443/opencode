@@ -1,4 +1,5 @@
-import { Route, useParams } from "@solidjs/router"
+import { useSessionParams } from "@/shell/routes/session"
+import { Route } from "@solidjs/router"
 import { createMemo, lazy, Show, Suspense, type ParentProps } from "solid-js"
 import { Home } from "@/home/route"
 import { ServerProvider } from "@/runtime/server/current"
@@ -69,7 +70,7 @@ export function AppRoutes() {
 }
 
 function TargetServerRoute(props: ParentProps) {
-  const params = useParams<{ serverKey: string }>()
+  const params = useSessionParams()
   const global = useGlobal()
 
   const connection = createMemo(() =>

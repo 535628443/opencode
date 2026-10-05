@@ -58,8 +58,8 @@ export function CurrentSessionProviders(props: { document: SessionDocument; chil
         ],
         session_status: {
           [CURRENT_SESSION_ID]: props.document.status,
-          session_child_review: { type: "idle" },
-          session_child_tests: { type: "busy" },
+          [SessionID.make("session_child_review", { disableChecks: true })]: { type: "idle" },
+          [SessionID.make("session_child_tests", { disableChecks: true })]: { type: "busy" },
         },
         session_diff: { [CURRENT_SESSION_ID]: props.document.diffs },
       }}

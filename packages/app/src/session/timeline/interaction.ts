@@ -1,3 +1,4 @@
+import type { SessionMessage } from "@opencode/schema/session-message"
 import type { SessionMessageUser } from "@opencode/client/promise"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLocation } from "@solidjs/router"
@@ -12,6 +13,7 @@ export function createSessionTimelineInteraction(session: SessionModel) {
   const layout = useLayout()
   const location = useLocation<{ reveal?: string }>()
   const timeline = createTimelineModel({ session })
+<<<<<<< HEAD
 
   const [state, setState] = createStore<{
     messageID: string | undefined
@@ -26,6 +28,11 @@ export function createSessionTimelineInteraction(session: SessionModel) {
   }>({
     messageID: undefined,
     pendingMessage: undefined,
+=======
+  const [state, setState] = createStore({
+    messageID: undefined as SessionMessage.ID | undefined,
+    pendingMessage: undefined as SessionMessage.ID | undefined,
+>>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
     scroll: {
       overflow: false,
       jump: false,
@@ -57,8 +64,7 @@ export function createSessionTimelineInteraction(session: SessionModel) {
   let revealed: string | undefined
 
   // The active timeline's navigation, registered by its virtualizer.
-  let revealMessage = (_id: string, _partID?: string) => {}
-
+  let revealMessage = (_id: SessionMessage.ID, _partID?: string) => {}
   let scrollToEnd = () => {}
 
   let scrollMark = 0
@@ -361,7 +367,7 @@ export function createSessionTimelineInteraction(session: SessionModel) {
   return {
     actions: {
       navigateMessage,
-      revealMessage: (id: string, partID?: string) => revealMessage(id, partID),
+      revealMessage: (id: SessionMessage.ID, partID?: string) => revealMessage(id, partID),
       resume,
       setActiveMessage,
     },
@@ -386,7 +392,7 @@ export function createSessionTimelineInteraction(session: SessionModel) {
       setDockRef: (element: HTMLDivElement | undefined) => {
         setState("refs", "dock", element)
       },
-      setRevealMessage: (reveal: (id: string, partID?: string) => void) => {
+      setRevealMessage: (reveal: (id: SessionMessage.ID, partID?: string) => void) => {
         revealMessage = reveal
       },
       // The tool call the route opened the session on, revealed once per history entry.

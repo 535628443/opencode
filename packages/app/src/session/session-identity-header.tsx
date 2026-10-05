@@ -1,3 +1,4 @@
+import type { SessionID } from "@opencode/schema/session-id"
 import type { SessionInfo } from "@opencode/client/promise"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
@@ -210,8 +211,8 @@ export function SessionProjectMenu(props: {
 }
 
 export function SessionAncestorTrail(props: {
-  sessionID: string
-  parentID: string
+  sessionID: SessionID
+  parentID: SessionID
   parentTitle?: string
   trailing: boolean
 }) {
@@ -220,10 +221,9 @@ export function SessionAncestorTrail(props: {
   const open = useOpenSessionRoute()
 
   const ancestors = createMemo(() => {
-    const path: { id: string; title: string; direct: boolean }[] = []
+    const path: { id: SessionID; title: string; direct: boolean }[] = []
     const seen = new Set([props.sessionID])
-    let id: string | undefined = props.parentID
-
+    let id: SessionID | undefined = props.parentID
     while (id && !seen.has(id)) {
       seen.add(id)
       const info = server.ctx.data.session.get(id)
@@ -239,6 +239,19 @@ export function SessionAncestorTrail(props: {
 
     return path
   })
+<<<<<<< HEAD
+=======
+  const open = (id: SessionID) => {
+    const tab = tabs.store.find(
+      (item) =>
+        item.type === "session" &&
+        item.server === server.key &&
+        (item.sessionId === props.sessionID || item.routeSessionId === props.sessionID),
+    )
+    if (tab?.type === "session") tabs.rememberSessionRoute(tab, id, server.ctx.data.session.get(id)?.parentID)
+    navigate(sessionHref(server.key, id))
+  }
+>>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
 
   return (
     <div class="flex min-w-0 max-w-full items-center">
@@ -286,6 +299,7 @@ export function SessionAncestorTrail(props: {
   )
 }
 
+<<<<<<< HEAD
 // Opens a related session in the tab showing `from`, and records its parent so the tab's route stays consistent.
 // `reveal` names a tool call or shell the opened timeline scrolls to and expands.
 export function useOpenSessionRoute() {
@@ -307,6 +321,9 @@ export function useOpenSessionRoute() {
 }
 
 export function SessionIdentityHeader(props: ParentProps<{ sessionID: string; session?: SessionInfo }>) {
+=======
+export function SessionIdentityHeader(props: { sessionID: SessionID; session?: SessionInfo }) {
+>>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
   const server = useServer()
   const tabs = useTabs()
   const language = useLanguage()

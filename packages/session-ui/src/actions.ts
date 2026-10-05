@@ -1,3 +1,5 @@
+import type { SessionMessage } from "@opencode/schema/session-message"
+import type { SessionID } from "@opencode/schema/session-id"
 import type { PromptFileAttachment } from "@opencode/client/promise"
 
 export type SessionUserComment =
@@ -27,6 +29,7 @@ export type SessionUserAttachmentReference = {
 
 export type SessionUserActions = {
   openAttachment?: (file: PromptFileAttachment) => void
+<<<<<<< HEAD
   revert?: (input: { sessionID: string; messageID: string }) => Promise<void> | void
   /** A steer the server has not delivered yet. Like the TUI, it can move to the queue or be deleted. */
   pending?: {
@@ -34,4 +37,7 @@ export type SessionUserActions = {
     queue: (input: { sessionID: string; messageID: string }) => Promise<void>
     remove: (input: { sessionID: string; messageID: string }) => Promise<void>
   }
+=======
+  revert?: (input: { sessionID: SessionID; messageID: SessionMessage.ID }) => Promise<void> | void
+>>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
 }
