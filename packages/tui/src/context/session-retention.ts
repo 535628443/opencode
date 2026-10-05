@@ -1,20 +1,21 @@
+import type { Session } from "@opencode/schema/session"
 import { createEffect, untrack, type Accessor } from "solid-js"
 import type { Data } from "@opencode/client/solid"
 
 export function createSessionRetention(input: {
   session: Pick<Data["session"], "list" | "root" | "evict">
-  current: Accessor<string | undefined>
-  keep: Accessor<readonly string[]>
+  current: Accessor<Session.ID | undefined>
+  keep: Accessor<readonly Session.ID[]>
   limit: number
 }) {
-  let previous: string | undefined
-  let recent: string[] = []
-  let evicted = new Map<string, string>()
+  let previous: Session.ID | undefined
+  let recent: Session.ID[] = []
+  let evicted = new Map<Session.ID, Session.ID>()
 
   createEffect(() => {
     const viewed = input.current()
     const current = viewed === undefined ? undefined : input.session.root(viewed)
-    const keep = new Set<string>(input.keep().map((id) => input.session.root(id)))
+    const keep = new Set(input.keep().map((id) => input.session.root(id)))
     // Resolve again when metadata arrives, but only navigation advances recency.
     recent = [
       ...new Set([
@@ -23,7 +24,7 @@ export function createSessionRetention(input: {
       ]),
     ]
     previous = viewed
-    const retained = new Set<string>([...keep, ...recent.filter((id) => !keep.has(id)).slice(0, input.limit)])
+    const retained = new Set([...keep, ...recent.filter((id) => !keep.has(id)).slice(0, input.limit)])
     if (current !== undefined) retained.add(current)
     recent = recent.filter((id) => retained.has(id))
 

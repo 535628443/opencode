@@ -1,4 +1,5 @@
 import type { Agent } from "@opencode/schema/agent"
+import { Session } from "@opencode/schema/session"
 import { createStore } from "solid-js/store"
 import { dedupeWith } from "effect/Array"
 import { createSimpleContext } from "./helper"
@@ -65,7 +66,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       )
       const [agentStore, setAgentStore] = createStore({
         current: undefined as string | undefined,
-        draftBySession: {} as Record<string, { agent?: string } | undefined>,
+        draftBySession: {} as Record<Session.ID, { agent?: string } | undefined>,
       })
       onCleanup(event.on("session.deleted", (evt) => setAgentStore("draftBySession", evt.data.sessionID, undefined)))
       onCleanup(
@@ -148,14 +149,14 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       })
       const [selectionState, setSelectionState] = createStore<{
         newSessionModelByLocationAgent: Record<string, ModelPreferenceModel | undefined>
-        selectionBySessionAgent: Record<string, Record<Agent.ID, ModelSelection | undefined> | undefined>
+        selectionBySessionAgent: Record<Session.ID, Record<Agent.ID, ModelSelection | undefined> | undefined>
       }>({
         newSessionModelByLocationAgent: {},
         selectionBySessionAgent: {},
       })
 
       const repository = createModelPreferenceRepository(path.join(paths.state, "model.json"))
-      const pendingSelectionCommits = new Map<string, { agentID: Agent.ID; selection: string }>()
+      const pendingSelectionCommits = new Map<Session.ID, { agentID: Agent.ID; selection: string }>()
       const selectionKey = (value: ModelSelection) =>
         `${modelPreferenceKey(value)}:${normalizeModelVariant(value.variant) ?? "default"}`
 
@@ -253,7 +254,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         return { ...model, variant: info?.variants.find((item) => item.id === variant)?.id }
       }
 
-      function durableSelection(sessionID: string): ModelSelection | undefined {
+      function durableSelection(sessionID: Session.ID): ModelSelection | undefined {
         const model = data.session.get(sessionID)?.model
         if (!model) return
         return {
@@ -263,7 +264,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         }
       }
 
-      function sessionSelection(sessionID: string) {
+      function sessionSelection(sessionID: Session.ID) {
         const current = agent.current()
         if (!current) return
         const session = data.session.get(sessionID)
@@ -282,14 +283,14 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         return model && preferredSelection(model)
       }
 
-      function setSessionSelection(sessionID: string, agentID: Agent.ID, selection: ModelSelection | undefined) {
+      function setSessionSelection(sessionID: Session.ID, agentID: Agent.ID, selection: ModelSelection | undefined) {
         setSelectionState("selectionBySessionAgent", sessionID, {
           ...selectionState.selectionBySessionAgent[sessionID],
           [agentID]: selection,
         })
       }
 
-      function setSessionDraft(sessionID: string, selection: ModelSelection) {
+      function setSessionDraft(sessionID: Session.ID, selection: ModelSelection) {
         const current = agent.current()
         if (!current) return
         const durable = durableSelection(sessionID)
@@ -323,7 +324,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         return true
       }
 
-      function reconcileSessionSelection(sessionID: string) {
+      function reconcileSessionSelection(sessionID: Session.ID) {
         const expected = pendingSelectionCommits.get(sessionID)
         const durable = durableSelection(sessionID)
         if (!expected || !durable || data.session.get(sessionID)?.agent !== expected.agentID) return
@@ -364,7 +365,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           return model ? isModelValid(model) : false
         },
         trackSessionCommit(
-          sessionID: string,
+          sessionID: Session.ID,
           value: {
             providerID: Provider.ID
             id: Model.ID
@@ -512,7 +513,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     function createSession() {
       const [sessionStore, setSessionStore] = createStore<{
         ready: boolean
-        pinned: string[]
+        pinned: Session.ID[]
       }>({
         ready: false,
         pinned: [],
@@ -541,7 +542,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           if (Array.isArray(pinned))
             setSessionStore(
               "pinned",
-              pinned.filter((item): item is string => typeof item === "string"),
+              pinned
+                .filter((item): item is string => typeof item === "string")
+                .map((id) => Session.ID.make(id, { disableChecks: true })),
             )
         })
         .catch(() => {})
@@ -551,7 +554,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         })
 
       const slots = createMemo(() => {
-        const existing = new Set<string>(
+        const existing = new Set<Session.ID>(
           data.session
             .list()
             .filter((x) => x.parentID === undefined)
@@ -560,7 +563,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         return sessionStore.pinned.filter((id) => existing.has(id)).slice(0, 9)
       })
 
-      function prune(sessionID: string) {
+      function prune(sessionID: Session.ID) {
         batch(() => {
           if (sessionStore.pinned.includes(sessionID)) {
             setSessionStore(
@@ -584,10 +587,10 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           return sessionStore.pinned
         },
         slots,
-        isPinned(sessionID: string) {
+        isPinned(sessionID: Session.ID) {
           return sessionStore.pinned.includes(sessionID)
         },
-        togglePin(sessionID: string) {
+        togglePin(sessionID: Session.ID) {
           batch(() => {
             const exists = sessionStore.pinned.includes(sessionID)
             const next = exists
