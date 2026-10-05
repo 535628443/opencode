@@ -40,6 +40,16 @@ import type {
 } from "../promise"
 import { Worktree } from "@opencode/schema/worktree"
 import { SessionID } from "@opencode/schema/session-id"
+<<<<<<< HEAD
+=======
+import { ProjectID } from "@opencode/schema/project-id"
+import { WorkspaceID } from "@opencode/schema/workspace-id"
+import type { Agent } from "@opencode/schema/agent"
+import type { Event } from "@opencode/schema/event"
+import type { Form } from "@opencode/schema/form"
+import type { Permission } from "@opencode/schema/permission"
+import type { Shell } from "@opencode/schema/shell"
+>>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
 import { SessionMessage } from "@opencode/schema/session-message"
 import {
   isFormAlreadySettledError,
@@ -73,7 +83,12 @@ export type CreateDataInput = {
   readonly onError?: (error: unknown) => void
 }
 
+<<<<<<< HEAD
 const messageIDFromEvent = (eventID: string) => eventID.replace(/^evt_/, "msg_")
+=======
+const messageIDFromEvent = (eventID: Event.ID) =>
+  SessionMessage.ID.make(eventID.replace(/^evt_/, "msg_"), { disableChecks: true })
+>>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
 const messagePageLimit = 20
 // Trailing window for event bursts that each ask for the same refetch.
 export const settleMs = 150
@@ -105,10 +120,11 @@ type LocationData = {
 
 type Store = {
   session: {
-    info: Record<string, SessionInfo>
+    info: Record<SessionID, SessionInfo>
     // Family index keyed by a family's root (or furthest-known-ancestor when the
     // true root is not yet loaded). The value is a flat deduplicated list of every
     // session ID in that family, including the key itself once its info arrives.
+<<<<<<< HEAD
     family: Record<string, string[]>
     active: Record<string, DataSessionStatus>
     message: Record<string, SessionMessageInfo[]>
@@ -116,12 +132,21 @@ type Store = {
     messageLoading: Record<string, boolean>
     pending: Record<string, SessionInboxInfo[]>
     permission: Record<string, PermissionRequest[]>
+=======
+    family: Record<SessionID, SessionID[]>
+    active: Record<SessionID, DataSessionStatus>
+    message: Record<SessionID, SessionMessageInfo[]>
+    messageCursor: Record<SessionID, string | undefined>
+    messageLoading: Record<SessionID, boolean>
+    pending: Record<SessionID, SessionInboxInfo[]>
+    permission: Record<SessionID, PermissionRequest[]>
+>>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
     // Pending forms keyed by owner: a session ID or the temporary "global" elicitation sentinel.
     form: Record<string, FormWithLocation[]>
   }
   project: {
-    info: Record<string, Project>
-    permission: Record<string, PermissionSavedInfo[]>
+    info: Record<ProjectID, Project>
+    permission: Record<ProjectID, PermissionSavedInfo[]>
   }
   location: Record<string, LocationData>
 }
@@ -249,17 +274,20 @@ export function createData(config: CreateDataInput) {
   const sessions = createMemo(() =>
     Object.values(store.session.info).toSorted((a, b) => b.time.updated - a.time.updated),
   )
-  const messageIndex = new Map<string, Map<string, number>>()
+  const messageIndex = new Map<SessionID, Map<SessionMessage.ID, number>>()
   const sync = createSync()
-  let activeUpdates: Map<string, DataSessionStatus | undefined> | undefined
-  const pendingUpdates = new Map<string, Map<string, SessionInboxInfo | SessionInbox.Delivery | undefined>>()
+  let activeUpdates: Map<SessionID, DataSessionStatus | undefined> | undefined
+  const pendingUpdates = new Map<
+    SessionID,
+    Map<SessionMessage.ID, SessionInboxInfo | SessionInbox.Delivery | undefined>
+  >()
 
-  function setSessionActive(sessionID: string, status: DataSessionStatus) {
+  function setSessionActive(sessionID: SessionID, status: DataSessionStatus) {
     activeUpdates?.set(sessionID, status)
     setStore("session", "active", sessionID, status)
   }
 
-  function removePending(sessionID: string, inboxID?: string) {
+  function removePending(sessionID: SessionID, inboxID?: SessionMessage.ID) {
     if (!inboxID) return
     pendingUpdates.get(sessionID)?.set(inboxID, undefined)
     if (store.session.pending[sessionID]?.some((item) => item.id === inboxID))
@@ -271,7 +299,7 @@ export function createData(config: CreateDataInput) {
       )
   }
 
-  function removePermission(sessionID: string, requestID: string) {
+  function removePermission(sessionID: SessionID, requestID: Permission.ID) {
     const requests = store.session.permission[sessionID]
     if (!requests?.some((request) => request.id === requestID)) return
     setStore(
@@ -282,7 +310,11 @@ export function createData(config: CreateDataInput) {
     )
   }
 
+<<<<<<< HEAD
   function removeForm(sessionID: string, formID: string, ref?: LocationRef) {
+=======
+  function removeForm(sessionID: string, formID: Form.ID, ref?: LocationRef) {
+>>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
     const forms = store.session.form[sessionID]
     if (!forms) return false
     const location = ref && locationKey(ref)
@@ -308,7 +340,7 @@ export function createData(config: CreateDataInput) {
       })
   }
 
-  function updatePending(sessionID: string, inboxID: string, delivery: SessionInbox.Delivery) {
+  function updatePending(sessionID: SessionID, inboxID: SessionMessage.ID, delivery: SessionInbox.Delivery) {
     const index = store.session.pending[sessionID]?.findIndex((item) => item.id === inboxID) ?? -1
     const item = store.session.pending[sessionID]?.[index]
     pendingUpdates.get(sessionID)?.set(inboxID, item ? { ...item, delivery } : delivery)
@@ -321,30 +353,33 @@ export function createData(config: CreateDataInput) {
   // row the server does not know about yet. Prompts clear on their durable
   // echo, positive pending read, or rollback; compactions also reconcile the
   // POST's canonical ID.
-  const outbox = new Set<string>()
+  const outbox = new Set<SessionMessage.ID>()
 
   // Session IDs of optimistic create admissions still awaiting acknowledgement
   // (the session.created echo or the create response itself). A failed create
   // only rolls back a session the server never acknowledged. Unlike
   // `creating`, this clears on the echo rather than request settlement.
-  const sessionOutbox = new Set<string>()
+  const sessionOutbox = new Set<SessionID>()
 
   // In-flight optimistic creates by session ID. prompt() gates its POST on
   // this so a prompt sent to a still-creating session waits for the session
   // to exist server-side instead of failing with "not found".
-  const creating = new Map<string, Promise<unknown>>()
+  const creating = new Map<SessionID, Promise<unknown>>()
 
   // Per-session send chain: prompts and compactions must be admitted in
   // submission order. Each waits for the previous POST to settle, so one
   // failure does not block the next.
-  const sending = new Map<string, Promise<unknown>>()
-  const messageLoads = new Map<string, Promise<unknown>>()
-  const compacting = new Map<string, { id: string; observed: Set<string>; request: Promise<SessionInboxCompaction> }>()
+  const sending = new Map<SessionID, Promise<unknown>>()
+  const messageLoads = new Map<SessionID, Promise<unknown>>()
+  const compacting = new Map<
+    SessionID,
+    { id: SessionMessage.ID; observed: Set<SessionMessage.ID>; request: Promise<SessionInboxCompaction> }
+  >()
   onCleanup(() => compacting.clear())
 
   // Register `promise` under `key` until it settles. A later registration
   // replaces an earlier one; settlement only clears its own entry.
-  function track(map: Map<string, Promise<unknown>>, key: string, promise: Promise<unknown>) {
+  function track(map: Map<SessionID, Promise<unknown>>, key: SessionID, promise: Promise<unknown>) {
     map.set(key, promise)
     const settle = () => {
       if (map.get(key) === promise) map.delete(key)
@@ -353,7 +388,7 @@ export function createData(config: CreateDataInput) {
   }
 
   // Capture creation before settlement clears its entry, so dependent RPCs still see a failed create.
-  function sendAdmission<Value>(sessionID: string, send: () => Promise<Value>, gate?: Promise<unknown>) {
+  function sendAdmission<Value>(sessionID: SessionID, send: () => Promise<Value>, gate?: Promise<unknown>) {
     const created = creating.get(sessionID)
     const previous = sending.get(sessionID)
     const request = Promise.resolve()
@@ -402,7 +437,7 @@ export function createData(config: CreateDataInput) {
 
   // Remove an inbox item from pending, input, and the visible transcript.
   // Used by the inbox.cancelled handler and by optimistic rollback.
-  function retractLocal(sessionID: string, inboxID: string) {
+  function retractLocal(sessionID: SessionID, inboxID: SessionMessage.ID) {
     batch(() => {
       removePending(sessionID, inboxID)
       if (!messageIndex.get(sessionID)?.has(inboxID)) return
@@ -417,7 +452,7 @@ export function createData(config: CreateDataInput) {
   }
 
   const message = {
-    update(sessionID: string, fn: (messages: SessionMessageInfo[], index: Map<string, number>) => void) {
+    update(sessionID: SessionID, fn: (messages: SessionMessageInfo[], index: Map<SessionMessage.ID, number>) => void) {
       setStore(
         "session",
         "message",
@@ -426,24 +461,33 @@ export function createData(config: CreateDataInput) {
         }),
       )
     },
-    append(messages: SessionMessageInfo[], index: Map<string, number>, item: SessionMessageInfo) {
+    append(messages: SessionMessageInfo[], index: Map<SessionMessage.ID, number>, item: SessionMessageInfo) {
       if (index.has(item.id)) return
       index.set(item.id, messages.length)
       messages.push(item)
     },
-    insert(sessionID: string, item: SessionMessageInfo) {
+    insert(sessionID: SessionID, item: SessionMessageInfo) {
       message.update(sessionID, (draft, index) => message.append(draft, index, item))
     },
     // Streaming events target one assistant message and, within it, the latest part of a kind.
     // A missing target means the row was never loaded or was evicted; the event is dropped.
-    editAssistant(sessionID: string, messageID: string, fn: (assistant: SessionMessageAssistant) => void) {
+    editAssistant(
+      sessionID: SessionID,
+      messageID: SessionMessage.ID,
+      fn: (assistant: SessionMessageAssistant) => void,
+    ) {
       message.update(sessionID, (draft, index) => {
         const position = index.get(messageID)
         const item = position === undefined ? undefined : draft[position]
         if (item?.type === "assistant") fn(item)
       })
     },
-    editTool(sessionID: string, messageID: string, toolID: string, fn: (tool: SessionMessageAssistantTool) => void) {
+    editTool(
+      sessionID: SessionID,
+      messageID: SessionMessage.ID,
+      toolID: string,
+      fn: (tool: SessionMessageAssistantTool) => void,
+    ) {
       message.editAssistant(sessionID, messageID, (assistant) => {
         const tool = assistant.content.findLast(
           (item): item is SessionMessageAssistantTool => item.type === "tool" && item.id === toolID,
@@ -451,13 +495,17 @@ export function createData(config: CreateDataInput) {
         if (tool) fn(tool)
       })
     },
-    editText(sessionID: string, messageID: string, fn: (text: SessionMessageAssistantText) => void) {
+    editText(sessionID: SessionID, messageID: SessionMessage.ID, fn: (text: SessionMessageAssistantText) => void) {
       message.editAssistant(sessionID, messageID, (assistant) => {
         const text = assistant.content.findLast((item): item is SessionMessageAssistantText => item.type === "text")
         if (text) fn(text)
       })
     },
-    editReasoning(sessionID: string, messageID: string, fn: (reasoning: SessionMessageAssistantReasoning) => void) {
+    editReasoning(
+      sessionID: SessionID,
+      messageID: SessionMessage.ID,
+      fn: (reasoning: SessionMessageAssistantReasoning) => void,
+    ) {
       message.editAssistant(sessionID, messageID, (assistant) => {
         const reasoning = assistant.content.findLast(
           (item): item is SessionMessageAssistantReasoning => item.type === "reasoning" && !item.time?.completed,
@@ -469,7 +517,7 @@ export function createData(config: CreateDataInput) {
       const item = messages.findLast((item) => item.type === "assistant" && !item.time.completed)
       return item?.type === "assistant" ? item : undefined
     },
-    shell(messages: SessionMessageInfo[], shellID: string) {
+    shell(messages: SessionMessageInfo[], shellID: Shell.ID) {
       const item = messages.findLast((item) => item.type === "shell" && item.shellID === shellID)
       return item?.type === "shell" ? item : undefined
     },
@@ -477,7 +525,7 @@ export function createData(config: CreateDataInput) {
       const item = messages.findLast((item) => item.type === "compaction" && item.status === "running")
       return item?.type === "compaction" ? item : undefined
     },
-    reindex(messages: SessionMessageInfo[], index: Map<string, number>, start: number) {
+    reindex(messages: SessionMessageInfo[], index: Map<SessionMessage.ID, number>, start: number) {
       for (let position = start; position < messages.length; position++) {
         const item = messages[position]
         if (item) index.set(item.id, position)
@@ -485,10 +533,10 @@ export function createData(config: CreateDataInput) {
     },
   }
 
-  function index(sessionID: string) {
+  function index(sessionID: SessionID) {
     const existing = messageIndex.get(sessionID)
     if (existing) return existing
-    const created = new Map<string, number>()
+    const created = new Map<SessionMessage.ID, number>()
     messageIndex.set(sessionID, created)
     return created
   }
@@ -498,7 +546,11 @@ export function createData(config: CreateDataInput) {
   // is returned so orphan subtrees group under it until the parent arrives. A
   // seen set guards against parent cycles, stopping at the last non-repeating
   // ancestor.
+<<<<<<< HEAD
   function resolveRoot(sessionID: string) {
+=======
+  function resolveRoot(sessionID: SessionID) {
+>>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
     let current = sessionID
     let parentID = store.session.info[sessionID]?.parentID
     const seen = new Set([sessionID])
@@ -516,7 +568,7 @@ export function createData(config: CreateDataInput) {
   // sessionID exists (descendants arrived while sessionID's own info was
   // absent) but sessionID turns out to have a parent, fold the orphan subtree
   // into the resolved root's family and drop the tentative entry.
-  function registerSession(sessionID: string) {
+  function registerSession(sessionID: SessionID) {
     const info = store.session.info[sessionID]
     if (!info) return
     const rootID = resolveRoot(sessionID)
@@ -537,7 +589,7 @@ export function createData(config: CreateDataInput) {
     )
   }
 
-  function evictSession(sessionID: string) {
+  function evictSession(sessionID: SessionID) {
     if (sessionOutbox.has(sessionID)) return
     sync.invalidate(`session.pending:${sessionID}`)
     sync.invalidate(`session.message:${sessionID}`)
@@ -560,7 +612,7 @@ export function createData(config: CreateDataInput) {
     )
   }
 
-  function removeSession(sessionID: string) {
+  function removeSession(sessionID: SessionID) {
     activeUpdates?.set(sessionID, undefined)
     store.session.pending[sessionID]?.forEach((item) => outbox.delete(item.id))
     messageIndex.delete(sessionID)
@@ -583,8 +635,8 @@ export function createData(config: CreateDataInput) {
         delete draft.form[sessionID]
         for (const [rootID, family] of Object.entries(draft.family)) {
           const next = family.filter((id) => id !== sessionID)
-          if (next.length === 0) delete draft.family[rootID]
-          else draft.family[rootID] = next
+          if (next.length === 0) delete draft.family[SessionID.make(rootID, { disableChecks: true })]
+          else draft.family[SessionID.make(rootID, { disableChecks: true })] = next
         }
       }),
     )
@@ -593,7 +645,7 @@ export function createData(config: CreateDataInput) {
   function handleEvent(event: OpenCodeEvent) {
     switch (event.type) {
       case "server.connected": {
-        const updates = new Map<string, DataSessionStatus | undefined>()
+        const updates = new Map<SessionID, DataSessionStatus | undefined>()
         activeUpdates = updates
         refresh(() =>
           api()
@@ -601,7 +653,9 @@ export function createData(config: CreateDataInput) {
             .then((active) => {
               if (activeUpdates !== updates) return
               // Lifecycle events received during hydration supersede the snapshot.
-              const snapshot = new Map<string, DataSessionStatus>(Object.keys(active).map((id) => [id, "running"]))
+              const snapshot = new Map<SessionID, DataSessionStatus>(
+                Object.keys(active).map((id) => [SessionID.make(id, { disableChecks: true }), "running"]),
+              )
               updates.forEach((status, id) => {
                 if (status === undefined) return snapshot.delete(id)
                 snapshot.set(id, status)
@@ -725,7 +779,8 @@ export function createData(config: CreateDataInput) {
         return
       }
       case "worktree.resolved": {
-        for (const [sessionID, info] of Object.entries(store.session.info)) {
+        for (const info of Object.values(store.session.info)) {
+          const sessionID = info.id
           const explicit = event.data.adopted?.includes(info.projectID)
           const directory = explicit ? store.project.info[info.projectID]?.canonical : info.location.directory
           if (!directory) {
@@ -1337,10 +1392,10 @@ export function createData(config: CreateDataInput) {
       list() {
         return sessions()
       },
-      get(sessionID: string) {
+      get(sessionID: SessionID) {
         return store.session.info[sessionID]
       },
-      creating(sessionID: string) {
+      creating(sessionID: SessionID) {
         return creating.has(sessionID)
       },
       remember(info: SessionInfo) {
@@ -1350,23 +1405,23 @@ export function createData(config: CreateDataInput) {
           registerSession(info.id)
         })
       },
-      setStatus(sessionID: string, status: DataSessionStatus) {
+      setStatus(sessionID: SessionID, status: DataSessionStatus) {
         setSessionActive(sessionID, status)
       },
-      root(sessionID: string) {
+      root(sessionID: SessionID) {
         return resolveRoot(sessionID)
       },
-      family(sessionID: string) {
+      family(sessionID: SessionID) {
         return store.session.family[resolveRoot(sessionID)] ?? []
       },
       /** Clear heavy cached data for the root and all known descendants. */
-      evict(sessionID: string) {
+      evict(sessionID: SessionID) {
         const root = resolveRoot(sessionID)
         batch(() => {
           for (const id of new Set([root, sessionID, ...(store.session.family[root] ?? [])])) evictSession(id)
         })
       },
-      cost(sessionID: string) {
+      cost(sessionID: SessionID) {
         const session = store.session.info[sessionID]
         if (!session) return 0
         if (session.parentID) return session.cost
@@ -1375,7 +1430,7 @@ export function createData(config: CreateDataInput) {
           0,
         )
       },
-      status(sessionID: string) {
+      status(sessionID: SessionID) {
         return store.session.active[sessionID] ?? "idle"
       },
       active() {
@@ -1385,24 +1440,24 @@ export function createData(config: CreateDataInput) {
       },
       // Inputs are the pending user and synthetic items; compactions are control items.
       input: {
-        list(sessionID: string) {
+        list(sessionID: SessionID) {
           return (store.session.pending[sessionID] ?? []).flatMap((item) =>
             item.type === "compaction" ? [] : [item.id],
           )
         },
-        has(sessionID: string, inboxID: string) {
+        has(sessionID: SessionID, inboxID: SessionMessage.ID) {
           return (
             store.session.pending[sessionID]?.some((item) => item.id === inboxID && item.type !== "compaction") ?? false
           )
         },
       },
       pending: {
-        list(sessionID: string) {
+        list(sessionID: SessionID) {
           return store.session.pending[sessionID] ?? []
         },
-        sync(sessionID: string) {
+        sync(sessionID: SessionID) {
           return sync.run(`session.pending:${sessionID}`, async () => {
-            const updates = new Map<string, SessionInboxInfo | SessionInbox.Delivery | undefined>()
+            const updates = new Map<SessionMessage.ID, SessionInboxInfo | SessionInbox.Delivery | undefined>()
             pendingUpdates.set(sessionID, updates)
             try {
               const snapshot = await api().session.inbox.list({ sessionID })
@@ -1438,7 +1493,7 @@ export function createData(config: CreateDataInput) {
             }
           })
         },
-        invalidate(sessionID: string) {
+        invalidate(sessionID: SessionID) {
           sync.invalidate(`session.pending:${sessionID}`)
         },
       },
@@ -1450,12 +1505,16 @@ export function createData(config: CreateDataInput) {
       // callers gate session-dependent sends on the request (prompt() gates
       // itself on any in-flight create of its session automatically).
       create(input: {
-        id?: string
+        id?: SessionID
         title?: string
-        agent?: string
+        agent?: Agent.ID
         model?: ModelRef
         location?: LocationRef
+<<<<<<< HEAD
         projectID?: string
+=======
+        projectID?: ProjectID
+>>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
       }) {
         const { projectID, ...payload } = input
         const id = payload.id ?? SessionID.create()
@@ -1466,7 +1525,11 @@ export function createData(config: CreateDataInput) {
           sessionOutbox.add(id)
           result.session.remember({
             id,
+<<<<<<< HEAD
             projectID: projectID ?? store.location[locationKey(location)]?.info?.project.id ?? "",
+=======
+            projectID: projectID ?? store.location[locationKey(location)]?.info?.project.id ?? ProjectID.make(""),
+>>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
             agent: payload.agent,
             model: payload.model,
             cost: 0,
@@ -1498,7 +1561,7 @@ export function createData(config: CreateDataInput) {
         if (fresh) track(creating, id, request)
         return { id, request }
       },
-      compact(input: { sessionID: string; model?: ModelRef }) {
+      compact(input: { sessionID: SessionID; model?: ModelRef }) {
         const active = compacting.get(input.sessionID)
         if (active) return active.request
         // A known pending control ID may be consumed while setup waits. Propose
@@ -1518,7 +1581,7 @@ export function createData(config: CreateDataInput) {
         // Compaction admission can coalesce onto a different ID. Retire the
         // speculative row on an echo, and remember consumed IDs until the POST
         // settles so its older response cannot resurrect a queued row.
-        const observed = new Set<string>()
+        const observed = new Set<SessionMessage.ID>()
         const request = sendAdmission(input.sessionID, async () => {
           if (input.model) await api().session.switchModel({ sessionID: input.sessionID, model: input.model })
           return api().session.compact({ sessionID: input.sessionID, id })
@@ -1587,7 +1650,7 @@ export function createData(config: CreateDataInput) {
           throw error
         })
       },
-      sync(sessionID: string, options?: { children?: boolean }) {
+      sync(sessionID: SessionID, options?: { children?: boolean }) {
         return sync.run(options?.children ? `session.family:${sessionID}` : `session:${sessionID}`, async () => {
           const [info, children] = await Promise.all([
             api().session.get({ sessionID }),
@@ -1613,19 +1676,19 @@ export function createData(config: CreateDataInput) {
           })
         })
       },
-      invalidate(sessionID: string) {
+      invalidate(sessionID: SessionID) {
         sync.invalidate(`session:${sessionID}`)
       },
       message: {
-        list(sessionID: string) {
+        list(sessionID: SessionID) {
           return store.session.message[sessionID] ?? []
         },
-        get(sessionID: string, messageID: string) {
+        get(sessionID: SessionID, messageID: SessionMessage.ID) {
           const messages = store.session.message[sessionID]
           const position = messageIndex.get(sessionID)?.get(messageID)
           return position === undefined ? undefined : messages?.[position]
         },
-        sync(sessionID: string) {
+        sync(sessionID: SessionID) {
           return sync.run(`session.message:${sessionID}`, async () => {
             const response = await api().message.list({
               sessionID,
@@ -1652,14 +1715,14 @@ export function createData(config: CreateDataInput) {
             })
           })
         },
-        more(sessionID: string) {
+        more(sessionID: SessionID) {
           return store.session.messageCursor[sessionID] !== undefined
         },
-        loading(sessionID: string) {
+        loading(sessionID: SessionID) {
           return store.session.messageLoading[sessionID] ?? false
         },
         async loadMore(
-          sessionID: string,
+          sessionID: SessionID,
           options?: {
             all?: boolean
             signal?: AbortSignal
@@ -1723,25 +1786,29 @@ export function createData(config: CreateDataInput) {
           track(messageLoads, sessionID, request)
           await request
         },
-        invalidate(sessionID: string) {
+        invalidate(sessionID: SessionID) {
           sync.invalidate(`session.message:${sessionID}`)
         },
       },
       permission: {
-        list(sessionID: string) {
+        list(sessionID: SessionID) {
           return store.session.permission[sessionID]
         },
+<<<<<<< HEAD
         sessions() {
           return Object.entries(store.session.permission).flatMap(([sessionID, requests]) =>
             requests.length > 0 ? [sessionID] : [],
           )
         },
         sync(sessionID: string) {
+=======
+        sync(sessionID: SessionID) {
+>>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
           return sync.run(`session.permission:${sessionID}`, async () => {
             setStore("session", "permission", sessionID, await api().permission.list({ sessionID }))
           })
         },
-        invalidate(sessionID: string) {
+        invalidate(sessionID: SessionID) {
           sync.invalidate(`session.permission:${sessionID}`)
         },
         async reply(input: PermissionReplyInput) {
@@ -1761,11 +1828,14 @@ export function createData(config: CreateDataInput) {
           const key = locationKey(ref)
           return forms?.filter((form) => form.location && locationKey(form.location) === key)
         },
+<<<<<<< HEAD
         sessions() {
           return Object.entries(store.session.form).flatMap(([sessionID, forms]) =>
             sessionID !== "global" && forms.length > 0 ? [sessionID] : [],
           )
         },
+=======
+>>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
         sync(sessionID: string, ref?: LocationRef) {
           const key = `session.form:${sessionID}:${sessionID === "global" ? locationKey(ref ?? defaultLocation()) : ""}`
           return sync.run(key, async () => {
@@ -1805,7 +1875,7 @@ export function createData(config: CreateDataInput) {
       list() {
         return Object.values(store.project.info).toSorted((a, b) => b.time.active - a.time.active)
       },
-      get(projectID: string) {
+      get(projectID: ProjectID) {
         return store.project.info[projectID]
       },
       sync() {
@@ -1818,15 +1888,15 @@ export function createData(config: CreateDataInput) {
         sync.invalidate("project")
       },
       permission: {
-        list(projectID: string) {
+        list(projectID: ProjectID) {
           return store.project.permission[projectID]
         },
-        sync(projectID: string) {
+        sync(projectID: ProjectID) {
           return sync.run(`project.permission:${projectID}`, async () => {
             setStore("project", "permission", projectID, await api().permission.saved.list({ projectID }))
           })
         },
-        invalidate(projectID: string) {
+        invalidate(projectID: ProjectID) {
           sync.invalidate(`project.permission:${projectID}`)
         },
       },
@@ -1835,7 +1905,7 @@ export function createData(config: CreateDataInput) {
       list(location?: LocationRef) {
         return Object.values(shells.list(location) ?? {})
       },
-      listBySession(sessionID: string) {
+      listBySession(sessionID: SessionID) {
         return Object.values(store.location)
           .flatMap((data) => Object.values(data.shell ?? {}))
           .filter((shell) => shell.metadata.sessionID === sessionID)
