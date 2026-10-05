@@ -632,7 +632,12 @@ const executePromiseTool = (tool: Info, input: any, context: Tool.Context) =>
       signal: controller.signal,
       progress: (update) => Effect.runPromise(context.progress(update), { signal: controller.signal }),
       checkpoint: (checkpoint) => {
-        const promise = Effect.runPromise(context.checkpoint(checkpoint))
+        const promise =
+          typeof checkpoint === "function"
+            ? Promise.resolve()
+                .then(checkpoint)
+                .then((snapshot) => Effect.runPromise(context.checkpoint(snapshot)))
+            : Effect.runPromise(context.checkpoint(checkpoint))
         checkpoints.add(promise)
         void promise.then(
           () => checkpoints.delete(promise),
@@ -645,8 +650,8 @@ const executePromiseTool = (tool: Info, input: any, context: Tool.Context) =>
     return yield* Effect.promise(() => tool.execute(input, toolContext)).pipe(
       Effect.onInterrupt(() =>
         Effect.gen(function* () {
-          // Abort listeners run synchronously and may register asynchronous checkpoint work.
-          // Keep the publisher alive for that work without waiting for the executor to cooperate.
+          // Abort listeners register the whole cleanup callback before it starts asynchronous work.
+          // Keep the publisher alive until cleanup and checkpoint publication finish.
           controller.abort()
           yield* Effect.promise(() => Promise.allSettled(checkpoints))
         }),

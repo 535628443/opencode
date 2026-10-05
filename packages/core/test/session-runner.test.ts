@@ -5248,11 +5248,13 @@ describe("SessionRunnerLLM", () => {
     },
   )
 
-  scenario("persists large cleanup output and releases a nonsettling Promise tool before replay", function* (s) {
+  scenario("awaits Promise cleanup and retains output through replay", function* (s) {
     const { PluginPromise } = yield* Effect.promise(() => import("@opencode/core/plugin/promise"))
     const registry = yield* Tool.Service
     const hooks = yield* PluginHooks.Service
     const started = yield* Deferred.make<void>()
+    const cleanupStarted = yield* Deferred.make<void>()
+    const releaseCleanup = Promise.withResolvers<void>()
     const cleaned = Promise.withResolvers<void>()
     const errors: unknown[] = []
     yield* PluginPromise.fromPromise({
@@ -5270,9 +5272,13 @@ describe("SessionRunnerLLM", () => {
                   "abort",
                   () => {
                     void context
-                      .checkpoint({
-                        content: "x".repeat(70_000),
-                        metadata: { capturedDuringCleanup: true },
+                      .checkpoint(async () => {
+                        Effect.runSync(Deferred.succeed(cleanupStarted, undefined))
+                        await releaseCleanup.promise
+                        return {
+                          content: "x".repeat(70_000),
+                          metadata: { capturedDuringCleanup: true },
+                        }
                       })
                       .catch((error) => errors.push(error))
                       .finally(() => {
@@ -5306,6 +5312,10 @@ describe("SessionRunnerLLM", () => {
     const fiber = yield* s.resume.pipe(Effect.forkChild)
     yield* Deferred.await(started)
     yield* s.session.interrupt(sessionID)
+    yield* Deferred.await(cleanupStarted)
+    const runningDuringCleanup = fiber.pollUnsafe()
+    releaseCleanup.resolve()
+    expect(runningDuringCleanup).toBeUndefined()
     expect(Exit.hasInterrupts(yield* Fiber.await(fiber))).toBe(true)
     const execution = yield* SessionExecution.Service
     expect(yield* execution.isActive(sessionID)).toBe(false)

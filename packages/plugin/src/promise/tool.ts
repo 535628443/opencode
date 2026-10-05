@@ -8,11 +8,16 @@ import type { SessionMessage } from "@opencode/schema/session-message"
 import type { Types } from "effect"
 import type { Hooks, Transform } from "./registration.js"
 
+type CheckpointValue = Parameters<Tool.Context["checkpoint"]>[0]
+
 export interface ToolContext extends Omit<Tool.Context, "progress" | "checkpoint"> {
   readonly signal: AbortSignal
   readonly progress: (update: Tool.Metadata) => Promise<void>
-  /** Register directly in the abort listener; interruption awaits checkpoints but does not await the executor. */
-  readonly checkpoint: (checkpoint: Tool.Checkpoint | string | ReadonlyArray<Tool.Content>) => Promise<void>
+  /**
+   * Register directly in the abort listener. For asynchronous cleanup, pass an async callback returning the snapshot.
+   * Interruption awaits the callback and checkpoint publication without waiting for the executor to settle.
+   */
+  readonly checkpoint: (checkpoint: CheckpointValue | (() => Promise<CheckpointValue>)) => Promise<void>
 }
 
 export type Info<

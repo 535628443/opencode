@@ -123,6 +123,81 @@ it.live("Promise tool can checkpoint in abort cleanup", () =>
   }),
 )
 
+it.live("Promise tool awaits asynchronous checkpoint cleanup without waiting for its executor", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const tools = yield* Tool.Service
+    const started = yield* Deferred.make<void>()
+    const cleanupStarted = yield* Deferred.make<void>()
+    const releaseCleanup = Promise.withResolvers<void>()
+    const checkpointStarted = yield* Deferred.make<void>()
+    const releaseCheckpoint = yield* Deferred.make<void>()
+    const checkpoints: unknown[] = []
+    const errors: unknown[] = []
+    yield* PluginPromise.fromPromise({
+      id: "async-checkpoint-cleanup",
+      async setup(host) {
+        await host.tool.transform((editor) =>
+          editor.add({
+            name: "async-checkpoint-wait",
+            description: "Checkpoint after asynchronous abort cleanup",
+            input: { type: "object", properties: {}, additionalProperties: false },
+            options: { codemode: false },
+            execute: (_input, context) =>
+              new Promise<never>(() => {
+                context.signal.addEventListener(
+                  "abort",
+                  () => {
+                    void context
+                      .checkpoint(async () => {
+                        Effect.runSync(Deferred.succeed(cleanupStarted, undefined))
+                        await releaseCleanup.promise
+                        return "partial output after async cleanup"
+                      })
+                      .catch((error) => errors.push(error))
+                  },
+                  { once: true },
+                )
+                Effect.runSync(Deferred.succeed(started, undefined))
+              }),
+          }),
+        )
+      },
+    }).effect(yield* PluginHost.make(plugins))
+    const snapshot = yield* tools.snapshot()
+    const fiber = yield* snapshot
+      .execute({
+        sessionID: Session.ID.make("ses_async_checkpoint_cleanup"),
+        agent: Agent.ID.make("build"),
+        messageID: SessionMessage.ID.make("msg_async_checkpoint_cleanup"),
+        call: { type: "tool-call", id: "call_async_checkpoint_cleanup", name: "async-checkpoint-wait", input: {} },
+        checkpoint: (checkpoint) =>
+          Effect.gen(function* () {
+            yield* Deferred.succeed(checkpointStarted, undefined)
+            yield* Deferred.await(releaseCheckpoint)
+            checkpoints.push(checkpoint)
+          }),
+      })
+      .pipe(Effect.forkScoped)
+    yield* Deferred.await(started)
+    const interrupt = yield* Fiber.interrupt(fiber).pipe(Effect.forkChild)
+    yield* Deferred.await(cleanupStarted)
+    const runningDuringCleanup = fiber.pollUnsafe()
+    const checkpointedDuringCleanup = checkpoints.length
+    releaseCleanup.resolve()
+    yield* Deferred.await(checkpointStarted)
+    const runningDuringCheckpoint = fiber.pollUnsafe()
+    yield* Deferred.succeed(releaseCheckpoint, undefined)
+    yield* Fiber.join(interrupt)
+    expect(runningDuringCleanup).toBeUndefined()
+    expect(checkpointedDuringCleanup).toBe(0)
+    expect(runningDuringCheckpoint).toBeUndefined()
+    expect(Exit.hasInterrupts(yield* Fiber.await(fiber))).toBe(true)
+    expect(errors).toEqual([])
+    expect(checkpoints).toEqual(["partial output after async cleanup"])
+  }),
+)
+
 it.live("Promise tool progress is cancelled with its executor", () =>
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service

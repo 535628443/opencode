@@ -586,12 +586,12 @@ export const createLLMEventPublisher = (bus: Pick<Bus.Interface, "publish">, inp
   const progress = Effect.fnUntraced(function* (id: string, update: Tool.Metadata) {
     const tool = tools.get(id)
     if (!tool?.called || tool.settled) return yield* Effect.die(new Error(`Tool progress outside running call: ${id}`))
-    tool.progress = { ...tool.progress, ...update }
+    tool.progress = update
     yield* bus.publish(SessionEvent.Tool.Progress, {
       sessionID: input.sessionID,
       assistantMessageID,
       id,
-      metadata: tool.progress,
+      metadata: update,
     })
   })
 
@@ -603,7 +603,8 @@ export const createLLMEventPublisher = (bus: Pick<Bus.Interface, "publish">, inp
     },
   ) {
     const tool = tools.get(id)
-    if (!tool?.called || tool.settled) return yield* Effect.die(new Error(`Tool checkpoint outside running call: ${id}`))
+    if (!tool?.called || tool.settled)
+      return yield* Effect.die(new Error(`Tool checkpoint outside running call: ${id}`))
     if (snapshot.content !== undefined) {
       tool.content = snapshot.content
     }

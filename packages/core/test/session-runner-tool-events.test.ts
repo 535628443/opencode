@@ -214,6 +214,32 @@ testEffect(
   }),
 )
 
+test("progress replaces metadata and an empty update clears it while preserving checkpoint content", async () => {
+  const { published, publisher } = capture()
+  await Effect.runPromise(publisher.publish(call))
+  await Effect.runPromise(
+    publisher.checkpoint(call.id, {
+      content: [{ type: "text", text: "retained output" }],
+      metadata: { checkpointOnly: true },
+    }),
+  )
+  await Effect.runPromise(publisher.progress(call.id, { stage: "running", obsolete: true }))
+  await Effect.runPromise(publisher.progress(call.id, { stage: "cleanup" }))
+  await Effect.runPromise(publisher.progress(call.id, {}))
+  expect(published.filter((event) => event.type === "session.tool.progress").map((event) => event.data)).toEqual([
+    expect.objectContaining({ metadata: { checkpointOnly: true } }),
+    expect.objectContaining({ metadata: { stage: "running", obsolete: true } }),
+    expect.objectContaining({ metadata: { stage: "cleanup" } }),
+    expect.objectContaining({ metadata: {} }),
+  ])
+  await Effect.runPromise(publisher.failUnsettledTools({ type: "aborted", message: "interrupted" }))
+  const failed = published.find((event) => event.type === "session.tool.failed.2")?.data
+  expect(failed).toMatchObject({
+    content: [{ type: "text", text: "retained output" }],
+  })
+  expect(failed).toHaveProperty("metadata", {})
+})
+
 test("interrupted progress metadata remains in the terminal failure snapshot", async () => {
   const { published, publisher } = capture("anthropic", { interruptProgress: true })
   await Effect.runPromise(publisher.publish(call))
