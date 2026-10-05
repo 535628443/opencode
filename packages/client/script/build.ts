@@ -92,7 +92,6 @@ await Effect.runPromise(
       write(
         emitPromise(promiseContract, {
           mutableOutputs: true,
-          brandInputs: false,
           brandReferences: [
             ...effectTypeReferences.filter(
               (reference) =>

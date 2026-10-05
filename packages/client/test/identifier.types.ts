@@ -1,27 +1,41 @@
-import type { OpenCodeClient, OpenCodeEvent, SessionInfo, SessionActiveOutput } from "../src/promise/index.js"
+import type { OpenCodeClient, OpenCodeEvent, SessionActiveOutput, SessionInfo } from "../src/promise/index.js"
 import type { createData } from "../src/solid/data.js"
-import type { Session } from "@opencode/schema/session"
-import type { SessionMessage } from "@opencode/schema/session-message"
 import type { ProjectID } from "@opencode/schema/project-id"
+import type { Effect } from "effect"
+import type { Session, SessionMessage, SessionApi } from "../src/effect/index.js"
 
 type Assert<T extends true> = T
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
+type GetInput = Parameters<SessionApi["get"]>[0]
+type RevertInput = Parameters<SessionApi["revert"]["stage"]>[0]
+type GetOutput = Effect.Success<ReturnType<SessionApi["get"]>>
 
-type GetInput = Parameters<OpenCodeClient["session"]["get"]>[0]
-type GetOutput = Awaited<ReturnType<OpenCodeClient["session"]["get"]>>
+// Compile against the public client and the generated API. A lost brand must fail
+// package typecheck even though branded strings serialize identically over HTTP.
+export type SessionInput = Assert<Equal<GetInput["sessionID"], Session.ID>>
+export type SessionOutput = Assert<Equal<GetOutput["id"], Session.ID>>
+export type MessageInput = Assert<Equal<RevertInput["messageID"], SessionMessage.ID>>
+export type RejectMessageAsSession = Assert<SessionMessage.ID extends GetInput["sessionID"] ? false : true>
+export type RejectSessionAsMessage = Assert<Session.ID extends RevertInput["messageID"] ? false : true>
+export type RejectPlainSession = Assert<string extends GetInput["sessionID"] ? false : true>
+export type RejectPlainMessage = Assert<string extends RevertInput["messageID"] ? false : true>
+
+type PromiseGetInput = Parameters<OpenCodeClient["session"]["get"]>[0]
+type PromiseRevertInput = Parameters<OpenCodeClient["session"]["revert"]["stage"]>[0]
+type PromiseGetOutput = Awaited<ReturnType<OpenCodeClient["session"]["get"]>>
 type Created = Extract<OpenCodeEvent, { type: "session.created" }>
 type Data = ReturnType<typeof createData>
-type Create = Parameters<Data["session"]["create"]>[0]
-// Output branding must not indirectly narrow the staged public string inputs.
-export type OutputSession = Assert<Equal<GetOutput["id"], Session.ID>>
-export type RejectOutputMessage = Assert<SessionMessage.ID extends GetOutput["id"] ? false : true>
-export type NestedSession = Assert<Equal<Created["data"]["sessionID"], Session.ID>>
-export type NestedProject = Assert<Equal<Created["data"]["projectID"], ProjectID>>
-export type DatesRemainWire = Assert<Equal<SessionInfo["time"]["created"], number>>
-export type ActiveKeys = Assert<Equal<keyof SessionActiveOutput, Session.ID>>
-export type AcceptHttpSession = Assert<string extends GetInput["sessionID"] ? true : false>
-export type AcceptDataSession = Assert<string extends Parameters<Data["session"]["get"]>[0] ? true : false>
-export type AcceptDataModel = Assert<string extends NonNullable<Create["model"]>["id"] ? true : false>
-export type AcceptDataProvider = Assert<string extends NonNullable<Create["model"]>["providerID"] ? true : false>
-export type AcceptDataLocation = Assert<{ directory: string; workspaceID: string } extends NonNullable<Create["location"]> ? true : false>
-export type AcceptNullPrompt = Assert<null extends Parameters<OpenCodeClient["session"]["prompt"]>[0]["id"] ? true : false>
+export type PromiseSessionInput = Assert<Equal<PromiseGetInput["sessionID"], Session.ID>>
+export type PromiseSessionOutput = Assert<Equal<PromiseGetOutput["id"], Session.ID>>
+export type PromiseMessageInput = Assert<Equal<PromiseRevertInput["messageID"], SessionMessage.ID>>
+export type PromiseRejectMessage = Assert<SessionMessage.ID extends PromiseGetInput["sessionID"] ? false : true>
+export type PromiseRejectSession = Assert<Session.ID extends PromiseRevertInput["messageID"] ? false : true>
+export type PromiseRejectPlainString = Assert<string extends PromiseGetInput["sessionID"] ? false : true>
+export type PromiseNestedEvent = Assert<Equal<Created["data"]["sessionID"], Session.ID>>
+export type PromiseNestedProject = Assert<Equal<Created["data"]["projectID"], ProjectID>>
+export type PromiseDateRemainsWire = Assert<Equal<SessionInfo["time"]["created"], number>>
+export type ActiveMapKeys = Assert<Equal<keyof SessionActiveOutput, Session.ID>>
+export type ActiveMapRejectMessage = Assert<SessionMessage.ID extends keyof SessionActiveOutput ? false : true>
+export type DataSessionInput = Assert<Equal<Parameters<Data["session"]["get"]>[0], Session.ID>>
+export type DataInboxInput = Assert<Equal<Parameters<Data["session"]["input"]["has"]>[1], SessionMessage.ID>>
+export type DataRejectWrongInbox = Assert<Session.ID extends Parameters<Data["session"]["input"]["has"]>[1] ? false : true>
