@@ -1,3 +1,4 @@
+import { SessionID } from "@opencode/schema/session-id"
 import {
   ErrorBoundary,
   Show,
@@ -332,7 +333,7 @@ function SessionScreenContent(props: {
           </Match>
           <Match when={session.identity.params.id}>
             <Show when={isDesktop() && !messagesReady()}>
-              <SessionIdentityHeader sessionID={session.identity.params.id ?? ""} session={session.data.info()} />
+              <SessionIdentityHeader sessionID={session.identity.params.id ?? SessionID.make("", { disableChecks: true })} session={session.data.info()} />
             </Show>
             <Show when={messagesReady() && session.identity.params.id}>{timelineView()}</Show>
           </Match>

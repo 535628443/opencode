@@ -283,20 +283,29 @@ describe("createTimelineProjection", () => {
     expect(result.sessionMessageByID.get(SessionMessage.ID.make("assistant-1", { disableChecks: true }))).toBe(
       messages[3],
     )
-    expect<unknown>(result.assistantMessagesByParent.get("user-1")?.map((message) => message.id)).toEqual(["assistant-1"])
-    expect(result.assistantMessagesByParent.has("user-2")).toBe(false)
-    expect(result.userContextByID.get("user-1")).toEqual({ agent: "build", model: assistantModel })
-    expect<unknown>(result.userContextByID.get("user-2")).toEqual({
+    expect<unknown>(
+      result.assistantMessagesByParent
+        .get(SessionMessage.ID.make("user-1", { disableChecks: true }))
+        ?.map((message) => message.id),
+    ).toEqual(["assistant-1"])
+    expect(result.assistantMessagesByParent.has(SessionMessage.ID.make("user-2", { disableChecks: true }))).toBe(false)
+    expect(result.userContextByID.get(SessionMessage.ID.make("user-1", { disableChecks: true }))).toEqual({
+      agent: "build",
+      model: assistantModel,
+    })
+    expect<unknown>(result.userContextByID.get(SessionMessage.ID.make("user-2", { disableChecks: true }))).toEqual({
       agent: "review",
       model: {
         id: "override",
         providerID: "custom",
-        variant: Model.VariantID.make("precise"),
+        variant: "precise",
       },
     })
-    expect(result.messageRowIndex.get("user-1")).toBe(0)
-    expect(result.messageLastRowIndex.get("user-1")).toBe(3)
-    expect(result.lastAssistantGroupKey.get("user-1")).toBe("part:assistant-1:assistant-1:text:0")
+    expect(result.messageRowIndex.get(SessionMessage.ID.make("user-1", { disableChecks: true }))).toBe(0)
+    expect(result.messageLastRowIndex.get(SessionMessage.ID.make("user-1", { disableChecks: true }))).toBe(3)
+    expect(result.lastAssistantGroupKey.get(SessionMessage.ID.make("user-1", { disableChecks: true }))).toBe(
+      "part:assistant-1:assistant-1:text:0",
+    )
     expect(result.rowByKey.get("user-message:user-1")).toBe(result.rows[2])
   })
 
@@ -369,9 +378,10 @@ describe("createTimelineProjection", () => {
       reasoningMode: "full",
     })
 
-    expect<unknown>(result.assistantMessagesByParent.get("assistant-1")?.map((message) => message.id)).toEqual([
-      "assistant-1",
-      "assistant-2",
-    ])
+    expect<unknown>(
+      result.assistantMessagesByParent
+        .get(SessionMessage.ID.make("assistant-1", { disableChecks: true }))
+        ?.map((message) => message.id),
+    ).toEqual(["assistant-1", "assistant-2"])
   })
 })

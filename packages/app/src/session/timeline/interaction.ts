@@ -1,3 +1,4 @@
+import type { SessionMessage } from "@opencode/schema/session-message"
 import type { SessionMessageUser } from "@opencode/client/promise"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLocation } from "@solidjs/router"
@@ -13,8 +14,8 @@ export function createSessionTimelineInteraction(session: SessionModel) {
   const location = useLocation()
   const timeline = createTimelineModel({ session })
   const [state, setState] = createStore({
-    messageID: undefined as string | undefined,
-    pendingMessage: undefined as string | undefined,
+    messageID: undefined as SessionMessage.ID | undefined,
+    pendingMessage: undefined as SessionMessage.ID | undefined,
     scroll: {
       overflow: false,
       jump: false,
@@ -39,7 +40,7 @@ export function createSessionTimelineInteraction(session: SessionModel) {
   }
   let scroller: HTMLDivElement | undefined
   let dockHeight = 0
-  let revealMessage = (_id: string, _partID?: string) => {}
+  let revealMessage = (_id: SessionMessage.ID, _partID?: string) => {}
   let scrollToEnd = () => {}
   let scrollMark = 0
   let messageMark = 0
@@ -292,7 +293,7 @@ export function createSessionTimelineInteraction(session: SessionModel) {
   return {
     actions: {
       navigateMessage,
-      revealMessage: (id: string, partID?: string) => revealMessage(id, partID),
+      revealMessage: (id: SessionMessage.ID, partID?: string) => revealMessage(id, partID),
       resume,
       setActiveMessage,
     },
@@ -316,7 +317,7 @@ export function createSessionTimelineInteraction(session: SessionModel) {
       setDockRef: (element: HTMLDivElement | undefined) => {
         setState("refs", "dock", element)
       },
-      setRevealMessage: (reveal: (id: string, partID?: string) => void) => {
+      setRevealMessage: (reveal: (id: SessionMessage.ID, partID?: string) => void) => {
         revealMessage = reveal
       },
       setScrollRef,

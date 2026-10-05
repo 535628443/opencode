@@ -1,4 +1,5 @@
-import { SessionMessage } from "@opencode/schema/session-message"
+import type { SessionMessage } from "@opencode/schema/session-message"
+import type { SessionID } from "@opencode/schema/session-id"
 import type { SessionMessageUser } from "@opencode/client/promise"
 import { useLocation, useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, onCleanup, onMount } from "solid-js"
@@ -6,22 +7,22 @@ import { messageIdFromHash } from "./message-id-from-hash"
 
 export const useSessionHashScroll = (input: {
   sessionKey: () => string
-  sessionID: () => string | undefined
+  sessionID: () => SessionID | undefined
   messagesReady: () => boolean
   visibleUserMessages: () => SessionMessageUser[]
   historyMore: () => boolean
   historyLoading: () => boolean
-  loadMore: (sessionID: string) => Promise<void>
-  currentMessageId: () => string | undefined
-  pendingMessage: () => string | undefined
-  setPendingMessage: (value: string | undefined) => void
+  loadMore: (sessionID: SessionID) => Promise<void>
+  currentMessageId: () => SessionMessage.ID | undefined
+  pendingMessage: () => SessionMessage.ID | undefined
+  setPendingMessage: (value: SessionMessage.ID | undefined) => void
   setActiveMessage: (message: SessionMessageUser | undefined) => void
   follow: { unpin: () => void; toBottom: () => void }
   scroller: () => HTMLDivElement | undefined
-  anchor: (id: string) => string
-  revealMessage?: (id: string) => void
+  anchor: (id: SessionMessage.ID) => string
+  revealMessage?: (id: SessionMessage.ID) => void
   scheduleScrollState: (el: HTMLDivElement) => void
-  consumePendingMessage: (key: string) => string | undefined
+  consumePendingMessage: (key: string) => SessionMessage.ID | undefined
 }) => {
   const visibleUserMessages = createMemo(() => input.visibleUserMessages())
   const messageById = createMemo(() => new Map(visibleUserMessages().map((m) => [m.id, m])))
@@ -53,7 +54,7 @@ export const useSessionHashScroll = (input: {
     navigate(location.pathname + location.search, { replace: true })
   }
 
-  const updateHash = (id: string) => {
+  const updateHash = (id: SessionMessage.ID) => {
     const hash = `#${input.anchor(id)}`
     if (location.hash === hash) return
     clearing = false
@@ -75,7 +76,7 @@ export const useSessionHashScroll = (input: {
     return true
   }
 
-  const seek = (id: string, behavior: ScrollBehavior, left = 4): boolean => {
+  const seek = (id: SessionMessage.ID, behavior: ScrollBehavior, left = 4): boolean => {
     input.revealMessage?.(id)
     const el = document.getElementById(input.anchor(id))
     if (el) return scrollToElement(el, behavior)
@@ -161,7 +162,7 @@ export const useSessionHashScroll = (input: {
     if (!targetId) return
 
     const pending = input.pendingMessage() === targetId
-    const msg = messageById().get(SessionMessage.ID.make(targetId, { disableChecks: true }))
+    const msg = messageById().get(targetId)
     if (!msg) return
 
     if (pending) input.setPendingMessage(undefined)
@@ -181,7 +182,7 @@ export const useSessionHashScroll = (input: {
     let targetId = input.pendingMessage()
     if (!targetId && !clearing) targetId = messageIdFromHash(location.hash)
     if (!targetId) return
-    if (messageById().has(SessionMessage.ID.make(targetId, { disableChecks: true }))) return
+    if (messageById().has(targetId)) return
     if (!input.historyMore() || input.historyLoading()) return
 
     void input.loadMore(sessionID)

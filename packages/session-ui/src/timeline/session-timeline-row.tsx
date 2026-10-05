@@ -1,3 +1,5 @@
+import { SessionID } from "@opencode/schema/session-id"
+import type { SessionMessage } from "@opencode/schema/session-message"
 import type {
   SessionMessageAssistant,
   SessionMessageInfo,
@@ -47,7 +49,7 @@ export type SessionUserPresentation = {
 }
 
 export function createSessionTimelineRowRenderer(input: {
-  sessionID: Accessor<string>
+  sessionID: Accessor<SessionID>
   status: Accessor<SessionStatus>
   projection: Projection
   presentation: (message: SessionMessageUser) => SessionUserPresentation | undefined
@@ -63,7 +65,7 @@ export function createSessionTimelineRowRenderer(input: {
   }
   centered?: Accessor<boolean>
   padding?: Accessor<string>
-  anchor?: (messageID: string) => string | undefined
+  anchor?: (messageID: SessionMessage.ID) => string | undefined
 }) {
   const i18n = useI18n()
   const data = useData()
@@ -92,9 +94,9 @@ export function createSessionTimelineRowRenderer(input: {
     })
     return owners
   })
-  const workingTurn = (messageID: string) =>
+  const workingTurn = (messageID: SessionMessage.ID) =>
     input.status().type !== "idle" && input.projection.activeMessageID() === messageID
-  const duration = (messageID: string) => {
+  const duration = (messageID: SessionMessage.ID) => {
     const user = input.projection.messageByID().get(messageID)
     if (user?.type !== "user") return null
     const completed = (input.projection.assistantMessagesByParent().get(messageID) ?? emptyAssistantMessages).reduce<
@@ -106,7 +108,7 @@ export function createSessionTimelineRowRenderer(input: {
     if (completed === undefined || completed < user.time.created) return undefined
     return completed - user.time.created
   }
-  const copyContentID = (messageID: string) => {
+  const copyContentID = (messageID: SessionMessage.ID) => {
     if (workingTurn(messageID)) return null
     const message = input.projection
       .assistantMessagesByParent()
@@ -120,7 +122,7 @@ export function createSessionTimelineRowRenderer(input: {
   }
   const padding = () => input.padding?.() ?? "px-4 md:px-5"
   const indexGroupContents = (refs: PartRef[]) => {
-    const result = new Map<string, Map<string, SessionMessageAssistant["content"][number]>>()
+    const result = new Map<SessionMessage.ID, Map<string, SessionMessageAssistant["content"][number]>>()
     refs.forEach((ref) => {
       if (result.has(ref.messageID)) return
       const contents = new Map<string, SessionMessageAssistant["content"][number]>()
@@ -400,7 +402,7 @@ export function createSessionTimelineRowRenderer(input: {
     </div>
   )
 
-  function Notice(props: { messageID: string; grouped?: boolean }) {
+  function Notice(props: { messageID: SessionMessage.ID; grouped?: boolean }) {
     const inset = () => (props.grouped ? "" : padding())
     const message = createMemo(() => input.projection.messageByID().get(props.messageID))
     const compaction = createMemo(() => {
@@ -436,7 +438,7 @@ export function createSessionTimelineRowRenderer(input: {
       const value = message()
       if (value?.type !== "synthetic" || value.metadata?.source !== "subagent") return
       const id = value.metadata.childID
-      if (typeof id === "string" && id) return id
+      if (typeof id === "string" && id) return SessionID.make(id, { disableChecks: true })
     })
     const href = createMemo(() => {
       const id = childID()
@@ -557,7 +559,7 @@ export function createSessionTimelineRowRenderer(input: {
     )
   }
 
-  function Shell(props: { messageID: string; grouped?: boolean }) {
+  function Shell(props: { messageID: SessionMessage.ID; grouped?: boolean }) {
     const message = createMemo(() => {
       const value = input.projection.messageByID().get(props.messageID)
       return value?.type === "shell" ? value : undefined

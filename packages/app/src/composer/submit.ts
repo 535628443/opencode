@@ -1,4 +1,3 @@
-import { SessionID } from "@opencode/schema/session-id"
 import { SessionMessage } from "@opencode/schema/session-message"
 import type { SessionMessageUser } from "@opencode/client/promise"
 import type { Accessor } from "solid-js"
@@ -389,7 +388,7 @@ async function applySelection(
   selection: ComposerSelection,
   track?: ModelSelection["trackSessionCommit"],
 ) {
-  const cancel = track?.(SessionID.make(session.id, { disableChecks: true }), selection)
+  const cancel = track?.(session.id, selection)
   try {
     const current = session.current()
     if (current?.agent !== selection.agent) {

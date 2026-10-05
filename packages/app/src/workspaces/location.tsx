@@ -1,4 +1,4 @@
-import { WorkspaceID } from "@opencode/schema/workspace-id"
+import type { WorkspaceID } from "@opencode/schema/workspace-id"
 import { createSimpleContext } from "@opencode/ui/context"
 import type { LocationGetOutput, LocationRef } from "@opencode/client/promise"
 import { retry } from "@opencode/util/retry"
@@ -14,18 +14,18 @@ export type WorkspaceLocation = LocationContext & {
 
 const context = createSimpleContext({
   name: "Location",
-  init: (props: { directory: string | Accessor<string>; workspaceID?: string | Accessor<string | undefined> }) => {
+  init: (props: {
+    directory: string | Accessor<string>
+    workspaceID?: WorkspaceID | Accessor<WorkspaceID | undefined>
+  }) => {
     const serverSDK = useServerSDK()
     const server = useServer()
     const data = useData()
     const ref = createMemo(
-      () => {
-        const workspaceID = typeof props.workspaceID === "function" ? props.workspaceID() : props.workspaceID
-        return {
-          directory: typeof props.directory === "function" ? props.directory() : props.directory,
-          workspaceID: workspaceID === undefined ? undefined : WorkspaceID.make(workspaceID, { disableChecks: true }),
-        }
-      },
+      () => ({
+        directory: typeof props.directory === "function" ? props.directory() : props.directory,
+        workspaceID: typeof props.workspaceID === "function" ? props.workspaceID() : props.workspaceID,
+      }),
       undefined,
       {
         equals: (previous, next) => previous.directory === next.directory && previous.workspaceID === next.workspaceID,
