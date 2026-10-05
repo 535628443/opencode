@@ -47,7 +47,7 @@ export interface ReadOptions {
 
 export interface Interface {
   /** Resolve a lexical path and its permission resources, without requesting approval. */
-  readonly resolve: (input: ResolveInput) => Effect.Effect<Target, FSUtil.Error>
+  readonly resolve: (input: ResolveInput) => Effect.Effect<Target, Environment.Failed>
   /** Approve external directories in one batch, preserving first-seen resource order. */
   readonly authorizeExternal: (
     targets: readonly Target[],
@@ -59,7 +59,7 @@ export interface Interface {
     file: string,
     context: Invocation,
     options?: ReadOptions,
-  ) => Effect.Effect<Target, FSUtil.Error | Error | SessionErrors.NotFoundError>
+  ) => Effect.Effect<Target, Environment.Failed | Error | SessionErrors.NotFoundError>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/FileAccess") {}
@@ -96,7 +96,6 @@ const projectRootViaFiles = Effect.fn("FileAccess.projectRootViaFiles")(function
       const found = yield* files.stat(path.join(current, marker)).pipe(
         Effect.as(true),
         Effect.catchTag("Environment.NotFound", () => Effect.succeed(false)),
-        Effect.catchTag("Environment.Failed", () => Effect.succeed(false)),
       )
       if (found) return AbsolutePath.make(current)
     }
@@ -133,7 +132,6 @@ const layer = Layer.effect(
             ? false
             : (yield* Environment.typeFollowing(environment.files, absolute).pipe(
                 Effect.catchTag("Environment.NotFound", () => Effect.undefined),
-                Effect.catchTag("Environment.Failed", () => Effect.undefined),
               )) === "directory"
       const directory = AbsolutePath.make(isDir ? absolute : path.dirname(absolute))
       return {

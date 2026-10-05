@@ -7,18 +7,21 @@ import { FileAccess } from "@opencode/core/file-access"
 import { Location } from "@opencode/core/location"
 import { Permission } from "@opencode/core/permission"
 import { AbsolutePath } from "@opencode/core/schema"
+import { Session } from "@opencode/core/session"
+import { Tool } from "@opencode/core/tool"
 import { LayerNode } from "@opencode/util/effect/layer-node"
 import { location } from "./fixture/location"
 import { withTempDir } from "./fixture/tmpdir"
 import { it } from "./lib/effect"
 import { permissionLayer } from "./lib/permission"
+import { toolIdentity } from "./lib/tool"
 
-function provide(environment: Environment.Interface) {
+function provide(environment: Environment.Interface, permission = permissionLayer()) {
   return Effect.provide(
     LayerNode.compile(FileAccess.node, {
       replacements: [
         Environment.node.replace(Layer.succeed(Environment.Service, Environment.Service.of(environment))),
-        Permission.node.replace(permissionLayer()),
+        Permission.node.replace(permission),
         Location.node.replace(
           Layer.succeed(
             Location.Service,
@@ -31,6 +34,11 @@ function provide(environment: Environment.Interface) {
 }
 
 const slash = (value: string) => value.replaceAll("\\", "/")
+const invocation = {
+  ...toolIdentity,
+  sessionID: Session.ID.make("ses_file_access"),
+  id: Tool.CallID.make("call-read"),
+}
 
 describe("FileAccess.resolve environment isolation", () => {
   it.live("uses the environment file type and nearest repository rather than conflicting host paths", () =>
@@ -111,16 +119,29 @@ describe("FileAccess.resolve environment isolation", () => {
         if (kind === "directory") yield* files.mkdir("/destination")
         if (kind === "file") yield* files.write("/destination", new Uint8Array())
         yield* driver.symlink("/destination", "/outside/link")
+        const requests: Permission.AssertInput[] = []
         const target = yield* Effect.gen(function* () {
           const access = yield* FileAccess.Service
-          return yield* access.resolve({ path: "/outside/link" })
-        }).pipe(provide({ files, spawner: driver.spawner }))
+          return yield* access.authorizeRead("/outside/link", invocation)
+        }).pipe(
+          provide(
+            { files, spawner: driver.spawner },
+            permissionLayer({ assert: (input) => Effect.sync(() => void requests.push(input)) }),
+          ),
+        )
 
         expect(target.absolute).toBe(AbsolutePath.make("/outside/link"))
-        expect(target.externalDirectory?.directory).toBe(
-          AbsolutePath.make(kind === "directory" ? "/outside/link" : "/outside"),
-        )
-        expect(target.externalDirectory?.resource).toBe(kind === "directory" ? "/outside/link/*" : "/outside/*")
+        const directory = kind === "directory" ? "/outside/link" : "/outside"
+        expect(target.externalDirectory).toEqual({
+          action: "external_directory",
+          directory: AbsolutePath.make(directory),
+          resource: `${directory}/*`,
+          save: `${directory}/*`,
+        })
+        expect(requests).toMatchObject([
+          { action: "external_directory", resources: [`${directory}/*`], save: [`${directory}/*`] },
+          { action: "read", resources: ["/outside/link"] },
+        ])
       }),
     )
   }
@@ -147,25 +168,36 @@ describe("FileAccess.resolve environment isolation", () => {
     }),
   )
 
-  it.live("keeps permission resources lexical when environment probes fail", () =>
-    Effect.gen(function* () {
-      const driver = Environment.makeMemoryDriver()
-      const files = {
-        ...Environment.makeFiles(driver),
-        stat: (target: string) =>
-          Effect.fail(new Environment.Failed({ path: target, cause: new Error("unavailable") })),
-      }
-      const target = yield* Effect.gen(function* () {
-        const access = yield* FileAccess.Service
-        return yield* access.resolve({ path: "/outside/nested/file" })
-      }).pipe(provide({ files, spawner: driver.spawner }))
-
-      expect(target.externalDirectory).toEqual({
-        action: "external_directory",
-        directory: AbsolutePath.make("/outside/nested"),
-        resource: "/outside/nested/*",
-        save: "/outside/nested/*",
-      })
-    }),
-  )
+  for (const probe of ["kind", ".git", ".hg"] as const) {
+    it.live(`propagates a failed ${probe} probe before requesting external-directory permission`, () =>
+      Effect.gen(function* () {
+        const driver = Environment.makeMemoryDriver()
+        const files = Environment.makeFiles(driver)
+        yield* files.mkdir("/outside/.git")
+        yield* files.mkdir(`/outside/repo/${probe === "kind" ? ".git" : probe}`)
+        const failure = new Environment.Failed({
+          path: probe === "kind" ? "/outside/repo" : `/outside/repo/${probe}`,
+          cause: new Error("controlled probe failure"),
+        })
+        const requests: Permission.AssertInput[] = []
+        yield* Effect.gen(function* () {
+          const access = yield* FileAccess.Service
+          expect(yield* access.resolve({ path: "/outside/repo" }).pipe(Effect.flip)).toBe(failure)
+          expect(yield* access.authorizeRead("/outside/repo", invocation).pipe(Effect.flip)).toBe(failure)
+        }).pipe(
+          provide(
+            {
+              files: {
+                ...files,
+                stat: (target) => (target === failure.path ? Effect.fail(failure) : files.stat(target)),
+              },
+              spawner: driver.spawner,
+            },
+            permissionLayer({ assert: (input) => Effect.sync(() => void requests.push(input)) }),
+          ),
+        )
+        expect(requests).toEqual([])
+      }),
+    )
+  }
 })
