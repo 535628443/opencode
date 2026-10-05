@@ -118,7 +118,7 @@ type Store = {
     // Family index keyed by a family's root (or furthest-known-ancestor when the
     // true root is not yet loaded). The value is a flat deduplicated list of every
     // session ID in that family, including the key itself once its info arrives.
-    family: Record<string, string[]>
+    family: Record<string, SessionID[]>
     active: Record<string, DataSessionStatus>
     message: Record<string, SessionMessageInfo[]>
     messageCursor: Record<string, string | undefined>
@@ -508,7 +508,7 @@ export function createData(config: CreateDataInput) {
   // seen set guards against parent cycles, stopping at the last non-repeating
   // ancestor.
   function resolveRoot(sessionID: string) {
-    let current = sessionID
+    let current = SessionID.make(sessionID, { disableChecks: true })
     let parentID = store.session.info[sessionID]?.parentID
     const seen = new Set([sessionID])
     while (parentID) {
@@ -541,7 +541,7 @@ export function createData(config: CreateDataInput) {
           delete draft[sessionID]
         }
         const family = (draft[rootID] ??= [])
-        if (!family.includes(sessionID)) family.push(sessionID)
+        if (!family.includes(info.id)) family.push(info.id)
       }),
     )
   }

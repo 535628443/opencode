@@ -14,7 +14,7 @@ export function createSessionRetention(input: {
   createEffect(() => {
     const viewed = input.current()
     const current = viewed === undefined ? undefined : input.session.root(viewed)
-    const keep = new Set(input.keep().map((id) => input.session.root(id)))
+    const keep = new Set<string>(input.keep().map((id) => input.session.root(id)))
     // Resolve again when metadata arrives, but only navigation advances recency.
     recent = [
       ...new Set([
@@ -23,7 +23,7 @@ export function createSessionRetention(input: {
       ]),
     ]
     previous = viewed
-    const retained = new Set([...keep, ...recent.filter((id) => !keep.has(id)).slice(0, input.limit)])
+    const retained = new Set<string>([...keep, ...recent.filter((id) => !keep.has(id)).slice(0, input.limit)])
     if (current !== undefined) retained.add(current)
     recent = recent.filter((id) => retained.has(id))
 

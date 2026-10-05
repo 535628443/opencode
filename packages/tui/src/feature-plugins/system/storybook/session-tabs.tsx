@@ -1,3 +1,4 @@
+import { Session } from "@opencode/schema/session"
 import { Plugin } from "@opencode/plugin/tui"
 import { useTerminalDimensions } from "@opentui/solid"
 import { batch, createSignal, For, Show } from "solid-js"
@@ -139,7 +140,10 @@ function SessionTabsStory(props: { context: Plugin.Context }) {
 
   const controller = {
     tabs,
-    current: active,
+    current: () => {
+      const id = active()
+      return id === undefined ? undefined : Session.ID.make(id, { disableChecks: true })
+    },
     add: addTab,
     search() {
       dialog.replace(() => (
