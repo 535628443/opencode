@@ -27,6 +27,7 @@ import { IntegrationConnection } from "./integration/connection.js"
 import { AppProcess } from "@opencode/util/process"
 import { ChildProcess } from "effect/unstable/process"
 import { Form } from "./form.js"
+import { KeyedMutex } from "./effect/keyed-mutex.js"
 
 export const ID = Integration.ID
 export type ID = Integration.ID
@@ -302,6 +303,7 @@ const layer = Layer.effect(
     // Runtime-only: statuses describe the current process's view of a connection and are not persisted.
     const statuses = new Map<string, IntegrationConnection.Status>()
     const inFlightRecoveries = new Map<string, Deferred.Deferred<Credential.Value | undefined, AuthorizationError>>()
+    const credentialLocks = KeyedMutex.makeUnsafe<Credential.ID>()
     const statusKey = (integrationID: ID, connection: IntegrationConnection.Info) =>
       `${integrationID}:${IntegrationConnection.key(connection)}`
     const state = State.create<Data, Editor>({
@@ -715,33 +717,51 @@ const layer = Layer.effect(
             const key = process.env[connection.name]
             return key ? Credential.Key.make({ type: "key", key }) : undefined
           }
-          const credential = yield* credentials.get(connection.id)
-          if (!credential) return undefined
-          if (credential.value.type === "key") return credential.value
-          const implementation = state
-            .get()
-            .integrations.get(credential.integrationID)
-            ?.implementations.get(credential.value.methodID)
-          if (!implementation?.refresh) return credential.value
-          const now = yield* Clock.currentTimeMillis
-          if (credential.value.expires > now + Duration.toMillis(Duration.minutes(5))) return credential.value
-          const value = yield* authorize(implementation.refresh(credential.value))
-          yield* credentials.update(credential.id, { value })
-          return value
+          // Read the grant and status inside the shared lock: recovery may rotate or reject it while we wait.
+          return yield* Effect.gen(function* () {
+            const credential = yield* credentials.get(connection.id)
+            if (!credential) return undefined
+            const status = statuses.get(statusKey(credential.integrationID, connection))
+            if (status?.status === "needs_auth" && !status.url) {
+              return yield* new AuthorizationError({ cause: new Error(status.message) })
+            }
+            if (credential.value.type === "key") return credential.value
+            const implementation = state
+              .get()
+              .integrations.get(credential.integrationID)
+              ?.implementations.get(credential.value.methodID)
+            if (!implementation?.refresh) return credential.value
+            const now = yield* Clock.currentTimeMillis
+            if (credential.value.expires > now + Duration.toMillis(Duration.minutes(5))) return credential.value
+            const value = yield* authorize(implementation.refresh(credential.value))
+            yield* credentials.update(credential.id, { value })
+            return value
+          }).pipe(credentialLocks.withLock(connection.id))
         }),
         recover: Effect.fn("Integration.connection.recover")(function* (input) {
           if (input.connection.type !== "credential") return undefined
           const credentialID = input.connection.id
           const credential = yield* credentials.get(credentialID)
           if (credential && credential.integrationID !== input.integrationID) return undefined
-          const existing = inFlightRecoveries.get(credentialID)
+          // Only equivalent failures share a policy decision; header insertion order is immaterial.
+          const recoveryKey = JSON.stringify([
+            input.integrationID,
+            credentialID,
+            input.status,
+            Object.entries(input.response?.headers ?? {}).toSorted(([a], [b]) => a.localeCompare(b)),
+            input.response?.body,
+          ])
+          const existing = inFlightRecoveries.get(recoveryKey)
           if (existing) {
             return yield* Deferred.await(existing)
           }
           const deferred = yield* Deferred.make<Credential.Value | undefined, AuthorizationError>()
-          inFlightRecoveries.set(credentialID, deferred)
+          inFlightRecoveries.set(recoveryKey, deferred)
 
           yield* Effect.gen(function* () {
+            // A preceding recovery may rotate the grant while this policy decision waits for the lock.
+            const credential = yield* credentials.get(credentialID)
+            if (credential && credential.integrationID !== input.integrationID) return undefined
             const key = statusKey(input.integrationID, input.connection)
             if (!credential || credential.value.type !== "oauth") {
               statuses.set(key, { status: "needs_auth", message: "Authentication failed. Reconnect the integration." })
@@ -791,9 +811,10 @@ const layer = Layer.effect(
             }
             return undefined
           }).pipe(
+            credentialLocks.withLock(credentialID),
             Effect.onExit((exit) =>
               Effect.gen(function* () {
-                inFlightRecoveries.delete(credentialID)
+                inFlightRecoveries.delete(recoveryKey)
                 yield* Deferred.done(deferred, exit)
               }),
             ),

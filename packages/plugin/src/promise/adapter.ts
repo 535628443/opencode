@@ -416,12 +416,16 @@ export function fromPromise(plugin: Plugin) {
                           refresh:
                             refresh === undefined
                               ? undefined
-                              : (credential) => Effect.promise(() => refresh(credential)),
+                              : (credential) =>
+                                  Effect.tryPromise({ try: () => refresh(credential), catch: (cause) => cause }),
                           recover:
                             recover === undefined
                               ? undefined
                               : (credential, status, response) =>
-                                  Effect.promise(() => recover(credential, status, response)),
+                                  Effect.tryPromise({
+                                    try: () => recover(credential, status, response),
+                                    catch: (cause) => cause,
+                                  }),
                         })
                       },
                       remove: editor.method.remove,

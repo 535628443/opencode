@@ -6821,6 +6821,13 @@ describe("SessionRunnerLLM", () => {
               expect(
                 (yield* s.integrations.connection.active(Integration.ID.make("github-copilot")))?.status?.status,
               ).toBe(fixture.repeated || !fixture.rotate ? "needs_auth" : undefined)
+              if (fixture.repeated || !fixture.rotate) {
+                const before = [...paths]
+                const blocked = yield* s.runPrompt("Try again without reconnecting").pipe(Effect.exit)
+                expect(Exit.isFailure(blocked)).toBe(true)
+                expect(paths).toEqual(before)
+                expect(authorizations).toHaveLength(fixture.rotate ? 2 : 1)
+              }
             })
           }),
         20_000,
