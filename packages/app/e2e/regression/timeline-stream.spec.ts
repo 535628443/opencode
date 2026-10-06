@@ -679,7 +679,9 @@ test.describe("Working", () => {
     await expect(working).toBeVisible()
 
     await timeline.send(partUpdated(toolPart("prt_read_four", "read", "running", { path: "src/four.ts" })))
-    await expect(group.locator('[data-slot="basic-tool-tool-subtitle"]')).toHaveText("one.ts, two.ts, three.ts, four.ts")
+    await expect(group.locator('[data-slot="basic-tool-tool-subtitle"]')).toHaveText(
+      "one.ts, two.ts, three.ts, four.ts",
+    )
     await expect(working).toBeVisible()
 
     await timeline.send(partUpdated(toolPart("prt_read_four", "read", "completed", { path: "src/four.ts" })))
@@ -884,13 +886,13 @@ test.describe("background shortcut", () => {
             },
             {
               type: "tool",
-              id: "call_shell_backgrounded",
+              id: "call_sh_backgrounded",
               name: "shell",
               state: {
                 status: "completed",
                 input: { command: "sleep 120" },
                 content: [{ type: "text", text: "working" }],
-                metadata: { shellID: "shell_backgrounded", status: "running" },
+                metadata: { shellID: "sh_backgrounded", status: "running" },
               },
               time: { created: 2, completed: 3 },
             },
@@ -937,7 +939,7 @@ test.describe("background shortcut", () => {
       location: { directory },
       data: {
         info: {
-          id: "shell_backgrounded",
+          id: "sh_backgrounded",
           status: "running",
           command: "sleep 120",
           cwd: directory,
@@ -952,7 +954,7 @@ test.describe("background shortcut", () => {
     await expect(backgroundHint(page)).toBeVisible()
 
     const used = page
-      .locator('[data-timeline-part-ids="call_backgrounded,call_shell_backgrounded,call_blocking"]')
+      .locator('[data-timeline-part-ids="call_backgrounded,call_sh_backgrounded,call_blocking"]')
       .locator(':scope > [data-component="collapsible"] > [data-slot="collapsible-trigger"]')
 
     await expect(used).toHaveText(/^Used\s*3\s*Agent, Shell$/)
@@ -967,7 +969,7 @@ test.describe("background shortcut", () => {
     await list.getByRole("menuitem", { name: /sleep 120/ }).click()
     await expect(list).toHaveCount(0)
     await expect(used).toHaveAttribute("aria-expanded", "true")
-    const shellCall = page.locator('[data-timeline-part-id="call_shell_backgrounded"]')
+    const shellCall = page.locator('[data-timeline-part-id="call_sh_backgrounded"]')
     await expect(shellCall.locator('[data-slot="collapsible-trigger"]')).toHaveAttribute("aria-expanded", "true")
     await expect(shellCall).toBeInViewport()
 
@@ -986,7 +988,7 @@ test.describe("background shortcut", () => {
     await expect(list).toBeVisible()
 
     const kill = page.waitForRequest(
-      (request) => request.method() === "DELETE" && new URL(request.url()).pathname === "/api/shell/shell_backgrounded",
+      (request) => request.method() === "DELETE" && new URL(request.url()).pathname === "/api/shell/sh_backgrounded",
     )
 
     await list.getByRole("menuitem", { name: /sleep 120/ }).hover()
@@ -997,7 +999,7 @@ test.describe("background shortcut", () => {
     await expect(backgroundCard).toContainText("Background task (background)")
     await expect(backgroundCard.locator('[data-component="session-progress-indicator-v2"]')).toBeVisible()
     await expect(
-      page.locator('[data-timeline-part-id="call_shell_backgrounded"] [data-component="text-shimmer"]'),
+      page.locator('[data-timeline-part-id="call_sh_backgrounded"] [data-component="text-shimmer"]'),
     ).toHaveAttribute("data-active", "true")
 
     // SAFETY: the transport forwards this payload unchanged, and the client marks a session idle from

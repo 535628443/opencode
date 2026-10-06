@@ -1197,7 +1197,7 @@ function mockHandlers(
 
             return {
               data: {
-                id: prompt?.id ?? `inb_mock_${Date.now()}`,
+                id: prompt?.id ?? `msg_mock_${Date.now()}`,
                 sessionID: ctx.params.sessionID,
                 time: { created: Date.now() },
                 type: "user",
@@ -1215,7 +1215,7 @@ function mockHandlers(
 
             return {
               data: {
-                id: Predicate.isString(body.id) ? body.id : `inb_mock_${Date.now()}`,
+                id: Predicate.isString(body.id) ? body.id : `msg_mock_${Date.now()}`,
                 sessionID: ctx.params.sessionID,
                 time: { created: Date.now() },
                 type: "compaction",
