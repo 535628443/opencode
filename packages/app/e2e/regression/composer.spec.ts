@@ -64,6 +64,9 @@ test("keeps a 25000-line crash report editable in a new session", async ({ page 
   await expectCaretVisible(input)
   await page.keyboard.press(process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End")
   await expectCaretVisible(input)
+  await page.keyboard.type("?")
+  await expect.poll(() => input.innerText()).toBe(text + "!?")
+  await expectCaretVisible(input)
 })
 
 test("a key-up never moves the caret back after later navigation", async ({ page }) => {
