@@ -9,10 +9,11 @@ import { Effect, Exit, Schema, Scope } from "effect"
 import { HttpServer } from "effect/unstable/http"
 import { OpenCode } from "../../client/src/promise/index"
 import { it } from "../../core/test/lib/effect"
+import binding from "../../core/src/persistent-pty/pty-binding"
 import { ServerProcess } from "../src/process"
 
-const binary = process.env.OPENCODE_PTY_BIN ?? "/root/projects/opencode-pty/target/debug/opencode-pty"
-const smoke = existsSync(binary) ? it.live : it.live.skip
+const binary = process.env.OPENCODE_PTY_BIN ?? (typeof binding === "string" ? binding : binding?.path)
+const smoke = binary && existsSync(binary) ? it.live : it.live.skip
 
 smoke(
   "reads the latest controlled terminal with optional physical line counts through the SDK",
@@ -194,14 +195,15 @@ smoke(
       const first = Schema.decodeUnknownSync(PersistentPty.Info)(
         (yield* request(base, "POST", `/api/experimental/session/${sessionID}/terminal`, {
           command: "/usr/bin/env",
-          args: ["/bin/sh", "-c", "stty -echo; printf terminal-one; cat"],
+          // Exercise byte streaming without the OS-specific canonical input line limit.
+          args: ["/bin/sh", "-c", "stty -echo -icanon; printf terminal-one; cat"],
           cwd: process.cwd(),
           title: "first",
           env: {},
         })).data,
       )
       expect(first.command).toBe("/usr/bin/env")
-      expect(first.args).toEqual(["/bin/sh", "-c", "stty -echo; printf terminal-one; cat"])
+      expect(first.args).toEqual(["/bin/sh", "-c", "stty -echo -icanon; printf terminal-one; cat"])
       expect(first.cwd).toBe(process.cwd())
       expect(yield* Effect.promise(() => events.next("persistent-pty.added"))).toMatchObject({
         data: { sessionID, terminal: { id: first.id } },
@@ -641,14 +643,15 @@ async function verifySharedControl(base: string, ptyID: string) {
     second.socket.send(inputFrame(70, 20, "from-second\n"))
     await waitForSocketOutput([first, second], "from-second")
 
-    await waitForForegroundProcess([first, second], "cat")
+    // The helper discovers foreground process names through /proc on Linux; other platforms report null.
+    await waitForForegroundProcess([first, second], process.platform === "linux" ? "cat" : null)
 
     for (const character of "printf abc | rev\n") second.socket.send(inputFrame(70, 20, character))
     await waitForSocketOutput([first, second], "printf abc | rev")
 
     second.socket.send(inputFrame(70, 20, "x".repeat(1024)))
     second.socket.send(inputFrame(70, 20, "after-burst\n"))
-    await waitForSocketOutput([first, second], "after-burst")
+    await waitForSocketOutput([first, second], `${"x".repeat(1024)}after-burst`)
     expect(first.closed).toBeFalse()
     expect(second.closed).toBeFalse()
     expect(first.resizes).toBeGreaterThan(0)
@@ -741,7 +744,7 @@ async function openTerminalSocket(
 
 async function waitForForegroundProcess(
   sockets: Array<{ foregroundProcess: string | null; closed: boolean }>,
-  expected: string,
+  expected: string | null,
 ) {
   for (let attempt = 0; attempt < 100; attempt++) {
     if (sockets.every((socket) => socket.foregroundProcess === expected)) return
