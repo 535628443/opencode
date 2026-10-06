@@ -86,7 +86,9 @@ test("Git initialization belongs to its session and refreshes after a session sw
   await expect(pending).toHaveCount(0)
 })
 
-test("a rejected Git init releases its session's button without showing an error in another session", async ({ page }) => {
+test("a rejected Git init releases its session's button without showing an error in another session", async ({
+  page,
+}) => {
   await openSession(page, {
     name: "ReviewInitFailure",
     project: { vcs: undefined },
@@ -525,7 +527,17 @@ test("image files keep the review panel painted while loading", async ({ page })
     },
   })
   await page.getByRole("button", { name: "Toggle review" }).click()
-  await expect(page.locator('#review-panel [data-component="session-review-v2"]')).toBeVisible()
+  const panel = page.locator('#review-panel [data-component="session-review-v2"]')
+  await expect(panel).toBeVisible()
+  await expect
+    .poll(() =>
+      panel.evaluate((element) => {
+        const rect = element.getBoundingClientRect()
+        const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+        return rect.left >= 0 && rect.right <= window.innerWidth && !!hit && element.contains(hit)
+      }),
+    )
+    .toBe(true)
 
   // Records every painted frame from before the click until after the image read completes.
   await page.evaluate(() => {

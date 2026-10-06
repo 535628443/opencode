@@ -215,7 +215,7 @@ test.describe("rename", () => {
     await page.keyboard.press("Escape")
     await expect(page.getByRole("menuitem", { name: "Rename", exact: true })).toBeHidden()
     await expect(tab).toBeFocused()
-    await tab.press("Shift+F10")
+    await tab.press(process.platform === "darwin" ? "ContextMenu" : "Shift+F10")
     await page.getByRole("menuitem", { name: "Rename", exact: true }).click()
     const input = page.locator('[data-slot="tab-title"][contenteditable="true"]')
     await expect(input).toBeFocused()

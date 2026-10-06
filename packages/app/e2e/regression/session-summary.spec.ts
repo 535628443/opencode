@@ -303,6 +303,11 @@ for (const direction of ["ltr", "rtl"] as const) {
     await expect(summary).toBeHidden()
 
     await page.getByRole("button", { name: "Toggle review", exact: true }).click()
+    await expect(page.locator("#review-panel")).toBeInViewport({ ratio: 1 })
+    // Read native animations after style resolution; the transitionrun event can arrive later.
+    await page.locator('[data-slot="session-chat-panel"]').evaluate(async (element) => {
+      await Promise.all(element.getAnimations().map((animation) => animation.finished))
+    })
     await trigger.click()
     await expectAlignedWithHeader(page, direction)
     expect(warnings).toEqual([])

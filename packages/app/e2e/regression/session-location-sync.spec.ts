@@ -3,6 +3,7 @@ import { base64Encode } from "@opencode/util/encode"
 import { fixture } from "../utils/session-fixture"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { installSseTransport } from "../utils/sse-transport"
+import { fileNode } from "../utils/workspace"
 
 for (const endpoint of ["/api/location", "/api/agent"]) {
   for (const recover of [false, true]) {
@@ -220,7 +221,10 @@ test("keeps the side panel's tabs and selection when the session moves", async (
     provider: fixture.provider,
     sessions: [session],
     fileList: () => [],
-    findFiles: (input) => ["README.md", "NOTES.md"].filter((name) => name.startsWith(input.query)),
+    findFiles: (input) =>
+      ["README.md", "NOTES.md"]
+        .filter((name) => name.startsWith(input.query))
+        .map((name) => fileNode(session.directory, name)),
     fileContent: (path) => ({ type: "text", content: `contents:${session.directory}:${path}` }),
     pageMessages: () => ({
       items: [{ id: "msg_saved", type: "user", text: "Keep my tabs", time: { created: 1 } }],
@@ -232,21 +236,23 @@ test("keeps the side panel's tabs and selection when the session moves", async (
   const panel = page.getByRole("complementary", { name: "Review and files" })
   const files = panel.getByRole("tab", { name: /\.md$/ })
   const notes = panel.getByRole("tab", { name: "NOTES.md", exact: true })
+  await page.getByRole("button", { name: "Toggle review", exact: true }).click()
+  await expect(panel).toBeVisible()
 
   // A lost selection would fall back to the first file tab, README.md, so NOTES.md stays selected only if it carries.
   for (const name of ["README", "NOTES"]) {
-    await page.keyboard.press("ControlOrMeta+Shift+P")
-
-    const dialog = page.getByRole("dialog")
-    const search = dialog.getByRole("textbox")
+    await panel.getByRole("button", { name: "Open file", exact: true }).click()
+    const search = panel.getByRole("combobox", { name: "Filter files" })
+    await expect(search).toBeFocused()
     await search.fill(name)
-    await expect(dialog.getByRole("option", { name: `/ ${name}.md`, exact: true })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    )
+    const option = panel.getByRole("option", { name: new RegExp(`${name}\\.md`) })
+    await expect(option).toBeVisible()
+    await expect(search).toHaveAttribute("aria-activedescendant", (await option.getAttribute("id"))!)
     await search.press("Enter")
-    await expect(dialog).toHaveCount(0)
-    await expect(panel.getByRole("tab", { name: `${name}.md`, exact: true })).toHaveAttribute("aria-selected", "true")
+    const tab = panel.getByRole("tab", { name: `${name}.md`, exact: true })
+    await expect(tab).toHaveAttribute("aria-selected", "true")
+    // Promote the preview so opening the second file preserves both tabs.
+    await tab.dblclick()
   }
 
   await expect(files).toHaveText(["README.md", "NOTES.md"])
