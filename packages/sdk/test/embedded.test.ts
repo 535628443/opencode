@@ -156,7 +156,9 @@ it.live(
           [
             opencode.sessions.log({ sessionID: missingSessionID }).pipe(Stream.runHead, Effect.flip),
             opencode.sessions.interrupt({ sessionID: missingSessionID }).pipe(Effect.flip),
-            opencode.sessions.message.get({ sessionID: missingSessionID, messageID: modelMessage.id }).pipe(Effect.flip),
+            opencode.sessions.message
+              .get({ sessionID: missingSessionID, messageID: modelMessage.id })
+              .pipe(Effect.flip),
             opencode.sessions.instructions.entry.list({ sessionID: missingSessionID }).pipe(Effect.flip),
             opencode.sessions.inbox.list({ sessionID: missingSessionID }).pipe(Effect.flip),
           ],
@@ -219,6 +221,12 @@ it.live("embedded client exposes plugin-backed web search", () =>
             })
           }),
       })
+
+      yield* opencode.websearch.providers({ location: location(fixture) }).pipe(
+        Effect.filterOrFail((page) => page.data.some((provider) => provider.id === providerID)),
+        Effect.retry(Schedule.spaced("10 millis")),
+        Effect.timeout("2 seconds"),
+      )
 
       const result = yield* opencode.websearch.query({
         query: "opencode",
