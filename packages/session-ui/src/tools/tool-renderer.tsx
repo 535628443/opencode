@@ -1852,14 +1852,7 @@ ToolRegistry.register({
 
     const childSessionId = createMemo(() => {
       const value = props.metadata.sessionID
-<<<<<<< HEAD
-
-      if (typeof value === "string" && value) return value
-
-=======
-      if (typeof value === "string" && value) return SessionID.make(value, { disableChecks: true })
->>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
-      return taskSession(props.input, data.sessionID, data.store.session)
+      if (typeof value === "string" && value) return SessionID.make(value, { disableChecks: true })      return taskSession(props.input, data.sessionID, data.store.session)
     })
 
     const agent = createMemo(() => taskAgent(props.input.agent, data.store.agent))

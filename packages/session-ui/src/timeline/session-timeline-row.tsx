@@ -107,18 +107,9 @@ export function createSessionTimelineRowRenderer(input: {
 
     return owners
   })
-<<<<<<< HEAD
-
-  const workingTurn = (messageID: string) =>
-    input.status().type !== "idle" && input.projection.activeMessageID() === messageID
-
-  const duration = (messageID: string) => {
-=======
   const workingTurn = (messageID: SessionMessage.ID) =>
     input.status().type !== "idle" && input.projection.activeMessageID() === messageID
-  const duration = (messageID: SessionMessage.ID) => {
->>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
-    const user = input.projection.messageByID().get(messageID)
+  const duration = (messageID: SessionMessage.ID) => {    const user = input.projection.messageByID().get(messageID)
 
     if (user?.type !== "user") return null
 

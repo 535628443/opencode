@@ -78,7 +78,6 @@ async function setup(width: number, output = "") {
   const app = await testRender(
     () => (
       <TestTuiContexts directory={temporary.path} paths={{ state: temporary.path }}>
-<<<<<<< HEAD
         <TuiAppProvider value={{ name: "test", version: "test", channel: "test" }}>
           <StorageProvider>
             <ConfigProvider config={createTuiResolvedConfig()}>
@@ -99,29 +98,7 @@ async function setup(width: number, output = "") {
               </RouteProvider>
             </ConfigProvider>
           </StorageProvider>
-        </TuiAppProvider>
-=======
-        <ConfigProvider config={createTuiResolvedConfig()}>
-          <RouteProvider
-            initialRoute={{ type: "session", sessionID: Session.ID.make("ses_fixture", { disableChecks: true }) }}
-          >
-            <ClientProvider api={api}>
-              <DataProvider directory={temporary.path}>
-                <ThemeProvider mode={width === 40 ? "light" : "dark"} source={emptyThemeSource}>
-                  <Keymap.Provider>
-                    <ToastProvider>
-                      <DialogProvider>
-                        <Shells />
-                      </DialogProvider>
-                    </ToastProvider>
-                  </Keymap.Provider>
-                </ThemeProvider>
-              </DataProvider>
-            </ClientProvider>
-          </RouteProvider>
-        </ConfigProvider>
->>>>>>> 150cd081a9 (test(tui): prepare tui-components schema IDs)
-      </TestTuiContexts>
+        </TuiAppProvider>      </TestTuiContexts>
     ),
     { width, height: 30, kittyKeyboard: true },
   )

@@ -133,15 +133,7 @@ export function createSessionQueue(input: {
   })
   onCleanup(() => cancelEdit())
 
-<<<<<<< HEAD
-  // `replace` substitutes an edited prompt for the original at its position in the same rewrite.
-  const rewrite = async (
-    inboxIDs: string[],
-    replace?: { original: string; admission: Parameters<typeof data.session.prompt>[0] },
-  ) => {
-=======
   const rewrite = async (inboxIDs: SessionMessage.ID[]) => {
->>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
     const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
 
     if (pending.some((item) => item.delivery === "queue" && item.type !== "user"))
@@ -239,26 +231,6 @@ export function createSessionQueue(input: {
       context: [...context.comments, ...context.files],
     })
   }
-<<<<<<< HEAD
-
-  // Re-admitting a queued prompt commits a staged revert, which drops every prompt queued after its boundary.
-  const refuseReverted = () => {
-    if (!data.session.get(input.sessionID)?.revert) return false
-    showToast({ title: language.t("session.queue.reverted") })
-
-    return true
-  }
-
-  const reorder = (inboxIDs: string[]) => {
-    if (mutation.isPending || refuseReverted()) return Promise.resolve()
-
-    return mutation.mutateAsync({ type: "reorder", inboxIDs }).catch(() => undefined)
-  }
-
-  const edit = (id: string) => {
-    if (mutation.isPending || refuseReverted()) return false
-
-=======
   const reorder = (inboxIDs: SessionMessage.ID[]) => {
     if (mutation.isPending) return Promise.resolve()
     return mutation.mutateAsync({ type: "reorder", inboxIDs }).catch(() => undefined)
@@ -266,7 +238,6 @@ export function createSessionQueue(input: {
 
   const edit = (id: SessionMessage.ID) => {
     if (mutation.isPending) return false
->>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
     if (state.editing?.id === id) return true
     const item = queued().find((entry) => entry.id === id)
 

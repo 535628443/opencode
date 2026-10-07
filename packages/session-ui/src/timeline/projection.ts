@@ -647,10 +647,6 @@ function indexUserContext(messages: SessionMessageInfo[]) {
           onSome: (local) => local.agent,
         }),
         model:
-<<<<<<< HEAD
-          localModel && localModelID
-            ? { id: localModelID, providerID: localModel.providerID, variant: localModel.variant }
-=======
           localModel &&
           typeof localModel === "object" &&
           !Array.isArray(localModel) &&
@@ -660,9 +656,7 @@ function indexUserContext(messages: SessionMessageInfo[]) {
                 id: Model.ID.make(localModelID),
                 providerID: Provider.ID.make(localModel.providerID),
                 variant: typeof localModel.variant === "string" ? Model.VariantID.make(localModel.variant) : undefined,
-              }
->>>>>>> 2c4c311fbe (refactor(session-ui): restore model IDs in projections)
-            : model,
+              }            : model,
       })
     }
 

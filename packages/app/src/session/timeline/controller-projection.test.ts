@@ -141,36 +141,7 @@ describe("visibleTimelineMessages", () => {
       "msg_3",
       "msg_4",
     ])
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-    // A notice admitted after the steers, before the next step, sinks with them in admission order. The
-    // server delivers steers in that order and the store moves each delivered input to the end, so the
-    // rendered order does not change at delivery.
-    const notice = {
-      id: "msg_4a",
-      sessionID: "ses_1",
-      time: { created: 4 },
-      type: "synthetic",
-      delivery: "steer",
-      payload: { text: "", description: "Task finished" },
-    } satisfies SessionInboxInfo
-
-    const noticeMessage = {
-      id: notice.id,
-      type: "synthetic",
-      ...notice.payload,
-      time: notice.time,
-    } satisfies SessionMessageInfo
-
-    const pendingOrder = visibleTimelineMessages([...messages, noticeMessage, work], [...pending, notice])
-
-    // The order the server delivers in: active work, then steers and notices by admission.
-    expect(pendingOrder.map((message) => message.id)).toEqual(["msg_1", "msg_2", "msg_5", "msg_3", "msg_4", "msg_4a"])
-    expect(visibleTimelineMessages(source, pending, "msg_4").map((message) => message.id)).toEqual([
-=======
     expect<unknown>(visibleTimelineMessages(source, pending, "msg_4").map((message) => message.id)).toEqual([
->>>>>>> bfa686d8e0 (refactor(app): prepare canonical identifier outputs)
       "msg_1",
       "msg_2",
       "msg_3",
@@ -204,19 +175,11 @@ describe("visibleTimelineMessages", () => {
   })
 
   test("hides the staged revert boundary and later messages", () => {
-<<<<<<< HEAD
-    expect(
-      visibleTimelineMessages(messages, [], SessionMessage.ID.make("msg_4", { disableChecks: true })).map(
-        (message) => message.id,
-      ),
-    ).toEqual(["msg_1", "msg_2", "msg_3"])
-=======
     expect<unknown>(visibleTimelineMessages(messages, [], "msg_4").map((message) => message.id)).toEqual([
       "msg_1",
       "msg_2",
       "msg_3",
     ])
->>>>>>> bfa686d8e0 (refactor(app): prepare canonical identifier outputs)
     expect(visibleTimelineMessages(messages, [], "msg_0")).toEqual([])
   })
 })

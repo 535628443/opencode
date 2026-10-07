@@ -1,15 +1,8 @@
-<<<<<<< HEAD
-import type { Agent } from \"@opencode/schema/agent\"
-import type { Model } from \"@opencode/schema/model\"
-import type { Provider } from \"@opencode/schema/provider\"
-import type { SessionID } from \"@opencode/schema/session-id\"
-import type { SessionMessage } from \"@opencode/schema/session-message\"
-=======
 import type { Agent } from "@opencode/schema/agent"
 import type { Model } from "@opencode/schema/model"
 import type { Provider } from "@opencode/schema/provider"
 import type { SessionMessage } from "@opencode/schema/session-message"
->>>>>>> 7c1b4a6959 (refactor(app): preserve canonical model selections)
+
 import type { Data } from "@opencode/client/solid"
 import type { SessionMessageUser } from "@opencode/client/promise"
 import type { Accessor } from "solid-js"

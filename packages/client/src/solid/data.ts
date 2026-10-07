@@ -40,55 +40,8 @@ import type {
 } from "../promise"
 import { Worktree } from "@opencode/schema/worktree"
 import { SessionID } from "@opencode/schema/session-id"
-<<<<<<< HEAD
-=======
-import { ProjectID } from "@opencode/schema/project-id"
-import { WorkspaceID } from "@opencode/schema/workspace-id"
-import type { Agent } from "@opencode/schema/agent"
-import type { Event } from "@opencode/schema/event"
-import type { Form } from "@opencode/schema/form"
-import type { Permission } from "@opencode/schema/permission"
-import type { Shell } from "@opencode/schema/shell"
->>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
-import { SessionMessage } from "@opencode/schema/session-message"
-import {
-  isFormAlreadySettledError,
-  isFormNotFoundError,
-  isPermissionNotFoundError,
-  type SessionPromptInput,
-} from "../promise"
-import { createStore, produce, reconcile } from "solid-js/store"
-import type { SessionInbox } from "@opencode/schema/session-inbox"
-import { batch, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
-
-export type DataSessionStatus = "idle" | "running"
-type OpenCodeEventMap = { [Type in OpenCodeEvent["type"]]: Extract<OpenCodeEvent, { type: Type }> }
-
-export type CreateDataInput = {
-  readonly api: () => OpenCodeClient
-  readonly directory: string
-  /** Raw-message window used for an initial transcript read. Older pages retain their normal size. */
-  readonly initialMessageLimit?: () => number
-  readonly event: {
-    readonly on: <Type extends OpenCodeEvent["type"]>(
-      type: Type,
-      handler: (event: OpenCodeEventMap[Type]) => void,
-    ) => () => void
-    readonly listen: (handler: (event: { name: OpenCodeEvent["type"]; details: OpenCodeEvent }) => void) => () => void
-  }
-  readonly connection?: {
-    readonly status: () => "connected" | "connecting" | "reconnecting"
-  }
-  /** Receives failed event-driven reads. Explicit reads still reject to their caller. */
-  readonly onError?: (error: unknown) => void
-}
-
-<<<<<<< HEAD
-const messageIDFromEvent = (eventID: string) => eventID.replace(/^evt_/, "msg_")
-=======
 const messageIDFromEvent = (eventID: Event.ID) =>
   SessionMessage.ID.make(eventID.replace(/^evt_/, "msg_"), { disableChecks: true })
->>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
 const messagePageLimit = 20
 // Trailing window for event bursts that each ask for the same refetch.
 export const settleMs = 150
@@ -124,15 +77,6 @@ type Store = {
     // Family index keyed by a family's root (or furthest-known-ancestor when the
     // true root is not yet loaded). The value is a flat deduplicated list of every
     // session ID in that family, including the key itself once its info arrives.
-<<<<<<< HEAD
-    family: Record<string, string[]>
-    active: Record<string, DataSessionStatus>
-    message: Record<string, SessionMessageInfo[]>
-    messageCursor: Record<string, string | undefined>
-    messageLoading: Record<string, boolean>
-    pending: Record<string, SessionInboxInfo[]>
-    permission: Record<string, PermissionRequest[]>
-=======
     family: Record<SessionID, SessionID[]>
     active: Record<SessionID, DataSessionStatus>
     message: Record<SessionID, SessionMessageInfo[]>
@@ -140,7 +84,6 @@ type Store = {
     messageLoading: Record<SessionID, boolean>
     pending: Record<SessionID, SessionInboxInfo[]>
     permission: Record<SessionID, PermissionRequest[]>
->>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
     // Pending forms keyed by owner: a session ID or the temporary "global" elicitation sentinel.
     form: Record<string, FormWithLocation[]>
   }
@@ -310,11 +253,7 @@ export function createData(config: CreateDataInput) {
     )
   }
 
-<<<<<<< HEAD
-  function removeForm(sessionID: string, formID: string, ref?: LocationRef) {
-=======
   function removeForm(sessionID: string, formID: Form.ID, ref?: LocationRef) {
->>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
     const forms = store.session.form[sessionID]
     if (!forms) return false
     const location = ref && locationKey(ref)
@@ -546,11 +485,7 @@ export function createData(config: CreateDataInput) {
   // is returned so orphan subtrees group under it until the parent arrives. A
   // seen set guards against parent cycles, stopping at the last non-repeating
   // ancestor.
-<<<<<<< HEAD
-  function resolveRoot(sessionID: string) {
-=======
   function resolveRoot(sessionID: SessionID) {
->>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
     let current = sessionID
     let parentID = store.session.info[sessionID]?.parentID
     const seen = new Set([sessionID])
@@ -1510,11 +1445,7 @@ export function createData(config: CreateDataInput) {
         agent?: Agent.ID
         model?: ModelRef
         location?: LocationRef
-<<<<<<< HEAD
-        projectID?: string
-=======
         projectID?: ProjectID
->>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
       }) {
         const { projectID, ...payload } = input
         const id = payload.id ?? SessionID.create()
@@ -1525,11 +1456,7 @@ export function createData(config: CreateDataInput) {
           sessionOutbox.add(id)
           result.session.remember({
             id,
-<<<<<<< HEAD
-            projectID: projectID ?? store.location[locationKey(location)]?.info?.project.id ?? "",
-=======
             projectID: projectID ?? store.location[locationKey(location)]?.info?.project.id ?? ProjectID.make(""),
->>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
             agent: payload.agent,
             model: payload.model,
             cost: 0,
@@ -1794,16 +1721,7 @@ export function createData(config: CreateDataInput) {
         list(sessionID: SessionID) {
           return store.session.permission[sessionID]
         },
-<<<<<<< HEAD
-        sessions() {
-          return Object.entries(store.session.permission).flatMap(([sessionID, requests]) =>
-            requests.length > 0 ? [sessionID] : [],
-          )
-        },
-        sync(sessionID: string) {
-=======
         sync(sessionID: SessionID) {
->>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
           return sync.run(`session.permission:${sessionID}`, async () => {
             setStore("session", "permission", sessionID, await api().permission.list({ sessionID }))
           })
@@ -1828,14 +1746,11 @@ export function createData(config: CreateDataInput) {
           const key = locationKey(ref)
           return forms?.filter((form) => form.location && locationKey(form.location) === key)
         },
-<<<<<<< HEAD
         sessions() {
           return Object.entries(store.session.form).flatMap(([sessionID, forms]) =>
             sessionID !== "global" && forms.length > 0 ? [sessionID] : [],
           )
         },
-=======
->>>>>>> 170fc8498a (refactor(client): require canonical API identifiers)
         sync(sessionID: string, ref?: LocationRef) {
           const key = `session.form:${sessionID}:${sessionID === "global" ? locationKey(ref ?? defaultLocation()) : ""}`
           return sync.run(key, async () => {

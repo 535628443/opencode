@@ -22,22 +22,15 @@ const queued = [
     payload: { text: "edited" },
   },
 ] satisfies SessionInboxInfo[]
-<<<<<<< HEAD
-
-const other = { ...queued[0], id: "msg_other", payload: { text: "other" } }
-
-const edit = { original: "msg_original", replacement: "msg_replacement" }
-=======
 const other = {
   ...queued[0],
-  id: SessionMessage.ID.make("msg_other", { disableChecks: true }),
-  payload: { text: "other" },
+  id: SessionMessage.ID.make(\"msg_other\", { disableChecks: true }),
+  payload: { text: \"other\" },
 }
 const edit = {
-  original: SessionMessage.ID.make("msg_original", { disableChecks: true }),
-  replacement: SessionMessage.ID.make("msg_replacement", { disableChecks: true }),
+  original: SessionMessage.ID.make(\"msg_original\", { disableChecks: true }),
+  replacement: SessionMessage.ID.make(\"msg_replacement\", { disableChecks: true }),
 }
->>>>>>> bcbd774488 (test(app): prepare app-composer schema IDs)
 
 describe("queuedPromptRows", () => {
   test.each([

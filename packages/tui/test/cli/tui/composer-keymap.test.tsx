@@ -118,7 +118,6 @@ async function renderComposer(
 
   const app = await testRender(
     () => (
-<<<<<<< HEAD
       <TestTuiContexts directory={directory} paths={{ state: state.path }}>
         <TuiAppProvider value={{ name: "test", version: "test", channel: "test" }}>
           <StorageProvider>
@@ -143,33 +142,7 @@ async function renderComposer(
               </Keymap.Provider>
             </ConfigProvider>
           </StorageProvider>
-        </TuiAppProvider>
-=======
-      <TestTuiContexts directory={directory}>
-        <ConfigProvider config={createTuiResolvedConfig({ keybinds })}>
-          <Keymap.Provider>
-            <ClientProvider api={createApi(calls.fetch)}>
-              <DataProvider directory={process.cwd()}>
-                <LocationProvider>
-                  <RouteProvider
-                    initialRoute={{ type: "session", sessionID: Session.ID.make("parent", { disableChecks: true }) }}
-                  >
-                    <ThemeProvider mode="dark" source={{ discover: async () => ({}) }}>
-                      <ToastProvider>
-                        <DialogProvider>
-                          <Content />
-                        </DialogProvider>
-                      </ToastProvider>
-                    </ThemeProvider>
-                  </RouteProvider>
-                </LocationProvider>
-              </DataProvider>
-            </ClientProvider>
-            <AppExit />
-          </Keymap.Provider>
-        </ConfigProvider>
->>>>>>> 0b49f2d1a8 (test(tui): prepare tui-commands schema IDs)
-      </TestTuiContexts>
+        </TuiAppProvider>      </TestTuiContexts>
     ),
     { width: 100, height: 20, kittyKeyboard: true },
   )

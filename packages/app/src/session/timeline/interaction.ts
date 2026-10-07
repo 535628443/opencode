@@ -13,11 +13,9 @@ export function createSessionTimelineInteraction(session: SessionModel) {
   const layout = useLayout()
   const location = useLocation<{ reveal?: string }>()
   const timeline = createTimelineModel({ session })
-<<<<<<< HEAD
-
   const [state, setState] = createStore<{
-    messageID: string | undefined
-    pendingMessage: string | undefined
+    messageID: SessionMessage.ID | undefined
+    pendingMessage: SessionMessage.ID | undefined
     scroll: { overflow: boolean; jump: boolean }
     follow: { sessionKey: string; pinned: boolean }
     refs: {
@@ -27,13 +25,7 @@ export function createSessionTimelineInteraction(session: SessionModel) {
     }
   }>({
     messageID: undefined,
-    pendingMessage: undefined,
-=======
-  const [state, setState] = createStore({
-    messageID: undefined as SessionMessage.ID | undefined,
-    pendingMessage: undefined as SessionMessage.ID | undefined,
->>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
-    scroll: {
+    pendingMessage: undefined,    scroll: {
       overflow: false,
       jump: false,
     },
