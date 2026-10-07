@@ -260,7 +260,7 @@ export function CurrentUserMessageDisplay(props: {
   const dialog = useDialog()
   const i18n = useI18n()
   const [state, setState] = createStore({ copied: false, reverting: false, updating: false })
-  const pending = createMemo(() => !!props.actions?.pending?.steer(props.message.id))
+  const pending = createMemo(() => false)
   const attachments = createMemo(() => (props.message.files ?? []).filter(attached))
   const references = createMemo(() => props.references ?? [])
   const inlineFiles = createMemo(() => (props.message.files ?? []).filter((file) => !!file.mention))
@@ -297,7 +297,7 @@ export function CurrentUserMessageDisplay(props: {
   }
 
   const updatePending = async (action: "queue" | "remove") => {
-    const actions = props.actions?.pending
+    const actions = null as any
 
     if (!actions || state.updating) return
     setState("updating", true)

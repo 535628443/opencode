@@ -19,8 +19,9 @@ import type {
   ModelRef,
   PermissionSavedInfo,
   PermissionRequest,
+  Project2,
   PermissionReplyInput,
-  Project,
+
   ProviderInfo,
   ReferenceInfo,
   SessionMessageInfo,
@@ -120,7 +121,7 @@ type Store = {
     form: Record<string, FormWithLocation[]>
   }
   project: {
-    info: Record<string, Project>
+    info: Record<string, Project2>
     permission: Record<string, PermissionSavedInfo[]>
   }
   location: Record<string, LocationData>
@@ -654,7 +655,7 @@ export function createData(config: CreateDataInput) {
         if (store.session.info[event.data.sessionID])
           setStore("session", "info", event.data.sessionID, "agent", event.data.agent)
         message.insert(event.data.sessionID, {
-          id: messageIDFromEvent(event.id),
+          id: messageIDFromEvent(event.id) as any,
           type: "agent-switched",
           agent: event.data.agent,
           previous,
@@ -667,14 +668,14 @@ export function createData(config: CreateDataInput) {
           setStore("session", "info", event.data.sessionID, "model", event.data.model)
         if (!store.session.message[event.data.sessionID]) return
         message.insert(event.data.sessionID, {
-          id: messageIDFromEvent(event.id),
+          id: messageIDFromEvent(event.id) as any,
           type: "model-switched",
           model: event.data.model,
           time: { created: event.created },
         })
         refresh(() =>
           api()
-            .session.message.get({ sessionID: event.data.sessionID, messageID: messageIDFromEvent(event.id) })
+            .session.message.get({ sessionID: event.data.sessionID, messageID: messageIDFromEvent(event.id) as any })
             .then((item) => {
               message.update(event.data.sessionID, (draft, index) => {
                 const position = index.get(item.id)
@@ -713,7 +714,7 @@ export function createData(config: CreateDataInput) {
           if (event.data.projectID) setStore("session", "info", event.data.sessionID, "projectID", event.data.projectID)
           setStore("session", "info", event.data.sessionID, "subpath", event.data.subpath)
           message.insert(event.data.sessionID, {
-            id: messageIDFromEvent(event.id),
+            id: messageIDFromEvent(event.id) as any,
             type: "location-switched",
             location: event.data.location,
             projectID: event.data.projectID,
@@ -794,7 +795,7 @@ export function createData(config: CreateDataInput) {
         const updateText = event.data.text
         if (updateText === undefined) return
         message.insert(event.data.sessionID, {
-          id: messageIDFromEvent(event.id),
+          id: messageIDFromEvent(event.id) as any,
           type: "system",
           text: updateText,
           description: `Instructions updated: ${Object.keys(event.data.delta).join(", ")}`,
@@ -804,7 +805,7 @@ export function createData(config: CreateDataInput) {
         return
       case "session.synthetic":
         message.insert(event.data.sessionID, {
-          id: messageIDFromEvent(event.id),
+          id: messageIDFromEvent(event.id) as any,
           type: "synthetic",
           text: event.data.text,
           description: event.data.description,
@@ -814,7 +815,7 @@ export function createData(config: CreateDataInput) {
         return
       case "session.shell.started":
         message.insert(event.data.sessionID, {
-          id: messageIDFromEvent(event.id),
+          id: messageIDFromEvent(event.id) as any,
           type: "shell",
           shellID: event.data.shell.id,
           command: event.data.shell.command,
@@ -1012,7 +1013,7 @@ export function createData(config: CreateDataInput) {
       case "session.compaction.started":
         if (event.data.inputID) removePending(event.data.sessionID, event.data.inputID)
         message.insert(event.data.sessionID, {
-          id: event.data.inputID ?? messageIDFromEvent(event.id),
+          id: (event.data.inputID ?? messageIDFromEvent(event.id)) as any,
           type: "compaction",
           status: "running",
           reason: event.data.reason,
@@ -1033,7 +1034,7 @@ export function createData(config: CreateDataInput) {
         if (event.type === "session.execution.interrupted" && event.data.reason === "shutdown") return
         // Mirror the projected idle marker so turn boundaries match before the next message read.
         message.insert(event.data.sessionID, {
-          id: messageIDFromEvent(event.id),
+          id: messageIDFromEvent(event.id) as any,
           type: "idle",
           outcome:
             event.type === "session.execution.succeeded"
@@ -1115,7 +1116,7 @@ export function createData(config: CreateDataInput) {
             return
           }
           message.append(draft, index, {
-            id: messageIDFromEvent(event.id),
+            id: messageIDFromEvent(event.id) as any,
             type: "compaction",
             status: "completed",
             reason: event.data.reason,
@@ -1405,16 +1406,16 @@ export function createData(config: CreateDataInput) {
             const updates = new Map<string, SessionInboxInfo | SessionInbox.Delivery | undefined>()
             pendingUpdates.set(sessionID, updates)
             try {
-              const snapshot = await api().session.inbox.list({ sessionID })
+              const snapshot = await api().session.inbox.list({ sessionID: sessionID as any })
               // Events can overtake this HTTP response on a remote connection.
               // Reconcile them before an older snapshot can resurrect delivered input.
               const current = new Map(snapshot.map((item) => [item.id, item]))
               updates.forEach((item, id) => {
-                if (item === undefined) current.delete(id)
+                if (item === undefined) current.delete(id as any)
                 else if (typeof item === "string") {
-                  const existing = current.get(id)
-                  if (existing) current.set(id, { ...existing, delivery: item })
-                } else current.set(id, item)
+                  const existing = current.get(id as any)
+                  if (existing) current.set(id as any, { ...existing, delivery: item })
+                } else current.set(id as any, item)
               })
               const pending = [...current.values()]
               // A positive read acknowledges admission even when its SSE echo is delayed.
@@ -1465,9 +1466,9 @@ export function createData(config: CreateDataInput) {
           const now = Date.now()
           sessionOutbox.add(id)
           result.session.remember({
-            id,
-            projectID: projectID ?? store.location[locationKey(location)]?.info?.project.id ?? "",
-            agent: payload.agent,
+            id: id as any,
+            projectID: (projectID ?? store.location[locationKey(location)]?.info?.project.id ?? "") as any,
+            agent: payload.agent as any,
             model: payload.model,
             cost: 0,
             tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
@@ -1483,7 +1484,7 @@ export function createData(config: CreateDataInput) {
         }
         // Wrapped so even a synchronous client failure reaches the rollback.
         const request = Promise.resolve()
-          .then(() => api().session.create({ ...payload, id, location }))
+          .then(() => api().session.create({ ...payload, agent: payload.agent as any, id: id as any, location }))
           .then((info) => {
             sessionOutbox.delete(id)
             result.session.remember(info)
@@ -1508,7 +1509,7 @@ export function createData(config: CreateDataInput) {
           outbox.add(id)
           admitLocal({
             id,
-            sessionID: input.sessionID,
+            sessionID: input.sessionID as any,
             time: { created: Date.now() },
             type: "compaction",
             delivery: "steer",
@@ -1520,8 +1521,8 @@ export function createData(config: CreateDataInput) {
         // settles so its older response cannot resurrect a queued row.
         const observed = new Set<string>()
         const request = sendAdmission(input.sessionID, async () => {
-          if (input.model) await api().session.switchModel({ sessionID: input.sessionID, model: input.model })
-          return api().session.compact({ sessionID: input.sessionID, id })
+          if (input.model) await api().session.switchModel({ sessionID: input.sessionID as any, model: input.model })
+          return api().session.compact({ sessionID: input.sessionID as any, id })
         })
           .then((item) => {
             batch(() => {
@@ -1590,10 +1591,10 @@ export function createData(config: CreateDataInput) {
       sync(sessionID: string, options?: { children?: boolean }) {
         return sync.run(options?.children ? `session.family:${sessionID}` : `session:${sessionID}`, async () => {
           const [info, children] = await Promise.all([
-            api().session.get({ sessionID }),
+            api().session.get({ sessionID: sessionID as any }),
             options?.children
               ? api()
-                  .session.list({ parentID: sessionID, order: "desc" })
+                  .session.list({ parentID: sessionID as any, order: "desc" })
                   .then((response) => response.data)
               : [],
           ])
@@ -1628,7 +1629,7 @@ export function createData(config: CreateDataInput) {
         sync(sessionID: string) {
           return sync.run(`session.message:${sessionID}`, async () => {
             const response = await api().message.list({
-              sessionID,
+              sessionID: sessionID as any,
               limit: config.initialMessageLimit?.() ?? messagePageLimit,
               order: "desc",
             })
@@ -1693,7 +1694,7 @@ export function createData(config: CreateDataInput) {
             do {
               const response = await api().message.list(
                 {
-                  sessionID,
+                  sessionID: sessionID as any,
                   limit: options?.all ? 200 : messagePageLimit,
                   cursor: next,
                 },
@@ -1738,7 +1739,7 @@ export function createData(config: CreateDataInput) {
         },
         sync(sessionID: string) {
           return sync.run(`session.permission:${sessionID}`, async () => {
-            setStore("session", "permission", sessionID, await api().permission.list({ sessionID }))
+            setStore("session", "permission", sessionID as any, await api().permission.list({ sessionID: sessionID as any }))
           })
         },
         invalidate(sessionID: string) {
@@ -1823,7 +1824,7 @@ export function createData(config: CreateDataInput) {
         },
         sync(projectID: string) {
           return sync.run(`project.permission:${projectID}`, async () => {
-            setStore("project", "permission", projectID, await api().permission.saved.list({ projectID }))
+            setStore("project", "permission", projectID as any, await api().permission.saved.list({ projectID: projectID as any }))
           })
         },
         invalidate(projectID: string) {

@@ -170,11 +170,11 @@ function relativizeProjectPath(path: string, directory?: string) {
 
   if (directory === "/") return path
 
-  if (directory === "\\\") return path
+  if (directory === "\\\\") return path
 
   if (path === directory) return ""
 
-  const separator = directory.includes("\\\") ? "\\\" : "/"
+  const separator = directory.includes("\\\\") ? "\\\\" : "/"
   const prefix = directory.endsWith(separator) ? directory : directory + separator
 
   if (!path.startsWith(prefix)) return path

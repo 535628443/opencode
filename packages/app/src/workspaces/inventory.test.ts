@@ -47,8 +47,8 @@ describe("createWorktreeInventory", () => {
       return [{ directory }, { directory: `${directory}/feature`, strategy: "git" }]
     })
 
-    const first = setupResult.inventory.list(ProjectID.make(\"/repo\", { disableChecks: true }))
-    const second = setupResult.inventory.list(ProjectID.make(\"/repo\", { disableChecks: true }))
+    const first = setupResult.inventory.list(ProjectID.make("/repo", { disableChecks: true }))
+    const second = setupResult.inventory.list(ProjectID.make("/repo", { disableChecks: true }))
     expect(setupResult.calls).toEqual(["/repo"])
     gate.resolve()
     expect(await first).toHaveLength(2)
@@ -81,8 +81,8 @@ describe("createWorktreeInventory", () => {
       return [{ directory }]
     })
 
-    expect(await setupResult.inventory.list(ProjectID.make(\"/repo\", { disableChecks: true }))).toBeUndefined()
-    expect(setupResult.inventory.cached(ProjectID.make(\"/repo\", { disableChecks: true }))).toBeUndefined()
+    expect(await setupResult.inventory.list(ProjectID.make("/repo", { disableChecks: true }))).toBeUndefined()
+    expect(setupResult.inventory.cached(ProjectID.make("/repo", { disableChecks: true }))).toBeUndefined()
     fail = false
     expect(await setupResult.inventory.list(ProjectID.make("/repo", { disableChecks: true }))).toEqual([
       { directory: "/repo" },

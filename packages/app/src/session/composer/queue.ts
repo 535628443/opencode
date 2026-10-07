@@ -45,8 +45,8 @@ export function createSessionQueue(input: {
   const mutation = useMutation(() => ({
     mutationFn: async (
       change:
-        | { type: \"reorder\"; inboxIDs: SessionMessage.ID[] }
-        | { type: \"undo\"; item: QueuedPrompt; prompt: Prompt; context: ContextItem[] }
+        | { type: "reorder"; inboxIDs: SessionMessage.ID[] }
+        | { type: "undo"; item: QueuedPrompt; prompt: Prompt; context: ContextItem[] }
         | {
             type: "edit"
             inboxIDs: SessionMessage.ID[]
@@ -133,7 +133,7 @@ export function createSessionQueue(input: {
   })
   onCleanup(() => cancelEdit())
 
-  const rewrite = async (inboxIDs: SessionMessage.ID[]) => {
+  const rewrite = async (inboxIDs: SessionMessage.ID[], replace?: { original: string; admission: any }) => {
     const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
 
     if (pending.some((item) => item.delivery === "queue" && item.type !== "user"))
@@ -180,7 +180,7 @@ export function createSessionQueue(input: {
       await data.session.prompt({ ...admission, id }).catch(async (error) => {
         await Promise.all(
           replacements.map((inboxID) =>
-            server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID }).catch(() => undefined),
+            server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: inboxID as any }).catch(() => undefined),
           ),
         )
         throw error
@@ -282,7 +282,7 @@ export function createSessionQueue(input: {
   const confirmEdit = (delivery: ComposerDelivery) => {
     const editing = state.editing
 
-    if (!editing || mutation.isPending || refuseReverted()) return
+    if (!editing || mutation.isPending) return
     const prompt = clonePrompt(input.draft.current())
     const text = prompt.map((part) => ("content" in part ? part.content : "")).join("")
     const attachments = prompt.filter(isAttachment)

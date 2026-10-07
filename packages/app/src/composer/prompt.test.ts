@@ -88,7 +88,7 @@ describe("extractPromptFromMessage", () => {
 
   test("restores every input another client sent without duplicating review comment files", () => {
     const message = {
-      id: "msg_1",
+      id: "msg_1" as any,
       type: "user",
       text: "model text",
       metadata: {
@@ -136,7 +136,7 @@ describe("extractPromptFromMessage", () => {
         { data: "", mime: "text/plain", source: { type: "inline" }, name: "empty.txt" },
       ],
       agents: [{ name: "plan" }],
-      skills: [{ id: "review", name: "Review" }],
+      skills: [{ id: "review" as any, name: "Review" }],
       time: { created: 1 },
     } satisfies SessionMessageUser
 
@@ -196,7 +196,7 @@ describe("extractPromptFromMessage", () => {
       { type: "text", content: "Use " },
       {
         type: "skill",
-        id: "review",
+        id: "review" as any,
         name: "Review",
         content: "@review",
       },

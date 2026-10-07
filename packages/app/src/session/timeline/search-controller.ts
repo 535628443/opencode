@@ -112,7 +112,7 @@ export function createTimelineSearchController(input: {
     if (!sessionID) return []
     const messages = data.session.message.list(sessionID)
     const result: TimelineSearchMatch[] = []
-    let revealID = SessionMessage.ID.make(\"\", { disableChecks: true })
+    let revealID = SessionMessage.ID.make("", { disableChecks: true })
     for (const message of messages) {
       if (message.type === "user" || message.type === "shell") revealID = message.id
 

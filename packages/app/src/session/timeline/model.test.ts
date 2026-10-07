@@ -9,7 +9,7 @@ import { enrichLeadingTurn, loadOlderTimeline } from "./model"
 
 const user = (id: string): SessionMessageUser => ({
   id: SessionMessage.ID.make(id, { disableChecks: true }),
-  type: \"user\",
+  type: "user",
   text: id,
   time: { created: 1 },
 })

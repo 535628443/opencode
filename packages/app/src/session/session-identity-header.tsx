@@ -226,7 +226,7 @@ export function SessionAncestorTrail(props: {
     let id: SessionID | undefined = props.parentID
     while (id && !seen.has(id)) {
       seen.add(id)
-      const info = server.ctx.data.session.get(id)
+      const info = server.ctx.data.session.get(id as any)
       path.unshift({
         id,
         title:
@@ -239,20 +239,6 @@ export function SessionAncestorTrail(props: {
 
     return path
   })
-<<<<<<< HEAD
-=======
-  const open = (id: SessionID) => {
-    const tab = tabs.store.find(
-      (item) =>
-        item.type === "session" &&
-        item.server === server.key &&
-        (item.sessionId === props.sessionID || item.routeSessionId === props.sessionID),
-    )
-    if (tab?.type === "session") tabs.rememberSessionRoute(tab, id, server.ctx.data.session.get(id)?.parentID)
-    navigate(sessionHref(server.key, id))
-  }
->>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
-
   return (
     <div class="flex min-w-0 max-w-full items-center">
       <div
@@ -299,7 +285,6 @@ export function SessionAncestorTrail(props: {
   )
 }
 
-<<<<<<< HEAD
 // Opens a related session in the tab showing `from`, and records its parent so the tab's route stays consistent.
 // `reveal` names a tool call or shell the opened timeline scrolls to and expands.
 export function useOpenSessionRoute() {
@@ -312,29 +297,26 @@ export function useOpenSessionRoute() {
       (item) =>
         item.type === "session" &&
         item.server === server.key &&
-        (item.sessionId === from || item.routeSessionId === from),
+        (item.sessionId === from || item.routeSessionId === from) as any,
     )
 
-    if (tab?.type === "session") tabs.rememberSessionRoute(tab, id, server.ctx.data.session.get(id)?.parentID)
-    navigate(sessionHref(server.key, id), reveal ? { state: { reveal } } : undefined)
+    if (tab?.type === "session") tabs.rememberSessionRoute(tab, id as any, server.ctx.data.session.get(id as any)?.parentID)
+    navigate(sessionHref(server.key, id as any), reveal ? { state: { reveal } } : undefined)
   }
 }
 
 export function SessionIdentityHeader(props: ParentProps<{ sessionID: string; session?: SessionInfo }>) {
-=======
-export function SessionIdentityHeader(props: { sessionID: SessionID; session?: SessionInfo }) {
->>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
   const server = useServer()
   const tabs = useTabs()
   const language = useLanguage()
-  const pending = createMemo(() => tabs.pendingSession(server.key, props.sessionID))
+  const pending = createMemo(() => tabs.pendingSession(server.key, props.sessionID as any))
 
   const tab = createMemo(() =>
     tabs.store.find(
       (item) =>
         item.type === "session" &&
         item.server === server.key &&
-        (item.sessionId === props.sessionID || item.routeSessionId === props.sessionID),
+        (item.sessionId === props.sessionID || item.routeSessionId === props.sessionID) as any,
     ),
   )
 
@@ -356,7 +338,7 @@ export function SessionIdentityHeader(props: { sessionID: SessionID; session?: S
   const parent = createMemo(() => {
     const id = parentID()
 
-    return id ? server.ctx.data.session.get(id) : undefined
+    return id ? server.ctx.data.session.get(id as any) : undefined
   })
 
   const parentTitle = createMemo(() => {
@@ -405,7 +387,7 @@ export function SessionIdentityHeader(props: { sessionID: SessionID; session?: S
               <Show when={parentID()}>
                 {(id) => (
                   <SessionAncestorTrail
-                    sessionID={props.sessionID}
+                    sessionID={props.sessionID as any}
                     parentID={id()}
                     parentTitle={parentTitle()}
                     trailing={!!title()}
@@ -414,7 +396,7 @@ export function SessionIdentityHeader(props: { sessionID: SessionID; session?: S
               </Show>
               <Show when={parentID() && props.children}>{props.children}</Show>
               <Show when={!parentID() || !props.children}>
-                <SessionWorkingIndicator sessionID={props.sessionID} />
+                <SessionWorkingIndicator sessionID={props.sessionID as any} />
               </Show>
               <Show when={(!parentID() || !props.children) && title()}>
                 {(value) => (

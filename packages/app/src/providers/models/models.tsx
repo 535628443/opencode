@@ -135,10 +135,10 @@ const createModelsController = (directory: Accessor<string | undefined>) => {
     const key = variantKey(model)
 
     if (!store.variant) {
-      setStore(\"variant\", { [key]: value ?? Model.VariantID.make(\"default\") })
+      setStore("variant", { [key]: value ?? Model.VariantID.make("default") })
       return
     }
-    setStore(\"variant\", key, value ?? Model.VariantID.make(\"default\"))
+    setStore("variant", key, value ?? Model.VariantID.make("default"))
   }
 
   return {

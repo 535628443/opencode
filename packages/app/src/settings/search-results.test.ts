@@ -9,9 +9,9 @@ import type { SettingsView } from "./surface"
 const strings: Record<string, string> = { ...dict, ...en }
 
 const project = {
-  id: ProjectID.make(\"proj_opencode\", { disableChecks: true }),
-  name: \"OpenCode\",
-  worktree: \"/projects/opencode\",
+  id: ProjectID.make("proj_opencode", { disableChecks: true }),
+  name: "OpenCode",
+  worktree: "/projects/opencode",
   expanded: false,
 }
 

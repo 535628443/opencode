@@ -1,6 +1,6 @@
-import type { SessionMessage } from \"@opencode/schema/session-message\"
-import type { SessionID } from \"@opencode/schema/session-id\"
-import { Predicate } from \"effect\"
+import type { SessionMessage } from "@opencode/schema/session-message"
+import type { SessionID } from "@opencode/schema/session-id"
+import { Predicate } from "effect"
 import { base64Encode } from "@opencode/util/encode"
 import type { SessionMessageUser } from "@opencode/client/promise"
 import { Session } from "@opencode/schema/session"
@@ -135,22 +135,22 @@ export function createNewSessionComposerAdapter(props: {
 
       const sessionKey = SessionStateKey.from(
         serverSDK.scope,
-        SessionRouteKey.fromRoute(base64Encode(sessionDirectory), created.id),
+        SessionRouteKey.fromRoute(base64Encode(sessionDirectory), (created.id as any)),
       )
 
       const cleanupReady = startTransition(() => {
         if (!pending) tabs.updateDraft(draftID, { worktree: undefined, branch: undefined })
-        local.session.promote(sessionDirectory, created.id, {
+        local.session.promote(sessionDirectory, (created.id as any), {
           agent: selection.agent,
           model: selection.model,
           variant: selection.variant ?? null,
           choices: model.remembered(),
         })
 
-        if (!pending) tabs.promoteDraft(draftID, { server: server.key, sessionId: created.id })
+        if (!pending) tabs.promoteDraft(draftID, { server: server.key, sessionId: (created.id as any) })
         submission.retarget(
           prompt.capture(
-            { dir: base64Encode(sessionDirectory), id: created.id },
+            { dir: base64Encode(sessionDirectory), id: (created.id as any) },
             { server: server.key, scope: serverSDK.scope },
           ),
           { preserveDraft: !!pending },
@@ -161,9 +161,9 @@ export function createNewSessionComposerAdapter(props: {
         cleanupReady,
         complete: pending ? () => pending.complete(submission.target()) : undefined,
         session: {
-          id: created.id,
+          id: (created.id as any),
           directory: sessionDirectory,
-          handoff: createMessageHandoff(sessionKey, created.id, serverSDK.event),
+          handoff: createMessageHandoff(sessionKey, (created.id as any), serverSDK.event),
           api: {
             command: (input) => afterCreation(() => serverSDK.api.session.command(input)),
             shell: (input) => afterCreation(() => serverSDK.api.session.shell(input)),
@@ -182,9 +182,9 @@ export function createNewSessionComposerAdapter(props: {
                 }),
             },
           },
-          current: () => data.session.get(created.id),
+          current: () => data.session.get((created.id as any)),
           admitted: (messageID) =>
-            data.session.input.has(created.id, messageID) || !!data.session.message.get(created.id, messageID),
+            data.session.input.has((created.id as any), messageID) || !!data.session.message.get((created.id as any), messageID),
         },
       }
     },

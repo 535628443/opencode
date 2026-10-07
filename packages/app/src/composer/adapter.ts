@@ -1,4 +1,5 @@
 import type { Agent } from "@opencode/schema/agent"
+import { SessionID } from "@opencode/schema/session-id"
 import type { Model } from "@opencode/schema/model"
 import type { Provider } from "@opencode/schema/provider"
 import type { SessionMessage } from "@opencode/schema/session-message"

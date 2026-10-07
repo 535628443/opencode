@@ -1,0 +1,236 @@
+$ bun turbo typecheck --concurrency=3
+• turbo 2.10.2
+
+   • Packages in scope: @opencode/ai, @opencode/app, @opencode/cli, @opencode/client, @opencode/codemode, @opencode/console-app, @opencode/console-core, @opencode/console-function, @opencode/console-mail, @opencode/console-resource, @opencode/console-support, @opencode/core, @opencode/desktop, @opencode/enterprise, @opencode/files, @opencode/function, @opencode/gui-extensions, @opencode/http-recorder, @opencode/httpapi-codegen, @opencode/latex, @opencode/merman, @opencode/plugin, @opencode/plugin-browser, @opencode/posts, @opencode/protocol, @opencode/schema, @opencode/script, @opencode/sdk, @opencode/server, @opencode/session-ui, @opencode/simulation, @opencode/stats-app, @opencode/stats-core, @opencode/stats-server, @opencode/storybook, @opencode/theme, @opencode/tui, @opencode/ui, @opencode/update, @opencode/util, @opencode/web, @opencode/www
+   • Running typecheck in 42 packages
+   • Remote caching disabled, using shared worktree cache
+
+@opencode/posts:typecheck: cache miss, executing 804113e99f358738
+@opencode/util:typecheck: cache hit, replaying logs 4650d078ed12128a
+@opencode/util:typecheck: [0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+@opencode/client:typecheck: cache miss, executing 2405a5836252c28a
+@opencode/merman:typecheck: cache miss, executing 0f2195953b80341e
+@opencode/merman:typecheck: $ tsgo --noEmit
+@opencode/posts:typecheck: $ astro check
+@opencode/client:typecheck: $ tsgo --noEmit
+@opencode/schema:typecheck: cache miss, executing 4c614ec9ff3a7443
+@opencode/schema:typecheck: $ tsgo --noEmit
+@opencode/app:typecheck: cache miss, executing 5569a17c18786265
+@opencode/app:typecheck: $ tsgo -b && bun run typecheck:e2e
+@opencode/app:typecheck: src/new-session/composer-adapter.ts(1,37): error TS1127: Invalid character.
+@opencode/app:typecheck: src/new-session/composer-adapter.ts(1,73): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/new-session/composer-adapter.ts(2,32): error TS1127: Invalid character.
+@opencode/app:typecheck: src/new-session/composer-adapter.ts(2,63): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/new-session/composer-adapter.ts(3,27): error TS1127: Invalid character.
+@opencode/app:typecheck: src/new-session/composer-adapter.ts(3,37): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/providers/connect/controller.ts(21,56): error TS1127: Invalid character.
+@opencode/app:typecheck: src/providers/connect/controller.ts(21,69): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/providers/connect/controller.ts(22,1): error TS1005: ',' expected.
+@opencode/app:typecheck: src/providers/models/configured.ts(28,26): error TS1127: Invalid character.
+@opencode/app:typecheck: src/providers/models/configured.ts(28,138): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/providers/models/configured.ts(29,48): error TS1127: Invalid character.
+@opencode/app:typecheck: src/providers/models/configured.ts(29,54): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/providers/models/configured.ts(30,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/providers/models/configured.ts(30,90): error TS1127: Invalid character.
+@opencode/app:typecheck: src/providers/models/configured.ts(30,119): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/providers/models/configured.ts(32,3): error TS1005: ',' expected.
+@opencode/app:typecheck: src/providers/models/configured.ts(32,4): error TS1005: ';' expected.
+@opencode/app:typecheck: src/providers/models/models.tsx(138,16): error TS1127: Invalid character.
+@opencode/app:typecheck: src/providers/models/models.tsx(138,83): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/providers/models/models.tsx(139,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/providers/models/models.tsx(141,14): error TS1127: Invalid character.
+@opencode/app:typecheck: src/providers/models/models.tsx(141,75): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/providers/models/models.tsx(142,3): error TS1005: ',' expected.
+@opencode/app:typecheck: src/runtime/server/persistence.ts(1,23): error TS1127: Invalid character.
+@opencode/app:typecheck: src/runtime/server/persistence.ts(1,49): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/runtime/server/persistence.ts(2,26): error TS1127: Invalid character.
+@opencode/app:typecheck: src/runtime/server/persistence.ts(2,55): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/runtime/server/persistence.ts(3,65): error TS1127: Invalid character.
+@opencode/app:typecheck: src/runtime/server/persistence.ts(3,75): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(27,30): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(27,70): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(28,3): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(28,10): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(28,20): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(28,32): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(29,1): error TS1005: ':' expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(30,1): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(30,7): error TS1005: ':' expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(31,36): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(31,79): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(32,3): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(32,14): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(32,39): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(32,85): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(33,1): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(35,1): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(35,10): error TS1003: Identifier expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(35,28): error TS1138: Parameter declaration expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(35,30): error TS1138: Parameter declaration expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(35,33): error TS1005: ';' expected.
+@opencode/app:typecheck: src/session/composer/queue.test.ts(51,2): error TS1128: Declaration or statement expected.
+@opencode/app:typecheck: src/session/composer/queue.ts(48,19): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/composer/queue.ts(48,63): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/composer/queue.ts(49,9): error TS1131: Property or signature expected.
+@opencode/app:typecheck: src/session/composer/queue.ts(49,19): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/composer/queue.ts(49,89): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/composer/queue.ts(50,9): error TS1131: Property or signature expected.
+@opencode/app:typecheck: src/session/screen.tsx(344,94): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/screen.tsx(344,115): error TS1005: '}' expected.
+@opencode/app:typecheck: src/session/screen.tsx(344,122): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+@opencode/app:typecheck: src/session/screen.tsx(344,124): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+@opencode/app:typecheck: src/session/screen.tsx(344,155): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+@opencode/app:typecheck: src/session/screen.tsx(352,17): error TS17002: Expected corresponding JSX closing tag for 'Show'.
+@opencode/app:typecheck: src/session/screen.tsx(353,15): error TS17002: Expected corresponding JSX closing tag for 'Match'.
+@opencode/app:typecheck: src/session/screen.tsx(355,13): error TS17002: Expected corresponding JSX closing tag for 'Switch'.
+@opencode/app:typecheck: src/session/screen.tsx(356,11): error TS17002: Expected corresponding JSX closing tag for 'div'.
+@opencode/app:typecheck: src/session/screen.tsx(357,9): error TS17015: Expected corresponding closing tag for JSX fragment.
+@opencode/app:typecheck: src/session/screen.tsx(357,12): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/screen.tsx(359,7): error TS2657: JSX expressions must have one parent element.
+@opencode/app:typecheck: src/session/screen.tsx(365,5): error TS1128: Declaration or statement expected.
+@opencode/app:typecheck: src/session/screen.tsx(365,7): error TS1109: Expression expected.
+@opencode/app:typecheck: src/session/screen.tsx(366,3): error TS1109: Expression expected.
+@opencode/app:typecheck: src/session/session-identity-header.tsx(242,1): error TS1185: Merge conflict marker encountered.
+@opencode/app:typecheck: src/session/session-identity-header.tsx(243,1): error TS1185: Merge conflict marker encountered.
+@opencode/app:typecheck: src/session/session-identity-header.tsx(254,1): error TS1185: Merge conflict marker encountered.
+@opencode/app:typecheck: src/session/session-identity-header.tsx(302,1): error TS1185: Merge conflict marker encountered.
+@opencode/app:typecheck: src/session/session-identity-header.tsx(324,1): error TS1185: Merge conflict marker encountered.
+@opencode/app:typecheck: src/session/session-identity-header.tsx(326,1): error TS1185: Merge conflict marker encountered.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(73,68): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(73,112): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(74,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(74,67): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(74,111): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(75,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(77,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(88,58): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(88,68): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(89,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(95,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(101,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(102,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(106,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(110,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(111,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(112,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(113,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(114,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(115,3): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(149,1): error TS1185: Merge conflict marker encountered.
+@opencode/app:typecheck: src/session/timeline/controller-projection.test.ts(155,1): error TS1185: Merge conflict marker encountered.
+@opencode/app:typecheck: src/session/timeline/model.test.ts(12,9): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/timeline/model.test.ts(12,18): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/timeline/model.test.ts(13,3): error TS1005: ':' expected.
+@opencode/app:typecheck: src/session/timeline/model.test.ts(13,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/session/timeline/search-controller.ts(115,43): error TS1127: Invalid character.
+@opencode/app:typecheck: src/session/timeline/search-controller.ts(115,73): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/session/timeline/search-controller.ts(116,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/settings/search-results.test.ts(12,22): error TS1127: Invalid character.
+@opencode/app:typecheck: src/settings/search-results.test.ts(12,66): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/settings/search-results.test.ts(13,3): error TS1005: ',' expected.
+@opencode/app:typecheck: src/settings/search-results.test.ts(13,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/settings/search-results.test.ts(13,9): error TS1127: Invalid character.
+@opencode/app:typecheck: src/settings/search-results.test.ts(13,22): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/settings/search-results.test.ts(14,3): error TS1005: ',' expected.
+@opencode/app:typecheck: src/settings/search-results.test.ts(14,11): error TS1005: ',' expected.
+@opencode/app:typecheck: src/settings/search-results.test.ts(14,13): error TS1127: Invalid character.
+@opencode/app:typecheck: src/settings/search-results.test.ts(14,36): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/settings/search-results.test.ts(15,3): error TS1005: ',' expected.
+@opencode/app:typecheck: src/settings/search-results.test.ts(15,11): error TS1005: ',' expected.
+@opencode/app:typecheck: src/settings/search-results.test.ts(16,1): error TS1135: Argument expression expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(50,61): error TS1127: Invalid character.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(50,97): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(51,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(51,62): error TS1127: Invalid character.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(51,98): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(52,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(53,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(54,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(55,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(56,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(57,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(58,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(62,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(63,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(64,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(65,3): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(84,60): error TS1127: Invalid character.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(84,113): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(85,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(85,56): error TS1127: Invalid character.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(85,109): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(86,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(87,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(90,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(91,5): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/inventory.test.ts(92,3): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/location.tsx(31,58): error TS1127: Invalid character.
+@opencode/app:typecheck: src/workspaces/location.tsx(31,59): error TS1134: Variable declaration expected.
+@opencode/app:typecheck: src/workspaces/location.tsx(31,112): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/workspaces/location.tsx(33,49): error TS1127: Invalid character.
+@opencode/app:typecheck: src/workspaces/location.tsx(33,100): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/workspaces/location.tsx(34,11): error TS1005: ':' expected.
+@opencode/app:typecheck: src/workspaces/location.tsx(34,22): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/location.tsx(34,36): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/location.tsx(35,9): error TS1109: Expression expected.
+@opencode/app:typecheck: src/workspaces/location.tsx(36,7): error TS1005: ',' expected.
+@opencode/app:typecheck: src/workspaces/location.tsx(38,7): error TS1136: Property assignment expected.
+@opencode/app:typecheck: src/workspaces/location.tsx(80,3): error TS1128: Declaration or statement expected.
+@opencode/app:typecheck: src/workspaces/location.tsx(80,4): error TS1128: Declaration or statement expected.
+@opencode/app:typecheck: src/workspaces/location.tsx(81,1): error TS1128: Declaration or statement expected.
+@opencode/app:typecheck: src/workspaces/location.tsx(81,2): error TS1128: Declaration or statement expected.
+@opencode/app:typecheck: src/workspaces/paths.test.ts(178,61): error TS1127: Invalid character.
+@opencode/app:typecheck: src/workspaces/paths.test.ts(178,82): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: src/workspaces/paths.test.ts(179,1): error TS1005: ',' expected.
+@opencode/app:typecheck: ../session-ui/src/tools/tool-renderer.tsx(173,39): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: ../session-ui/src/tools/tool-renderer.tsx(175,3): error TS1005: ')' expected.
+@opencode/app:typecheck: ../session-ui/src/tools/tool-renderer.tsx(177,50): error TS1127: Invalid character.
+@opencode/app:typecheck: ../session-ui/src/tools/tool-renderer.tsx(177,51): error TS1127: Invalid character.
+@opencode/app:typecheck: ../session-ui/src/tools/tool-renderer.tsx(177,52): error TS1127: Invalid character.
+@opencode/app:typecheck: ../session-ui/src/tools/tool-renderer.tsx(177,60): error TS1002: Unterminated string literal.
+@opencode/app:typecheck: ../session-ui/src/tools/tool-renderer.tsx(178,3): error TS1005: ',' expected.
+@opencode/app:typecheck: error: script "typecheck" exited with code 1
+@opencode/plugin-browser:typecheck: cache hit, replaying logs bde7bd491065948e
+@opencode/plugin-browser:typecheck: [0m[2m[35m$[0m [2m[1mtsgo --noEmit -p tsconfig.test.json[0m
+@opencode/files:typecheck: cache hit, replaying logs fcefc52e7506764a
+@opencode/files:typecheck: [0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+@opencode/session-ui:typecheck: cache miss, executing 1499d491b5434ff7
+@opencode/console-function:typecheck: cache miss, executing 0da5c39b72b64a83
+@opencode/stats-core:typecheck: cache hit, replaying logs bc531571b17a4891
+@opencode/stats-core:typecheck: [0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+@opencode/desktop:typecheck: cache miss, executing b31c930d6f1999e2
+@opencode/latex:typecheck: cache hit, replaying logs e0513c74981d311b
+@opencode/latex:typecheck: [0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+@opencode/gui-extensions:typecheck: cache miss, executing 9d336491da6118c3
+@opencode/update:typecheck: cache miss, executing 5dac7da11fe21056
+@opencode/core:typecheck: cache miss, executing c3342a6d40137ef7
+@opencode/plugin:typecheck: cache hit, replaying logs 06e53837f78e03c7
+@opencode/plugin:typecheck: [0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+@opencode/stats-app:typecheck: cache miss, executing f8a9ab5dec134f01
+@opencode/console-core:typecheck: cache hit, replaying logs 218fcddf6801e288
+@opencode/console-core:typecheck: [0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+@opencode/protocol:typecheck: cache miss, executing 18b51b55ca8a4fff
+@opencode/ai:typecheck: cache miss, executing 6e7b9c7c19bbb64a
+@opencode/theme:typecheck: cache miss, executing 3e1b9bbc66956d26
+@opencode/ui:typecheck: cache hit, replaying logs 88b0f6dc5a39377f
+@opencode/ui:typecheck: [0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+@opencode/console-app:typecheck: cache miss, executing 75ec6e93f87c62e0
+@opencode/http-recorder:typecheck: cache hit, replaying logs 8f7b8205e3e15024
+@opencode/http-recorder:typecheck: [0m[2m[35m$[0m [2m[1mtsgo --noEmit && tsgo -p test/tsconfig.json --noEmit[0m
+@opencode/httpapi-codegen:typecheck: cache hit, replaying logs 2a7468cde85e27ce
+@opencode/httpapi-codegen:typecheck: [0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+@opencode/console-support:typecheck: cache miss, executing a6a74a1d5bf2322d
+@opencode/www:typecheck: cache miss, executing 1bb82ee900edeeae
+@opencode/stats-server:typecheck: cache miss, executing edc3cd03b3e3e8da
+@opencode/codemode:typecheck: cache hit, replaying logs d26868de8f459a1e
+@opencode/codemode:typecheck: [0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+ ERROR  @opencode/app#typecheck: command (/Users/andyyoung/WebstormProjects/opencode-43886/integration/packages/app) /Users/andyyoung/.npm-global/bin/bun run typecheck exited (1)
+
+ Tasks:    13 successful, 30 total
+Cached:    11 cached, 30 total
+  Time:    3.451s 
+Failed:    @opencode/app#typecheck
+
+ ERROR  run failed: command  exited (1)
+error: "turbo" exited with code 1
+error: script "typecheck" exited with code 1

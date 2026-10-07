@@ -24,12 +24,12 @@ const queued = [
 ] satisfies SessionInboxInfo[]
 const other = {
   ...queued[0],
-  id: SessionMessage.ID.make(\"msg_other\", { disableChecks: true }),
-  payload: { text: \"other\" },
+  id: SessionMessage.ID.make("msg_other", { disableChecks: true }),
+  payload: { text: "other" },
 }
 const edit = {
-  original: SessionMessage.ID.make(\"msg_original\", { disableChecks: true }),
-  replacement: SessionMessage.ID.make(\"msg_replacement\", { disableChecks: true }),
+  original: SessionMessage.ID.make("msg_original", { disableChecks: true }),
+  replacement: SessionMessage.ID.make("msg_replacement", { disableChecks: true }),
 }
 
 describe("queuedPromptRows", () => {

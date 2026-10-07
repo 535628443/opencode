@@ -1,6 +1,6 @@
-import { Model } from \"@opencode/schema/model\"
-import { Provider } from \"@opencode/schema/provider\"
-import { Effect, Option, Predicate, Schema, SchemaGetter } from \"effect\"
+import { Model } from "@opencode/schema/model"
+import { Provider } from "@opencode/schema/provider"
+import { Effect, Option, Predicate, Schema, SchemaGetter } from "effect"
 import { Persistence } from "@/runtime/persistence/schema"
 
 export const ServerKey = Schema.String.pipe(Schema.brand("ServerConnection.Key"))

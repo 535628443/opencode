@@ -131,9 +131,9 @@ export function SessionRunningMenu(props: {
 
   const stop = (item: RunningItem) => {
     const request = item.sessionID
-      ? sdk.api.session.interrupt({ sessionID: item.sessionID })
+      ? sdk.api.session.interrupt({ sessionID: item.sessionID as any })
       : sdk.api.shell.remove({
-          id: item.target,
+          id: item.target as any,
           location: { directory: server.ctx.data.shell.get(item.target)?.location.directory },
         })
 

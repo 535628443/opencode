@@ -3,7 +3,7 @@ import { Model } from "@opencode/schema/model"
 import { Provider } from "@opencode/schema/provider"
 import { Agent } from "@opencode/schema/agent"
 import { describe, expect, test } from "bun:test"
-import type { AgentListOutput, ModelListOutput, Project, ProviderListOutput } from "@opencode/client/promise"
+import type { AgentListOutput, ModelListOutput, Project2, ProviderListOutput } from "@opencode/client/promise"
 import { directoryKey, normalizeAgentList, normalizeProjectInfo, normalizeProviderList } from "./utils"
 
 describe("normalizeAgentList", () => {
@@ -104,9 +104,9 @@ describe("normalizeProjectInfo", () => {
       time: { created: 1, updated: 1, active: 1 },
       sandboxes: [],
     }
-    expect(normalizeProjectInfo({ ...project, vcs: "git" } as Project).vcs).toBe("git")
-    expect(normalizeProjectInfo({ ...project, vcs: "hg" } as Project).vcs).toBe("hg")
-    expect(normalizeProjectInfo(project as Project).vcs).toBeUndefined()
+    expect(normalizeProjectInfo({ ...project, vcs: "git" } as Project2).vcs).toBe("git")
+    expect(normalizeProjectInfo({ ...project, vcs: "hg" } as Project2).vcs).toBe("hg")
+    expect(normalizeProjectInfo(project as Project2).vcs).toBeUndefined()
   })
 })
 

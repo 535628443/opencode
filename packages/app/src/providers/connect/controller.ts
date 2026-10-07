@@ -18,7 +18,7 @@ type Authorization = IntegrationOauthConnectOutput["data"]
 
 // OpenCode Go and OpenCode Zen both bill through the OpenCode Console, so the
 // Console sign-in is the connection method for both providers.
-export const CONSOLE_INTEGRATION = Integration.ID.make(\"opencode\")
+export const CONSOLE_INTEGRATION = Integration.ID.make("opencode")
 export const CONSOLE_PROVIDERS = new Set(["opencode", "opencode-go"])
 
 export function consoleIntegration(provider: string) {

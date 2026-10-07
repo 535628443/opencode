@@ -1,0 +1,127 @@
+$ tsgo -b && bun run typecheck:e2e
+src/composer/adapter.ts(57,7): error TS2304: Cannot find name 'SessionID'.
+src/composer/prompt.test.ts(91,7): error TS2322: Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+  Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+src/composer/prompt.test.ts(139,18): error TS2322: Type 'string' is not assignable to type 'string & Brand<"Skill.ID">'.
+  Type 'string' is not assignable to type 'Brand<"Skill.ID">'.
+src/composer/prompt.test.ts(143,37): error TS2345: Argument of type '{ id: string; type: "user"; text: string; metadata: { displayText: string; comments: { path: string; comment: string; selection: { startLine: number; startChar: number; endLine: number; endChar: number; }; }[]; attachments: { ...; }[]; }; files: ({ ...; } | ... 2 more ... | { ...; })[]; agents: { ...; }[]; skills: {...' is not assignable to parameter of type 'PromptSource'.
+  Types of property 'id' are incompatible.
+    Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+      Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+src/composer/prompt.test.ts(155,42): error TS2345: Argument of type '{ id: string; type: "user"; text: string; metadata: { displayText: string; comments: { path: string; comment: string; selection: { startLine: number; startChar: number; endLine: number; endChar: number; }; }[]; attachments: { ...; }[]; }; files: ({ ...; } | ... 2 more ... | { ...; })[]; agents: { ...; }[]; skills: {...' is not assignable to parameter of type 'PromptSource'.
+  Types of property 'id' are incompatible.
+    Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+      Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+src/composer/submit.test.ts(147,9): error TS2322: Type '(value: SessionPromptInput & { gate?: Promise<unknown> | undefined; prepare?: (() => Promise<unknown>) | undefined; }) => Promise<{ id: string | (string & Brand<"Session.Message.ID">); ... 4 more ...; delivery: "queue" | "steer"; }>' is not assignable to type '(input: SessionPromptInput & { gate?: Promise<unknown> | undefined; prepare?: (() => Promise<unknown>) | undefined; }) => Promise<SessionInboxUser>'.
+  Type 'Promise<{ id: string | (string & Brand<"Session.Message.ID">); sessionID: string & Brand<"SessionID">; time: { created: number; }; type: "user"; payload: { text: string; }; delivery: "queue" | "steer"; }>' is not assignable to type 'Promise<SessionInboxUser>'.
+    Type '{ id: string | (string & Brand<"Session.Message.ID">); sessionID: string & Brand<"SessionID">; time: { created: number; }; type: "user"; payload: { text: string; }; delivery: "queue" | "steer"; }' is not assignable to type 'SessionInboxUser'.
+      Types of property 'id' are incompatible.
+        Type 'string | (string & Brand<"Session.Message.ID">)' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+          Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+            Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+src/composer/submit.test.ts(228,37): error TS2322: Type '() => { readonly agent: string & Brand<"Agent.ID">; readonly model: { readonly id: string & Brand<"Model.ID">; readonly providerID: string & Brand<"Provider.ID">; variant?: undefined; }; revert?: undefined; } | { ...; } | { ...; }' is not assignable to type 'Accessor<{ agent?: (string & Brand<"Agent.ID">) | undefined; model?: { id: string & Brand<"Model.ID">; providerID: string & Brand<"Provider.ID">; variant?: (string & Brand<...>) | undefined; } | undefined; revert?: { ...; } | undefined; } | undefined>'.
+  Type '{ readonly agent: string & Brand<"Agent.ID">; readonly model: { readonly id: string & Brand<"Model.ID">; readonly providerID: string & Brand<"Provider.ID">; variant?: undefined; }; revert?: undefined; } | { ...; } | { ...; }' is not assignable to type '{ agent?: (string & Brand<"Agent.ID">) | undefined; model?: { id: string & Brand<"Model.ID">; providerID: string & Brand<"Provider.ID">; variant?: (string & Brand<...>) | undefined; } | undefined; revert?: { ...; } | undefined; } | undefined'.
+    Type '{ readonly agent: "plan"; readonly model: { variant?: undefined; readonly id: "old"; readonly providerID: "old"; }; readonly revert: { readonly messageID: "msg_reverted"; }; }' is not assignable to type '{ agent?: (string & Brand<"Agent.ID">) | undefined; model?: { id: string & Brand<"Model.ID">; providerID: string & Brand<"Provider.ID">; variant?: (string & Brand<...>) | undefined; } | undefined; revert?: { ...; } | undefined; }'.
+      Types of property 'agent' are incompatible.
+        Type 'string' is not assignable to type 'string & Brand<"Agent.ID">'.
+          Type 'string' is not assignable to type 'Brand<"Agent.ID">'.
+src/new-session/composer-adapter.ts(138,67): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/new-session/composer-adapter.ts(143,49): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/new-session/composer-adapter.ts(150,72): error TS2322: Type 'string' is not assignable to type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/new-session/composer-adapter.ts(153,52): error TS2322: Type 'string' is not assignable to type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/new-session/composer-adapter.ts(166,53): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/runtime/server/global-sync/utils.test.ts(6,49): error TS2724: '"@opencode/client/promise"' has no exported member named 'Project'. Did you mean 'Project2'?
+src/runtime/server/global-sync/utils.ts(3,15): error TS2724: '"@opencode/client/promise"' has no exported member named 'Project'. Did you mean 'Project2'?
+src/session/commands/use-session-commands.tsx(251,45): error TS2322: Type '{ id: string; providerID: string; variant?: string | undefined; } | undefined' is not assignable to type 'ModelRef | undefined'.
+  Type '{ id: string; providerID: string; variant?: string | undefined; }' is not assignable to type 'ModelRef'.
+    Types of property 'id' are incompatible.
+      Type 'string' is not assignable to type 'string & Brand<"Model.ID">'.
+        Type 'string' is not assignable to type 'Brand<"Model.ID">'.
+src/session/composer/location-missing.tsx(28,47): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string & Brand<"Project.ID">'.
+  Type 'string' is not assignable to type 'Brand<"Project.ID">'.
+src/session/composer/location-missing.tsx(29,58): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string & Brand<"Project.ID">'.
+  Type 'string' is not assignable to type 'Brand<"Project.ID">'.
+src/session/composer/location-missing.tsx(60,47): error TS2322: Type 'string' is not assignable to type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/session/composer/queue.ts(94,40): error TS2554: Expected 1 arguments, but got 2.
+src/session/composer/queue.ts(145,47): error TS2304: Cannot find name 'replace'.
+src/session/composer/queue.ts(145,94): error TS2304: Cannot find name 'replace'.
+src/session/composer/queue.ts(147,102): error TS2304: Cannot find name 'replace'.
+src/session/composer/queue.ts(158,21): error TS2304: Cannot find name 'replace'.
+src/session/composer/queue.ts(159,13): error TS2304: Cannot find name 'replace'.
+src/session/composer/queue.ts(183,75): error TS2322: Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+  Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+src/session/composer/queue.ts(285,43): error TS2304: Cannot find name 'refuseReverted'.
+src/session/composer/region.tsx(197,54): error TS2339: Property 'pending' does not exist on type 'SessionUserActions'.
+src/session/composer/region.tsx(198,13): error TS7006: Parameter 'messageID' implicitly has an 'any' type.
+src/session/composer/region.tsx(207,15): error TS7031: Binding element 'sessionID' implicitly has an 'any' type.
+src/session/composer/region.tsx(207,26): error TS7031: Binding element 'messageID' implicitly has an 'any' type.
+src/session/composer/region.tsx(211,16): error TS7031: Binding element 'sessionID' implicitly has an 'any' type.
+src/session/composer/region.tsx(211,27): error TS7031: Binding element 'messageID' implicitly has an 'any' type.
+src/session/composer/region.tsx(274,13): error TS2353: Object literal may only specify known properties, and 'pending' does not exist in type 'SessionUserActions'.
+src/session/header/session-running-menu.tsx(134,37): error TS2322: Type 'string' is not assignable to type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/session/header/session-running-menu.tsx(136,11): error TS2322: Type 'string' is not assignable to type 'string & Brand<"Shell.ID">'.
+  Type 'string' is not assignable to type 'Brand<"Shell.ID">'.
+src/session/session-identity-header.tsx(303,65): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/session/session-identity-header.tsx(304,38): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/session/session-identity-header.tsx(312,68): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/session/session-identity-header.tsx(390,21): error TS2322: Type 'string' is not assignable to type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/session/timeline/controller-projection.test.ts(85,9): error TS2353: Object literal may only specify known properties, and 'pendingInputIDs' does not exist in type '{ sessionMessages: Accessor<SessionMessageInfo[]>; status: Accessor<SessionStatus>; reasoningMode: Accessor<ReasoningMode>; ... 4 more ...; queuedCompactionIDs?: Accessor<...> | undefined; }'.
+src/session/timeline/controller-projection.test.ts(153,16): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+      Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+src/session/timeline/controller-projection.test.ts(153,25): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+      Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+src/session/timeline/controller-projection.test.ts(153,34): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+      Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+src/session/timeline/controller.tsx(169,5): error TS2353: Object literal may only specify known properties, and 'pendingInputIDs' does not exist in type '{ sessionMessages: Accessor<SessionMessageInfo[]>; status: Accessor<SessionStatus>; reasoningMode: Accessor<ReasoningMode>; ... 4 more ...; queuedCompactionIDs?: Accessor<...> | undefined; }'.
+src/shell/routes/routes.tsx(2,33): error TS6133: 'useParams' is declared but its value is never read.
+src/shell/routes/routes.tsx(105,64): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/shell/routes/routes.tsx(113,45): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string & Brand<"SessionID">'.
+  Type 'string' is not assignable to type 'Brand<"SessionID">'.
+src/shell/titlebar/titlebar.tsx(314,48): error TS2345: Argument of type '{ server: string & Brand<"ServerConnection.Key">; sessionId: string; }' is not assignable to parameter of type 'Omit<{ type: "session"; server: string & Brand<"ServerConnection.Key">; sessionId: string & Brand<"SessionID">; routeSessionId?: (string & Brand<"SessionID">) | undefined; routeParentId?: (string & Brand<...>) | undefined; }, "type">'.
+  Types of property 'sessionId' are incompatible.
+    Type 'string' is not assignable to type 'string & Brand<"SessionID">'.
+      Type 'string' is not assignable to type 'Brand<"SessionID">'.
+../session-ui/src/message/message-content.tsx(263,53): error TS2339: Property 'pending' does not exist on type 'SessionUserActions'.
+../session-ui/src/message/message-content.tsx(300,36): error TS2339: Property 'pending' does not exist on type 'SessionUserActions'.
+../session-ui/src/timeline/projection.ts(87,11): error TS2339: Property 'pendingInputIDs' does not exist on type 'TimelineProjectionInput'.
+../session-ui/src/timeline/projection.ts(102,30): error TS2345: Argument of type 'string | (string & Brand<"Session.Message.ID">)' is not assignable to parameter of type 'string & Brand<"Session.Message.ID">'.
+  Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+    Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+../session-ui/src/timeline/projection.ts(102,70): error TS2345: Argument of type 'string | (string & Brand<"Session.Message.ID">)' is not assignable to parameter of type 'string & Brand<"Session.Message.ID">'.
+  Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+    Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+../session-ui/src/timeline/projection.ts(103,29): error TS2345: Argument of type 'string | (string & Brand<"Session.Message.ID">)' is not assignable to parameter of type 'string & Brand<"Session.Message.ID">'.
+  Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+    Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+../session-ui/src/timeline/projection.ts(161,13): error TS2339: Property 'pendingInputIDs' does not exist on type '{ sessionMessages: Accessor<SessionMessageInfo[]>; status: Accessor<SessionStatus>; reasoningMode: Accessor<ReasoningMode>; ... 4 more ...; queuedCompactionIDs?: Accessor<...> | undefined; }'.
+../session-ui/src/timeline/projection.ts(185,22): error TS2345: Argument of type 'string | (string & Brand<"Session.Message.ID">)' is not assignable to parameter of type 'string & Brand<"Session.Message.ID">'.
+  Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+    Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+../session-ui/src/timeline/projection.ts(186,18): error TS2345: Argument of type 'string | (string & Brand<"Session.Message.ID">)' is not assignable to parameter of type 'string & Brand<"Session.Message.ID">'.
+  Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+    Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+../session-ui/src/timeline/projection.ts(194,47): error TS2345: Argument of type 'string | (string & Brand<"Session.Message.ID">)' is not assignable to parameter of type 'string & Brand<"Session.Message.ID">'.
+  Type 'string' is not assignable to type 'string & Brand<"Session.Message.ID">'.
+    Type 'string' is not assignable to type 'Brand<"Session.Message.ID">'.
+../session-ui/src/timeline/projection.ts(295,55): error TS2304: Cannot find name 'pendingInputIDs'.
+../session-ui/src/timeline/projection.ts(356,9): error TS2304: Cannot find name 'pendingInputIDs'.
+../session-ui/src/timeline/projection.ts(357,47): error TS2304: Cannot find name 'pendingInputIDs'.
+error: script "typecheck" exited with code 1

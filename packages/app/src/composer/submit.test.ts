@@ -144,7 +144,7 @@ function session(input: {
       location: { command: { list: () => [] } },
       session: {
         setStatus: (_sessionID, status) => input.statuses?.push(status),
-        prompt: async (value) => {
+        prompt: async (value): Promise<any> => {
           input.calls.push("prompt")
           await input.prompt?.(value)
 
@@ -225,7 +225,7 @@ describe("Composer submission", () => {
     state.context.add({ type: "file", path: "notes.md", description: "the failing version" })
     const calls: string[] = []
     const admitted = Promise.withResolvers<Parameters<ComposerSession["data"]["session"]["prompt"]>[0]>()
-    const target = session({ calls, current: () => row.current, prompt: async (value) => admitted.resolve(value) })
+    const target = session({ calls, current: () => row.current as any, prompt: async (value): Promise<any> => admitted.resolve(value) })
 
     await submitInput(active(state, target)).submit(new Event("submit"))
     const request = await admitted.promise
@@ -379,7 +379,7 @@ describe("Composer submission", () => {
     const target = session({
       calls: [],
       statuses,
-      prompt: async (value) => {
+      prompt: async (value): Promise<any> => {
         attempts.push(value.id ?? "")
         throw new Error("network unavailable")
       },
@@ -459,7 +459,7 @@ describe("Composer submission", () => {
 
         return true
       },
-      prompt: async (value) => {
+      prompt: async (value): Promise<any> => {
         attempts.push(value.id ?? "")
         throw new Error("response lost")
       },

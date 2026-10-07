@@ -311,7 +311,7 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                 if (s.parentID && resolved?.info.id !== s.id) return
                 const sessionId = resolved?.info.id === s.id ? resolved.rootID : s.id
                 const next = { server: route.server, sessionId }
-                tabsStoreActions.addSessionTab(next)
+                tabsStoreActions.addSessionTab(next as any)
               }
             })
 

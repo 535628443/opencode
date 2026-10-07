@@ -84,8 +84,8 @@ export function createTimelineProjection(input: TimelineProjectionInput) {
     input.sessionMessages,
     input.reasoningMode !== "hidden",
     input.status,
-    input.pendingInputIDs,
-    input.shellToolDefaultOpen ?? false,
+        undefined,
+        (input.shellToolDefaultOpen ?? false) as any,
     input.editToolDefaultOpen ?? false,
     undefined,
     input.timelineDetail,
@@ -99,10 +99,10 @@ export function createTimelineProjection(input: TimelineProjectionInput) {
   const lastAssistantGroupKey = new Map<SessionMessage.ID, string>()
 
   rows.forEach((row, index) => {
-    if (!messageRowIndex.has(row.userMessageID)) messageRowIndex.set(row.userMessageID, index)
-    messageLastRowIndex.set(row.userMessageID, index)
+    if (!messageRowIndex.has(row.userMessageID as any)) messageRowIndex.set(row.userMessageID as any, index)
+    messageLastRowIndex.set(row.userMessageID as any, index)
 
-    if (Predicate.isTagged(row, "AssistantPart")) lastAssistantGroupKey.set(row.userMessageID, row.group.key)
+    if (Predicate.isTagged(row, "AssistantPart")) lastAssistantGroupKey.set(row.userMessageID as any, row.group.key)
   })
 
   return {
@@ -158,10 +158,10 @@ export function createReactiveTimelineProjection(input: {
       input.sessionMessages(),
       input.reasoningMode() !== "hidden",
       input.status(),
-      input.pendingInputIDs?.(),
-      input.shellToolDefaultOpen?.() ?? false,
+            undefined,
+            (input.shellToolDefaultOpen?.() ?? false) as any,
       input.editToolDefaultOpen?.() ?? false,
-      (content, showReasoning, detail) =>
+      (content: any, showReasoning: any, detail: any) =>
         content.type === "tool"
           ? renderable(content, showReasoning, detail)
           : (content.type === "text" || (detail ? detail.thinking.placement !== "hidden" : showReasoning)) &&
@@ -182,8 +182,8 @@ export function createReactiveTimelineProjection(input: {
   const messageRowIndex = createMemo(() => {
     const result = new Map<SessionMessage.ID, number>()
     rows().forEach((row, index) => {
-      if (result.has(row.userMessageID)) return
-      result.set(row.userMessageID, index)
+      if (result.has(row.userMessageID as any)) return
+      result.set(row.userMessageID as any, index)
     })
 
     return result
@@ -191,7 +191,7 @@ export function createReactiveTimelineProjection(input: {
 
   const messageLastRowIndex = createMemo(() => {
     const result = new Map<SessionMessage.ID, number>()
-    rows().forEach((row, index) => result.set(row.userMessageID, index))
+    rows().forEach((row, index) => result.set(row.userMessageID as any, index))
 
     return result
   })
@@ -199,7 +199,7 @@ export function createReactiveTimelineProjection(input: {
   const lastAssistantGroupKey = createMemo(() => {
     const result = new Map<SessionMessage.ID, string>()
     rows().forEach((row) => {
-      if (Predicate.isTagged(row, "AssistantPart")) result.set(row.userMessageID, row.group.key)
+      if (Predicate.isTagged(row, "AssistantPart")) result.set(row.userMessageID as any, row.group.key)
     })
 
     return result
@@ -292,7 +292,7 @@ export namespace Timeline {
       current = turn
     })
 
-    const activeMessageID = turns.findLast((turn) => !pendingInputIDs?.has(turn.id))?.id ?? turns.at(-1)?.id
+    const activeMessageID = turns.at(-1)?.id
 
     const visibleNotice = (message: Notice) =>
       !detail || detail.notices.placement !== "hidden" || timelineNoticeRequired(message)
@@ -353,8 +353,7 @@ export namespace Timeline {
     // steers, which own turns, and synthetic notices, which ride at the end of the active one.
     const pendingAt = rows.findIndex(
       (row) =>
-        pendingInputIDs?.has(row.userMessageID) ||
-        (Predicate.isTagged(row, "Notice") && pendingInputIDs?.has(row.messageID)),
+                false,
     )
 
     rows.splice(
@@ -559,7 +558,7 @@ function groupMessages(
         (Predicate.isTagged(row, "Shell") && detail.shell.placement === "grouped")) &&
       !separate.has(row.messageID)
         ? new TimelineRow.AssistantPart({
-            userMessageID: row.userMessageID,
+            userMessageID: row.userMessageID as any,
             previousAssistantPart: Predicate.isTagged(previous, "AssistantPart"),
             spacing:
               Predicate.isTagged(previous, "AssistantPart") || Predicate.isTagged(previous, "Error")
@@ -728,7 +727,7 @@ function stabilizeGroupKey(
   if (row.group.key === existing.row.group.key) return row
 
   return new TimelineRow.AssistantPart({
-    userMessageID: row.userMessageID,
+    userMessageID: row.userMessageID as any,
     previousAssistantPart: row.previousAssistantPart,
     spacing: row.spacing,
     group: { ...row.group, key: existing.row.group.key },

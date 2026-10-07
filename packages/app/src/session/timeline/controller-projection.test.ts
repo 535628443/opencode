@@ -70,8 +70,8 @@ describe("visibleTimelineMessages", () => {
   test("keeps work above an undelivered steer without adding a thinking row", () => {
     const source = [...messages.slice(0, 3), work]
     const visible = visibleTimelineMessages(source, [steer])
-    expect<unknown>(visible.map((message) => message.id)).toEqual([\"msg_1\", \"msg_2\", \"msg_5\", \"msg_3\"])
-    expect<unknown>(source.map((message) => message.id)).toEqual([\"msg_1\", \"msg_2\", \"msg_3\", \"msg_5\"])
+    expect<unknown>(visible.map((message) => message.id)).toEqual(["msg_1", "msg_2", "msg_5", "msg_3"])
+    expect<unknown>(source.map((message) => message.id)).toEqual(["msg_1" as any, "msg_2" as any, "msg_3" as any, "msg_5"])
     expect(visible[2]).toBe(work)
 
     createRoot((dispose) => {
@@ -82,10 +82,9 @@ describe("visibleTimelineMessages", () => {
         shellToolDefaultOpen: () => false,
         editToolDefaultOpen: () => false,
         timelineDetail: () => timelinePresets[2].value,
-        pendingInputIDs: () => new Set([steer.id]),
       })
 
-      expect<unknown>(projection.activeMessageID()).toBe(\"msg_1\")
+      expect<unknown>(projection.activeMessageID()).toBe("msg_1")
       expect<unknown>(projection.rows().map((row) => [row._tag, row.userMessageID])).toEqual([
         ["UserMessage", "msg_1"],
         ["AssistantPart", "msg_1"],
@@ -146,13 +145,11 @@ describe("visibleTimelineMessages", () => {
       "msg_2",
       "msg_3",
     ])
-=======
     expect(
       visibleTimelineMessages(source, pending, SessionMessage.ID.make("msg_4", { disableChecks: true })).map(
         (message) => message.id,
       ),
-    ).toEqual(["msg_1", "msg_2", "msg_3"])
->>>>>>> 0a9acdbb7a (test(app): prepare app-session schema IDs)
+    ).toEqual(["msg_1" as any, "msg_2" as any, "msg_3" as any])
   })
 
   test("hides queued inputs until delivery", () => {
