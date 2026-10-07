@@ -170,11 +170,11 @@ function relativizeProjectPath(path: string, directory?: string) {
 
   if (directory === "/") return path
 
-  if (directory === "\\") return path
+  if (directory === "\\\") return path
 
   if (path === directory) return ""
 
-  const separator = directory.includes("\\") ? "\\" : "/"
+  const separator = directory.includes("\\\") ? "\\\" : "/"
   const prefix = directory.endsWith(separator) ? directory : directory + separator
 
   if (!path.startsWith(prefix)) return path
@@ -1442,7 +1442,7 @@ export function ToolDisplay(
   const taskId = createMemo(() => {
     if (props.tool !== "subagent") return undefined
     const value = props.metadata.sessionID
-    if (typeof value === \"string\" && value) return SessionID.make(value, { disableChecks: true })
+    if (typeof value === "string" && value) return SessionID.make(value, { disableChecks: true })
     return undefined
   })
 
@@ -1852,7 +1852,8 @@ ToolRegistry.register({
 
     const childSessionId = createMemo(() => {
       const value = props.metadata.sessionID
-      if (typeof value === "string" && value) return SessionID.make(value, { disableChecks: true })      return taskSession(props.input, data.sessionID, data.store.session)
+      if (typeof value === "string" && value) return SessionID.make(value, { disableChecks: true })
+      return taskSession(props.input, data.sessionID, data.store.session)
     })
 
     const agent = createMemo(() => taskAgent(props.input.agent, data.store.agent))
@@ -2071,7 +2072,7 @@ ToolRegistry.register({
     const pending = () =>
       streaming() ||
       props.status === "running" ||
-      (typeof props.metadata.shellID === \"string\" && data.shellRunning?.(Shell.ID.make(props.metadata.shellID, { disableChecks: true })) === true)
+      (typeof props.metadata.shellID === "string" && data.shellRunning?.(Shell.ID.make(props.metadata.shellID, { disableChecks: true })) === true)
     const sawStreaming = streaming()
 
     const command = () => {

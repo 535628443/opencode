@@ -21,7 +21,7 @@ import { SessionID } from "@opencode/schema/session-id"
 import { SessionMessage } from "@opencode/schema/session-message"
 import { Shell } from "@opencode/schema/shell"
 
-export const CURRENT_SESSION_ID = SessionID.make(\"session_current_story\", { disableChecks: true })
+export const CURRENT_SESSION_ID = SessionID.make("session_current_story", { disableChecks: true })
 export const STORY_TIME = 1_735_689_600_000
 
 export const STORY_MODEL = {

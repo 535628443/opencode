@@ -256,8 +256,8 @@ describe("current session timeline rows", () => {
     const result = Timeline.constructSessionMessageRows(
       source,
       true,
-      { type: \"busy\" },
-      new Set([SessionMessage.ID.make(\"msg_queued\", { disableChecks: true })]),
+      { type: "busy" },
+      new Set([SessionMessage.ID.make("msg_queued", { disableChecks: true })]),
     )
 
     expect<unknown>(result.activeMessageID).toBe("msg_active")
@@ -1558,3 +1558,4 @@ describe("current session timeline rows", () => {
     )
   })
 })
+}

@@ -1,5 +1,5 @@
-import type { SessionMessage } from \"@opencode/schema/session-message\"
-import { Data, Equal, Match } from \"effect\"
+import type { SessionMessage } from "@opencode/schema/session-message"
+import { Data, Equal, Match } from "effect"
 
 export type PartRef = {
   messageID: SessionMessage.ID

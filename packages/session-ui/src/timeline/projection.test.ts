@@ -51,7 +51,7 @@ const part = (key: string, partID: string) =>
     previousAssistantPart: false,
   })
 
-const user = (userMessageID = \"user-1\") =>
+const user = (userMessageID = "user-1") =>
   new TimelineRow.UserMessage({ userMessageID: SessionMessage.ID.make(userMessageID, { disableChecks: true }) })
 const keys = (rows: TimelineRow.TimelineRow[]) => rows.map(TimelineRow.key)
 
@@ -227,13 +227,13 @@ describe("reuseTimelineRows", () => {
 describe("createTimelineProjection", () => {
   test("builds current message, parent, context, and row indexes", () => {
     const selectedModel = {
-      id: Model.ID.make(\"selected\", { disableChecks: true }),
-      providerID: Provider.ID.make(\"provider\", { disableChecks: true }),
+      id: Model.ID.make("selected", { disableChecks: true }),
+      providerID: Provider.ID.make("provider", { disableChecks: true }),
     } satisfies ModelRef
     const assistantModel = {
-      id: Model.ID.make(\"assistant\", { disableChecks: true }),
-      providerID: Provider.ID.make(\"provider\", { disableChecks: true }),
-      variant: Model.VariantID.make(\"fast\", { disableChecks: true }),
+      id: Model.ID.make("assistant", { disableChecks: true }),
+      providerID: Provider.ID.make("provider", { disableChecks: true }),
+      variant: Model.VariantID.make("fast", { disableChecks: true }),
     } satisfies ModelRef
 
     const messages = [

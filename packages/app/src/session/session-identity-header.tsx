@@ -239,7 +239,91 @@ export function SessionAncestorTrail(props: {
 
     return path
   })
+<<<<<<< HEAD
+=======
+  const open = (id: SessionID) => {
+    const tab = tabs.store.find(
+      (item) =>
+        item.type === "session" &&
+        item.server === server.key &&
+        (item.sessionId === props.sessionID || item.routeSessionId === props.sessionID),
+    )
+    if (tab?.type === "session") tabs.rememberSessionRoute(tab, id, server.ctx.data.session.get(id)?.parentID)
+    navigate(sessionHref(server.key, id))
+  }
+>>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
+
+  return (
+    <div class="flex min-w-0 max-w-full items-center">
+      <div
+        data-slot="session-title-ancestors"
+        class="flex min-w-0 items-center overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        <For each={ancestors()}>
+          {(ancestor, index) => (
+            <>
+              <button
+                type="button"
+                data-slot={ancestor.direct ? "session-title-parent" : "session-title-ancestor"}
+                data-session-id={ancestor.id}
+                title={ancestor.title}
+                class="max-w-[min(200px,40vw)] shrink-0 truncate text-[13px] font-[530] leading-4 tracking-[-0.04px] text-v2-text-text-faint transition-colors hover:text-v2-text-text-muted"
+                classList={{ "ps-1": index() === 0, "ps-2": index() > 0 }}
+                onClick={() => open(props.sessionID, ancestor.id)}
+              >
+                <bdi dir="auto">{ancestor.title}</bdi>
+              </button>
+              <Show when={index() < ancestors().length - 1}>
+                <span
+                  data-slot="session-title-separator"
+                  class="-translate-y-[0.5px] shrink-0 ps-2 pe-1 text-[11px] font-medium text-v2-text-text-faint"
+                  aria-hidden="true"
+                >
+                  /
+                </span>
+              </Show>
+            </>
+          )}
+        </For>
+      </div>
+      <Show when={props.trailing}>
+        <span
+          data-slot="session-title-separator"
+          class="-translate-y-[0.5px] shrink-0 ps-2 pe-1 text-[11px] font-medium text-v2-text-text-faint"
+          aria-hidden="true"
+        >
+          /
+        </span>
+      </Show>
+    </div>
+  )
+}
+
+<<<<<<< HEAD
+// Opens a related session in the tab showing `from`, and records its parent so the tab's route stays consistent.
+// `reveal` names a tool call or shell the opened timeline scrolls to and expands.
+export function useOpenSessionRoute() {
+  const server = useServer()
+  const tabs = useTabs()
+  const navigate = useNavigate()
+
+  return (from: string, id: string, reveal?: string) => {
+    const tab = tabs.store.find(
+      (item) =>
+        item.type === "session" &&
+        item.server === server.key &&
+        (item.sessionId === from || item.routeSessionId === from),
+    )
+
+    if (tab?.type === "session") tabs.rememberSessionRoute(tab, id, server.ctx.data.session.get(id)?.parentID)
+    navigate(sessionHref(server.key, id), reveal ? { state: { reveal } } : undefined)
+  }
+}
+
+export function SessionIdentityHeader(props: ParentProps<{ sessionID: string; session?: SessionInfo }>) {
+=======
 export function SessionIdentityHeader(props: { sessionID: SessionID; session?: SessionInfo }) {
+>>>>>>> 859ade1a7b (refactor(app): carry canonical IDs across session views)
   const server = useServer()
   const tabs = useTabs()
   const language = useLanguage()
