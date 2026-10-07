@@ -1,6 +1,6 @@
 import { useSessionParams } from "@/shell/routes/session"
-import { Route } from "@solidjs/router"
-import { createMemo, lazy, Show, Suspense, type ParentProps } from "solid-js"
+import { Route, useBeforeLeave, useParams } from "@solidjs/router"
+import { createMemo, lazy, onCleanup, Show, Suspense, type ParentProps } from "solid-js"
 import { Home } from "@/home/route"
 import { ServerProvider } from "@/runtime/server/current"
 import { useGlobal } from "@/runtime/server/runtime"
@@ -11,6 +11,7 @@ import { SettingsSurfaceProvider } from "@/settings/surface"
 import Shell from "@/shell/shell"
 import { requireServerKey } from "./session"
 import { ExtensionAttachment } from "@/runtime/extension/root"
+import { useTabs } from "@/shell/tabs/tabs"
 
 export const File = lazy(() => import("@opencode/session-ui/file").then((module) => ({ default: module.File })))
 
@@ -87,7 +88,40 @@ function TargetServerRoute(props: ParentProps) {
 function AppLayout(props: ParentProps) {
   const servers = useServers()
   const global = useGlobal()
-
+  const tabs = useTabs()
+  let navigation = 0
+  onCleanup(() => navigation++)
+  useBeforeLeave((event) => {
+    const current = ++navigation
+    const selection = tabs.selectionVersion()
+    if (event.defaultPrevented || typeof event.to !== "string") return
+    const from = event.from.pathname.match(/^\/server\/([^/]+)\/session\/([^/]+)$/)
+    if (!from && event.from.pathname !== "/new-session") return
+    // Draft promotion removes its tab and navigates in the same transition.
+    if (!from) {
+      const draftID = new URLSearchParams(event.from.search).get("draftId")
+      if (!tabs.store.some((tab) => tab.type === "draft" && tab.draftID === draftID)) return
+    }
+    if (from && tabs.pendingSession(requireServerKey(from[1]), from[2])) return
+    const pathname = event.to.split(/[?#]/, 1)[0]
+    if (pathname === event.from.pathname) return
+    const match = pathname.match(/^\/server\/([^/]+)\/session\/([^/]+)$/)
+    if (!match) return
+    const key = requireServerKey(match[1])
+    const id = match[2]
+    const server = global.serverCtx(key)
+    if (!server || tabs.pendingSession(key, id)) return
+    // Keep the current view mounted while the destination's lazy route, history,
+    // and tail Markdown load. Its virtualizer can then measure before the first paint.
+    event.preventDefault()
+    void TargetSessionRouteContent.preload()
+      .then(loadSessionRoute)
+      .then((route) => route.preloadSession(server.data, id))
+      .catch(() => undefined)
+      .then(() => {
+        if (current === navigation && selection === tabs.selectionVersion()) event.retry(true)
+      })
+  })
   // A lone server that rejects our credentials (e.g. the web app before pairing) has nothing else to show.
   const signedOut = () => {
     const only = servers.list.length === 1 ? servers.list[0] : undefined

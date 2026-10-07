@@ -56,6 +56,30 @@ test("tab strip keeps draft tabs as wide as session tabs and navigates on mouse 
   await expectPath(page, sessionHref(b.id))
 })
 
+test("reselecting the current tab cancels a pending cold navigation", async ({ page }) => {
+  const workspace = await openSession(page, { name: "Tabs", sessions: [a, b] })
+  const held = await holdRoute(page, (url) => url.pathname === `/api/session/${b.id}/message`)
+  const response = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === `/api/session/${b.id}/message`,
+  )
+  try {
+    await page.locator(`a[data-titlebar-tab-link][href="${sessionHref(b.id)}"]`).click()
+    await held.arrived
+    await page.locator(`a[data-titlebar-tab-link][href="${sessionHref(a.id)}"]`).click()
+    held.release()
+    await (await response).finished()
+    // Exercise the retained view after the abandoned request finishes.
+    await expectSessionTitle(page, a.title)
+    await workspace.editor.click()
+    await expect(workspace.editor).toBeFocused()
+    await workspace.editor.fill("Stay in the original session")
+    await expectPath(page, sessionHref(a.id))
+    await expect(workspace.editor).toHaveText("Stay in the original session")
+  } finally {
+    held.release()
+  }
+})
+
 test("a tab does not reopen its title editor while a rename is saving", async ({ page }) => {
   await mockWorkspace(page, { name: "Tabs", sessions: [a, b] })
   await page.goto(sessionHref(a.id))
@@ -332,10 +356,14 @@ test("selecting a tab with waiting work waits for its transcript instead of show
 
   const transcript = await holdRoute(page, (url) => url.pathname === `/api/session/${b.id}/message`)
   await page.locator(`[data-titlebar-tab-link][href="${sessionHref(b.id)}"]`).click()
-  await transcript.arrived
-  await expect(page.locator("[data-timeline-virtual-content]")).toHaveCount(0)
-
-  transcript.release()
+  try {
+    await transcript.arrived
+    await expectPath(page, sessionHref(a.id))
+    await expectSessionTitle(page, a.title)
+    await expect(page.locator('[data-message-id="inb_tab_b_steer"]')).toHaveCount(0)
+  } finally {
+    transcript.release()
+  }
   await expect(page.locator('[data-timeline-row="UserMessage"][data-message-id="msg_tab_b_history"]')).toContainText(
     "Earlier prompt",
   )

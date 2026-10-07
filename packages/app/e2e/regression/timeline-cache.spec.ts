@@ -69,14 +69,30 @@ for (const width of [1440, 390]) {
 }
 
 test("paints cold and warm session tabs at the latest message", async ({ page }) => {
-  await openTabs(page, { pageMessages: (id) => ({ items: fixture.messages[id] ?? [] }) })
+  const requested = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<void>()
+  await openTabs(page, {
+    pageMessages: (id) => ({ items: fixture.messages[id] ?? [] }),
+    beforeMessagesResponse: async ({ sessionID }) => {
+      if (sessionID !== fixture.targetID) return
+      requested.resolve()
+      await release.promise
+    },
+  })
   await installTimelineSettings(page)
   await page.goto(sessionHref(fixture.sourceID))
   await expectAtTail(page, fixture.expected.sourceMessageIDs.at(-1)!)
 
   // Cold: the first painted frame of the destination is already at its tail.
   const cold = await sampleTabPaint(page, fixture.targetID)
-  await tab(page, fixture.targetID).click()
+  try {
+    await tab(page, fixture.targetID).click()
+    await requested.promise
+    await expectAtTail(page, fixture.expected.sourceMessageIDs.at(-1)!)
+    await expectPath(page, sessionHref(fixture.sourceID))
+  } finally {
+    release.resolve()
+  }
   const coldPaint = await cold.firstPaint()
   expect(coldPaint.last).toBe(true)
   expect(Math.abs(coldPaint.bottomError ?? Infinity)).toBeLessThanOrEqual(1)
@@ -182,7 +198,7 @@ test("focuses Find in the selected cached timeline", async ({ page }) => {
   await expect(search).toHaveCount(0)
 })
 
-test("disposes the old workspace's shell while destination history is loading", async ({ page }) => {
+test("disposes the old workspace's shell when the prepared destination is selected", async ({ page }) => {
   const destination = "C:/OpenCode/OtherProject"
   const requested = Promise.withResolvers<void>()
   const release = Promise.withResolvers<void>()
@@ -253,6 +269,8 @@ test("disposes the old workspace's shell while destination history is loading", 
   try {
     await tab(page, fixture.targetID).click()
     await requested.promise
+    await expect(shell.locator('[data-slot="bash-result"]')).toContainText("Initial shell output")
+    release.resolve()
     await expect(page.locator("[data-session-title]")).toHaveText(fixture.expected.targetTitle)
     output.text += "Output after returning\n"
     await tab(page, fixture.sourceID).click()
@@ -295,7 +313,8 @@ test("waits for the requested session's history before constructing its cold tim
   try {
     await tab(page, fixture.targetID).click()
     await requested.promise
-    await expect(page.locator("[data-timeline-virtual-content]")).toHaveCount(0)
+    await expectAtTail(page, fixture.expected.sourceMessageIDs.at(-1)!)
+    await expect(page.locator(`[data-message-id="${fixture.expected.targetMessageIDs.at(-1)!}"]`)).toHaveCount(0)
     release.resolve()
     await expectAtTail(page, fixture.expected.targetMessageIDs.at(-1)!)
     await expect(page.locator("[data-timeline-virtual-content]")).toHaveCount(1)

@@ -195,7 +195,10 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
       if (next.length !== closed.length) setClosed(() => next)
     })
 
+    // Selecting the current URL is a new intent even when the router does not leave.
+    let selectionVersion = 0
     const navigateTab = (tab: Tab) => {
+      selectionVersion++
       const href = tabHref(tab)
       setRecentKey(tabKey(tab))
       navigate(href)
@@ -627,6 +630,15 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
       },
     }
 
-    return { ...actions, store, info, ready, infoReady, recentReady, regionsReady }
+    return {
+      ...actions,
+      store,
+      info,
+      ready,
+      infoReady,
+      recentReady,
+      regionsReady,
+      selectionVersion: () => selectionVersion,
+    }
   },
 })

@@ -27,6 +27,31 @@ import { createSessionResolution } from "./session-resolution"
 import { SessionScreenView } from "./screen"
 import { PreparingComposer } from "./preparing-composer"
 
+import { preloadMarkdown } from "@opencode/session-ui/markdown-cache"
+import { Timeline } from "@opencode/session-ui/timeline/projection"
+
+export async function preloadSession(data: ReturnType<typeof useData>, id: string) {
+  await Promise.all([data.session.sync(id, { children: true }), data.session.message.sync(id)])
+  const messages = data.session.message.list(id)
+  const tail = messages.slice(
+    Math.max(
+      0,
+      messages.findLastIndex((message) => message.type === "user"),
+    ),
+  )
+  await Promise.all(
+    tail.flatMap((message) =>
+      message.type === "assistant" && message.time.completed !== undefined
+        ? Timeline.contentEntries(message).flatMap((part) =>
+            part.content.type === "text" && part.content.text.trim()
+              ? [preloadMarkdown(part.content.text, part.id)]
+              : [],
+          )
+        : [],
+    ),
+  )
+}
+
 export function TargetSessionRouteContent() {
   const params = useSessionParams()
   const data = useData()

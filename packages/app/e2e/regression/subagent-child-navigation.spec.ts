@@ -166,7 +166,7 @@ test("keeps the active nested session visible in a narrow desktop header", async
   await expect(page).toHaveURL(sessionHref(parentID))
 })
 
-test("shows parent lineage while the child timeline loads", async ({ page }) => {
+test("keeps the parent visible until the child timeline is ready", async ({ page }) => {
   await setup(page)
   const requested = Promise.withResolvers<void>()
   const release = Promise.withResolvers<void>()
@@ -183,11 +183,12 @@ test("shows parent lineage while the child timeline loads", async ({ page }) => 
   await expectSessionTitle(page, parentTitle)
   await page.getByRole("button", { name: "Used 1 Agent", exact: true }).click()
   await page.locator(`a[href="${sessionHref(childID)}"]`).click()
-  await Promise.all([requested.promise, expect(page).toHaveURL(sessionHref(childID))])
-  await Promise.all([
-    expect(page.locator('[data-slot="session-title-parent"]')).toHaveText(parentTitle),
-    expect(page.locator('[data-slot="session-title-child"]')).toHaveText(childTitle),
-  ]).finally(() => release.resolve())
+  await requested.promise
+  await Promise.all([expect(page).toHaveURL(sessionHref(parentID)), expectSessionTitle(page, parentTitle)]).finally(
+    () => release.resolve(),
+  )
+  await expect(page).toHaveURL(sessionHref(childID))
+  await expect(page.locator('[data-slot="session-title-parent"]')).toHaveText(parentTitle)
   await expectSessionTitle(page, taskDescription)
 })
 
