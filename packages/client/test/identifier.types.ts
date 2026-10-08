@@ -1,6 +1,8 @@
-import type { OpenCodeClient, OpenCodeEvent, SessionActiveOutput, SessionInfo } from "../src/promise/index.js"
+import type { OpenCodeClient, OpenCodeEvent, SessionActiveOutput, SessionInfo, SessionMessageAssistant } from "../src/promise/index.js"
 import type { createData } from "../src/solid/data.js"
 import type { ProjectID } from "@opencode/schema/project-id"
+import type { Snapshot } from "@opencode/schema/snapshot"
+import type { Workspace } from "@opencode/schema/workspace"
 import type { Effect } from "effect"
 import type { Session, SessionMessage, SessionApi } from "../src/effect/index.js"
 
@@ -39,3 +41,12 @@ export type ActiveMapRejectMessage = Assert<SessionMessage.ID extends keyof Sess
 export type DataSessionInput = Assert<Equal<Parameters<Data["session"]["get"]>[0], Session.ID>>
 export type DataInboxInput = Assert<Equal<Parameters<Data["session"]["input"]["has"]>[1], SessionMessage.ID>>
 export type DataRejectWrongInbox = Assert<Session.ID extends Parameters<Data["session"]["input"]["has"]>[1] ? false : true>
+
+type AssistantSnapshot = NonNullable<SessionMessageAssistant["snapshot"]>["start"]
+type RevertSnapshot = NonNullable<SessionInfo["revert"]>["snapshot"]
+type WorkspaceFromEvent = NonNullable<Extract<OpenCodeEvent, { type: "session.created" }>["location"]>["workspaceID"]
+export type SnapshotPreservesBrand = Assert<Equal<AssistantSnapshot, Snapshot.ID | undefined>>
+export type RevertSnapshotPreservesBrand = Assert<Equal<RevertSnapshot, Snapshot.ID | undefined>>
+export type EventWorkspacePreservesBrand = Assert<Equal<WorkspaceFromEvent, Workspace.ID | undefined>>
+export type RejectSessionAsSnapshot = Assert<Session.ID extends AssistantSnapshot ? false : true>
+export type RejectSessionAsWorkspace = Assert<Session.ID extends WorkspaceFromEvent ? false : true>

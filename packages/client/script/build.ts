@@ -19,6 +19,8 @@ import { Permission } from "@opencode/schema/permission"
 import { PermissionSaved } from "@opencode/schema/permission-saved"
 import { Plugin } from "@opencode/schema/plugin"
 import { Project } from "@opencode/schema/project"
+import { Snapshot } from "@opencode/schema/snapshot"
+import { Workspace } from "@opencode/schema/workspace"
 import { Worktree } from "@opencode/schema/worktree"
 import { AgentAttachment, FileAttachment, Prompt, PromptMention } from "@opencode/schema/prompt"
 import { PromptInput } from "@opencode/schema/prompt-input"
@@ -60,6 +62,8 @@ const effectTypeReferences = [
   ...namespaceTypes("PermissionSaved", "@opencode/schema/permission-saved", PermissionSaved),
   ...namespaceTypes("Plugin", "@opencode/schema/plugin", Plugin),
   ...namespaceTypes("Project", "@opencode/schema/project", Project),
+  ...namespaceTypes("Snapshot", "@opencode/schema/snapshot", Snapshot),
+  ...namespaceTypes("Workspace", "@opencode/schema/workspace", Workspace),
   ...namespaceTypes("Worktree", "@opencode/schema/worktree", Worktree),
   ...namespaceTypes("PromptInput", "@opencode/schema/prompt-input", PromptInput),
   ...namespaceTypes("Provider", "@opencode/schema/provider", Provider),

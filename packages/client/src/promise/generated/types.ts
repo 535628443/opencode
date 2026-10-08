@@ -10,6 +10,8 @@ import type { Model } from "@opencode/schema/model"
 
 import type { Provider } from "@opencode/schema/provider"
 
+import type { Snapshot } from "@opencode/schema/snapshot"
+
 import type { SessionMessage } from "@opencode/schema/session-message"
 
 import type { Shell } from "@opencode/schema/shell"
@@ -27,6 +29,8 @@ import type { Permission } from "@opencode/schema/permission"
 import type { Pty } from "@opencode/schema/pty"
 
 import type { WebSearch } from "@opencode/schema/websearch"
+
+import type { Workspace } from "@opencode/schema/workspace"
 
 import type { Event } from "@opencode/schema/event"
 
@@ -220,7 +224,7 @@ export type InstructionEntryKey = string
 
 export type SessionGenerateResponse = { data: { text: string } }
 
-export type LocationRef = { directory: string; workspaceID?: string }
+export type LocationRef = { directory: string; workspaceID?: Workspace.ID }
 
 export type SessionInboxSyntheticPayload1 = { text: string; description?: string; metadata?: { [x: string]: any } }
 
@@ -554,7 +558,7 @@ export type PluginInfo = { id?: Plugin.ID; source: PluginSource; features: Plugi
 export type SessionRevert = {
   messageID: SessionMessage.ID
   partID?: string
-  snapshot?: string
+  snapshot?: Snapshot.ID
   files?: Array<FileDiffInfo>
 }
 
@@ -798,7 +802,7 @@ export type SessionStepStarted = {
     assistantMessageID: SessionMessage.ID
     agent: Agent.ID
     model: ModelRef
-    snapshot?: string
+    snapshot?: Snapshot.ID
     started: number
   }
 }
@@ -1368,7 +1372,7 @@ export type SessionStepEnded = {
     providerState?: SessionMessageProviderState1
     cost: MoneyUSD
     tokens: TokenUsageInfo
-    snapshot?: string
+    snapshot?: Snapshot.ID
     files?: Array<string>
   }
 }
@@ -1389,7 +1393,7 @@ export type SessionStepFailed = {
     providerState?: SessionMessageProviderState1
     cost?: MoneyUSD
     tokens?: TokenUsageInfo
-    snapshot?: string
+    snapshot?: Snapshot.ID
     files?: Array<string>
   }
 }
@@ -2353,7 +2357,7 @@ export type SessionMessageAssistant = {
   agent: Agent.ID
   model: ModelRef
   content: Array<SessionMessageAssistantText | SessionMessageAssistantReasoning | SessionMessageAssistantTool>
-  snapshot?: { start?: string; end?: string; files?: Array<string> }
+  snapshot?: { start?: Snapshot.ID; end?: Snapshot.ID; files?: Array<string> }
   finish?: "stop" | "length" | "tool-calls" | "content-filter" | "error" | "unknown"
   rawFinish?: string
   providerState?: SessionMessageProviderState
@@ -3200,7 +3204,7 @@ export type SessionImportInput = {
       readonly revert?: {
         readonly messageID: SessionMessage.ID
         readonly partID?: string
-        readonly snapshot?: string
+        readonly snapshot?: Snapshot.ID
         readonly files?: ReadonlyArray<{
           readonly file: string
           readonly patch: string
@@ -3408,7 +3412,11 @@ export type SessionImportInput = {
                 readonly time: { readonly created: number; readonly ran?: number; readonly completed?: number }
               }
           >
-          readonly snapshot?: { readonly start?: string; readonly end?: string; readonly files?: ReadonlyArray<string> }
+          readonly snapshot?: {
+            readonly start?: Snapshot.ID
+            readonly end?: Snapshot.ID
+            readonly files?: ReadonlyArray<string>
+          }
           readonly finish?: "stop" | "length" | "tool-calls" | "content-filter" | "error" | "unknown"
           readonly rawFinish?: string
           readonly providerState?: { readonly [x: string]: JsonValue }
@@ -3553,7 +3561,7 @@ export type SessionImportInput = {
       readonly revert?: {
         readonly messageID: SessionMessage.ID
         readonly partID?: string
-        readonly snapshot?: string
+        readonly snapshot?: Snapshot.ID
         readonly files?: ReadonlyArray<{
           readonly file: string
           readonly patch: string
@@ -3761,7 +3769,11 @@ export type SessionImportInput = {
                 readonly time: { readonly created: number; readonly ran?: number; readonly completed?: number }
               }
           >
-          readonly snapshot?: { readonly start?: string; readonly end?: string; readonly files?: ReadonlyArray<string> }
+          readonly snapshot?: {
+            readonly start?: Snapshot.ID
+            readonly end?: Snapshot.ID
+            readonly files?: ReadonlyArray<string>
+          }
           readonly finish?: "stop" | "length" | "tool-calls" | "content-filter" | "error" | "unknown"
           readonly rawFinish?: string
           readonly providerState?: { readonly [x: string]: JsonValue }
@@ -3906,7 +3918,7 @@ export type SessionImportInput = {
       readonly revert?: {
         readonly messageID: SessionMessage.ID
         readonly partID?: string
-        readonly snapshot?: string
+        readonly snapshot?: Snapshot.ID
         readonly files?: ReadonlyArray<{
           readonly file: string
           readonly patch: string
@@ -4114,7 +4126,11 @@ export type SessionImportInput = {
                 readonly time: { readonly created: number; readonly ran?: number; readonly completed?: number }
               }
           >
-          readonly snapshot?: { readonly start?: string; readonly end?: string; readonly files?: ReadonlyArray<string> }
+          readonly snapshot?: {
+            readonly start?: Snapshot.ID
+            readonly end?: Snapshot.ID
+            readonly files?: ReadonlyArray<string>
+          }
           readonly finish?: "stop" | "length" | "tool-calls" | "content-filter" | "error" | "unknown"
           readonly rawFinish?: string
           readonly providerState?: { readonly [x: string]: JsonValue }
