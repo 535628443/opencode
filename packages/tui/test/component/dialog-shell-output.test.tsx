@@ -81,7 +81,12 @@ async function setup(width: number, output = "") {
         <TuiAppProvider value={{ name: "test", version: "test", channel: "test" }}>
           <StorageProvider>
             <ConfigProvider config={createTuiResolvedConfig()}>
-              <RouteProvider initialRoute={{ type: "session", sessionID: "ses_fixture" }}>
+              <RouteProvider
+                initialRoute={{
+                  type: "session",
+                  sessionID: Session.ID.make("ses_fixture", { disableChecks: true }),
+                }}
+              >
                 <ClientProvider api={api}>
                   <DataProvider directory={temporary.path}>
                     <ThemeProvider mode={width === 40 ? "light" : "dark"} source={emptyThemeSource}>
@@ -98,7 +103,8 @@ async function setup(width: number, output = "") {
               </RouteProvider>
             </ConfigProvider>
           </StorageProvider>
-        </TuiAppProvider>      </TestTuiContexts>
+        </TuiAppProvider>
+      </TestTuiContexts>
     ),
     { width, height: 30, kittyKeyboard: true },
   )

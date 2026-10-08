@@ -17,6 +17,10 @@ import { EOL, tmpdir } from "node:os"
 import { mkdir, writeFile } from "node:fs/promises"
 import { useRoute, useRouteData } from "../../context/route"
 import { createStore } from "solid-js/store"
+import { SessionID } from "@opencode/schema/session-id"
+import { SessionMessage } from "@opencode/schema/session-message"
+import { Shell } from "@opencode/schema/shell"
+import { Pty } from "@opencode/schema/pty"
 import { useData } from "../../context/data"
 import { SplitBorder } from "../../ui/border"
 import { useTuiTerminalEnvironment } from "../../context/runtime"
@@ -141,7 +145,7 @@ export function Session(props: {
   sidebarVisible: boolean
   onToggleSidebar: () => void
   terminals?: boolean
-  visibleTerminalID?: string
+  visibleTerminalID?: Pty.ID
   onTerminalPicker?: (show: (() => void) | undefined) => void
   width?: number
 }) {
@@ -609,7 +613,7 @@ export function Session(props: {
   const dialog = useDialog()
   const renderer = useRenderer()
   const runPendingAction = createSingleFlight<string>()
-  const mutatePending = async (action: PendingAction, inboxID: string, failureLabel?: string) => {
+  const mutatePending = async (action: PendingAction, inboxID: SessionMessage.ID, failureLabel?: string) => {
     const result = await runPendingAction(inboxID, async () => {
       const request =
         action === "steer"
@@ -1944,7 +1948,10 @@ function SessionNoticeMessageV2(props: { message: SessionMessageInfo }) {
   const metadata = () => (props.message.type === "synthetic" ? props.message.metadata : undefined)
   const source = () => stringValue(metadata()?.source)
   const completion = () => source() === "subagent" || source() === "shell"
-  const childID = () => (source() === "subagent" ? stringValue(metadata()?.childID) : undefined)
+  const childID = () => {
+    const raw = source() === "subagent" ? stringValue(metadata()?.childID) : undefined
+    return raw ? SessionID.make(raw, { disableChecks: true }) : undefined
+  }
   const state = () => stringValue(metadata()?.state)
   const actor = () => (source() === "shell" ? "Shell" : Locale.titlecase(stringValue(metadata()?.agent) ?? "Subagent"))
   const text = () => {
@@ -2401,7 +2408,7 @@ function ToolPart(props: { part: SessionMessageAssistantTool; images?: boolean }
   const content = (
     <Switch>
       <Match when={display() === "shell"}>
-        <Shell {...toolprops} />
+        <ShellTool {...toolprops} />
       </Match>
       <Match when={display() === "glob"}>
         <Glob {...toolprops} />
@@ -2781,7 +2788,7 @@ function BlockTool(props: BlockToolProps) {
 
 const SHELL_DISPLAY_LIMIT = 1024 * 1024
 
-function Shell(props: ToolProps) {
+function ShellTool(props: ToolProps) {
   return (
     <ShellDisplay
       part={props.part}
@@ -2839,7 +2846,7 @@ function ShellDisplay(props: {
     do {
       const response = await client.api.shell
         .output({
-          id,
+          id: Shell.ID.make(id, { disableChecks: true }),
           cursor,
           limit: SHELL_DISPLAY_LIMIT,
           location: location ? { directory: location.directory } : undefined,
@@ -3091,7 +3098,10 @@ function WebSearch(props: ToolProps) {
 function Subagent(props: ToolProps) {
   const { navigate } = useRoute()
   const data = useData()
-  const sessionID = createMemo(() => stringValue(props.metadata.sessionID) ?? stringValue(props.metadata.sessionId))
+  const sessionID = createMemo(() => {
+    const raw = stringValue(props.metadata.sessionID) ?? stringValue(props.metadata.sessionId)
+    return raw ? SessionID.make(raw, { disableChecks: true }) : undefined
+  })
   const description = createMemo(() => stringValue(props.input.description))
   const continuation = createMemo(() => Boolean(stringValue(props.input.sessionID)))
   const model = createMemo(() => subagentModelLabel(stringValue(props.input.model), data.location.model.list()))

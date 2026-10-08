@@ -57,6 +57,7 @@ import { useArgs } from "../../context/args"
 import { Keymap, type KeymapCommand } from "../../context/keymap"
 import { useInteractivity } from "../../context/interactivity"
 import { abbreviateHome } from "../../runtime"
+import { Session } from "@opencode/schema/session"
 import { Slot } from "../../plugin/render"
 import type { SessionInbox } from "@opencode/schema/session-inbox"
 import {
@@ -72,7 +73,7 @@ import { truncateFilePath } from "../../ui/file-path"
 import { PromptMetadataRow } from "./metadata"
 
 export type PromptProps = {
-  sessionID?: string
+  sessionID?: Session.ID
   visible?: boolean
   disabled?: boolean
   muted?: boolean
@@ -1239,37 +1240,39 @@ export function Prompt(props: PromptProps) {
         },
       })
       if (newSessionID !== undefined) created.request.catch(() => args.restoreNewSessionID(newSessionID))
-      sessionID = created.id
-      session = data.session.get(created.id)
+      const createdID = Session.ID.make(created.id, { disableChecks: true })
+      sessionID = createdID
+      session = data.session.get(createdID)
       newSession = {
-        gate: created.request.then(async (info) => {
+        gate: created.request.then(async () => {
           if (terminalEnvironment.variables !== undefined) {
-            await client.api.session.environment({ sessionID: created.id, variables: terminalEnvironment.variables })
+            await client.api.session.environment({ sessionID: createdID, variables: terminalEnvironment.variables })
           }
         }),
         recover: (error) => {
           toast.show({
-            title: data.session.get(created.id) ? "Failed to set up session" : "Creating a session failed",
+            title: data.session.get(createdID) ? "Failed to set up session" : "Creating a session failed",
             message: errorMessage(error),
             variant: "error",
           })
           const active =
-            route.data.type === "session" && route.data.sessionID === created.id ? promptRef.current : undefined
+            route.data.type === "session" && route.data.sessionID === createdID ? promptRef.current : undefined
           const current = active?.current
           const draft = current?.text
             ? { prompt: { ...unwrap(current) }, cursor: current.text.length }
-            : (takeDraft(created.id) ?? { prompt: entry, cursor: entry.text.length })
+            : (takeDraft(createdID) ?? { prompt: entry, cursor: entry.text.length })
           saveDraft(undefined, draft)
           active?.reset()
           if (sessionTabs.enabled()) {
-            sessionTabs.close(created.id)
-          } else if (route.data.type === "session" && route.data.sessionID === created.id) {
+            sessionTabs.close(createdID)
+          } else if (route.data.type === "session" && route.data.sessionID === createdID) {
             route.navigate({ type: "home" })
           }
         },
       }
     }
 
+    if (!sessionID) return false
     const target = sessionID
     const prepareAgent = async () => {
       if (!session) {
@@ -1382,12 +1385,12 @@ export function Prompt(props: PromptProps) {
       if (!disposed && !input.isDestroyed && store.prompt.text) {
         // Copy before clearing: unwrap returns the live store target, and the
         // resetComposer store write merges into that same object.
-        saveDraft(sessionID, { prompt: { ...unwrap(store.prompt) }, cursor: input.cursorOffset })
+        saveDraft(target, { prompt: { ...unwrap(store.prompt) }, cursor: input.cursorOffset })
         resetComposer()
       }
       route.navigate({
         type: "session",
-        sessionID,
+        sessionID: target,
       })
     }
     if (finishMoveProgress) move.finishSubmit()

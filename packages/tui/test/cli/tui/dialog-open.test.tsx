@@ -965,7 +965,10 @@ test("surfaces sessions awaiting permissions or questions at the top with attent
 
     fixture.app.mockInput.pressEnter()
     await fixture.app.waitFor(() => fixture.route.data.type === "session")
-    expect(fixture.route.data).toEqual({ type: "session", sessionID: "ses_parent_question" })
+    expect(fixture.route.data).toEqual({
+      type: "session",
+      sessionID: Session.ID.make("ses_parent_question", { disableChecks: true }),
+    })
     expect(fixture.location.ref).toEqual(remote)
   } finally {
     await fixture.dispose()

@@ -32,6 +32,7 @@ import { useSessionTabs } from "../context/session-tabs"
 import { useOptionalPanel } from "../context/panel"
 import { useLocal } from "../context/local"
 import { abbreviateHome } from "../util/path-format"
+import { Session } from "@opencode/schema/session"
 
 export type Dispose = () => Promise<void>
 
@@ -126,7 +127,11 @@ export function createPluginContext(input: {
       host.toast.show({
         ...toast,
         title: toast.title ?? host.data.session.get(sessionID)?.title,
-        action: { label: "Open", run: () => host.route.navigate({ type: "session", sessionID }) },
+        action: {
+          label: "Open",
+          run: () =>
+            host.route.navigate({ type: "session", sessionID: Session.ID.make(sessionID, { disableChecks: true }) }),
+        },
       })
     },
   }
@@ -219,6 +224,13 @@ export function createPluginContext(input: {
         navigate(destination) {
           if (destination.type === "plugin") {
             host.route.navigate({ ...destination, id: "id" in destination ? destination.id : input.id })
+            return
+          }
+          if (destination.type === "session") {
+            host.route.navigate({
+              ...destination,
+              sessionID: Session.ID.make(destination.sessionID, { disableChecks: true }),
+            })
             return
           }
           host.route.navigate(destination)

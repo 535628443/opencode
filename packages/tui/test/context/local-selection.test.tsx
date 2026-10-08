@@ -22,7 +22,7 @@ test("cycles all recent models in a stable order in both directions", async () =
     setup.local.model.cycle(1)
     expect<unknown>(setup.local.model.current()?.modelID).toBe(Model.ID.make(id, { disableChecks: true }))
   }
-  for (const id of [\"third\", \"second\", \"first\"]) {
+  for (const id of ["third", "second", "first"]) {
     setup.local.model.cycle(-1)
     expect<unknown>(setup.local.model.current()?.modelID).toBe(Model.ID.make(id, { disableChecks: true }))
   }
@@ -112,7 +112,7 @@ test("switching agents restores their model and variant within the session", asy
     modelID: "first",
     variant: Model.VariantID.make("low", { disableChecks: true }),
   })
-  setup.local.agent.set("plan")
+  setup.local.agent.set(Agent.ID.make("plan", { disableChecks: true }))
   expect<unknown>(setup.local.model.selection()).toEqual({
     providerID: "provider",
     modelID: "third",
@@ -152,17 +152,18 @@ test("agent and model drafts are isolated across sessions and survive navigation
     setup.data.session.sync(Session.ID.make("ses_second", { disableChecks: true })),
   ])
   setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_first", { disableChecks: true }) })
-  setup.local.agent.set("plan")
+  setup.local.agent.set(Agent.ID.make("plan", { disableChecks: true }))
   setup.local.model.variant.set("low")
-  setup.route.navigate({ type: "session", sessionID: "ses_second" })
-  expect(setup.local.agent.current()?.id).toBe("plan")
-  expect<unknown>(setup.local.model.variant.current()).toBe("high")
-  setup.route.navigate({ type: "session", sessionID: "ses_first" })
-  expect(setup.local.agent.current()?.id).toBe("plan")
-  expect<unknown>(setup.local.model.variant.current()).toBe("low")  setup.local.agent.set("build")
+  setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_second", { disableChecks: true }) })
+  expect<unknown>(setup.local.agent.current()?.id).toBe("plan")
+  expect<unknown>(setup.local.model.variant.current()).toBe(Model.VariantID.make("high", { disableChecks: true }))
+  setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_first", { disableChecks: true }) })
+  expect<unknown>(setup.local.agent.current()?.id).toBe("plan")
+  expect<unknown>(setup.local.model.variant.current()).toBe(Model.VariantID.make("low", { disableChecks: true }))
+  setup.local.agent.set(Agent.ID.make("build", { disableChecks: true }))
   expect<unknown>(setup.local.model.selection()).toEqual({
-    providerID: "provider",
-    modelID: "first",
+    providerID: Provider.ID.make("provider", { disableChecks: true }),
+    modelID: Model.ID.make("first", { disableChecks: true }),
     variant: Model.VariantID.make("low", { disableChecks: true }),
   })
 })
@@ -209,7 +210,7 @@ test("a manual agent switch supersedes the CLI agent after its commit", async ()
   })
   await setup.data.session.sync(Session.ID.make("ses_first", { disableChecks: true }))
   setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_first", { disableChecks: true }) })
-  setup.local.agent.set("plan")
+  setup.local.agent.set(Agent.ID.make("plan", { disableChecks: true }))
   await publishSelection(setup, "plan", "first")
   expect<unknown>(setup.local.agent.current()?.id).toBe("plan")
   setup.route.navigate({ type: "home" })
@@ -237,7 +238,7 @@ test("a late inactive-agent acknowledgment preserves its choice after the active
   })
   await setup.data.session.sync(Session.ID.make("ses_first", { disableChecks: true }))
   setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_first", { disableChecks: true }) })
-  setup.local.agent.set("plan")
+  setup.local.agent.set(Agent.ID.make("plan", { disableChecks: true }))
   setup.local.model.set({
     providerID: Provider.ID.make("provider", { disableChecks: true }),
     modelID: Model.ID.make("third", { disableChecks: true }),
@@ -250,7 +251,7 @@ test("a late inactive-agent acknowledgment preserves its choice after the active
     },
     Agent.ID.make("plan", { disableChecks: true }),
   )
-  setup.local.agent.set("build")
+  setup.local.agent.set(Agent.ID.make("build", { disableChecks: true }))
   await publishSelection(setup, "plan", "third")
   setup.local.model.trackSessionCommit(
     Session.ID.make("ses_first", { disableChecks: true }),
@@ -261,7 +262,7 @@ test("a late inactive-agent acknowledgment preserves its choice after the active
     Agent.ID.make("build", { disableChecks: true }),
   )
   await publishSelection(setup, "build", "first")
-  setup.local.agent.set("plan")
+  setup.local.agent.set(Agent.ID.make("plan", { disableChecks: true }))
   expect<unknown>(setup.local.model.current()?.modelID).toBe("third")
 })
 
@@ -279,7 +280,7 @@ test("same-model agent switches clear drafts without a model acknowledgment", as
   })
   await setup.data.session.sync(Session.ID.make("ses_first", { disableChecks: true }))
   setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_first", { disableChecks: true }) })
-  setup.local.agent.set("plan")
+  setup.local.agent.set(Agent.ID.make("plan", { disableChecks: true }))
   setup.local.model.trackSessionCommit(
     Session.ID.make("ses_first", { disableChecks: true }),
     {

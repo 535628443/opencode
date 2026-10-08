@@ -85,10 +85,10 @@ async function renderComposer(
     dispatch = Keymap.use().dispatch
     onMount(() => {
       void Promise.all([
-        data.session.sync(Session.ID.make(\"parent\", { disableChecks: true })),
-        data.session.sync(Session.ID.make(\"child-a\", { disableChecks: true })),
-        data.session.sync(Session.ID.make(\"child-b\", { disableChecks: true })),
-        data.session.sync(Session.ID.make(\"child-c\", { disableChecks: true })),
+        data.session.sync(Session.ID.make("parent", { disableChecks: true })),
+        data.session.sync(Session.ID.make("child-a", { disableChecks: true })),
+        data.session.sync(Session.ID.make("child-b", { disableChecks: true })),
+        data.session.sync(Session.ID.make("child-c", { disableChecks: true })),
         data.shell.sync(),
       ])
         .then(() => wait(() => data.session.status(Session.ID.make("child-a", { disableChecks: true })) === "running"))
@@ -98,7 +98,7 @@ async function renderComposer(
       <>
         {focusedTextarea && <textarea focused={true} initialValue="draft" />}
         {/* Mirrors the app, which keys the session route by sessionID and remounts it on navigation. */}
-        <Show when={route.data.type === \"session\" ? route.data.sessionID : undefined} keyed>
+        <Show when={route.data.type === "session" ? route.data.sessionID : undefined} keyed>
           {(sessionID) => (
             <Composer sessionID={sessionID} open={true} defaultTab={defaultTab} onClose={() => closed++} />
           )}
@@ -126,7 +126,12 @@ async function renderComposer(
                 <ClientProvider api={createApi(calls.fetch)}>
                   <DataProvider directory={process.cwd()}>
                     <LocationProvider>
-                      <RouteProvider initialRoute={{ type: "session", sessionID: "parent" }}>
+                      <RouteProvider
+                        initialRoute={{
+                          type: "session",
+                          sessionID: Session.ID.make("parent", { disableChecks: true }),
+                        }}
+                      >
                         <ThemeProvider mode="dark" source={{ discover: async () => ({}) }}>
                           <ToastProvider>
                             <DialogProvider>
@@ -142,7 +147,8 @@ async function renderComposer(
               </Keymap.Provider>
             </ConfigProvider>
           </StorageProvider>
-        </TuiAppProvider>      </TestTuiContexts>
+        </TuiAppProvider>
+      </TestTuiContexts>
     ),
     { width: 100, height: 20, kittyKeyboard: true },
   )

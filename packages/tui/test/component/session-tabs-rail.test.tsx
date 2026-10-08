@@ -98,7 +98,11 @@ test("compact rail renders and controls session tabs", async () => {
     await app.mockMouse.click(2, 1)
     expect(searches()).toBe(1)
     await app.mockMouse.drag(2, 3, 2, 7)
-    expect(items().map((tab) => tab.sessionID)).toEqual(["second", "third", "first"])
+    expect(items().map((tab) => tab.sessionID)).toEqual([
+      Session.ID.make("second", { disableChecks: true }),
+      Session.ID.make("third", { disableChecks: true }),
+      Session.ID.make("first", { disableChecks: true }),
+    ])
 
     setItems(
       Array.from({ length: 40 }, (_, index) => ({

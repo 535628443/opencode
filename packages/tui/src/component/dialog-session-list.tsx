@@ -1,6 +1,7 @@
 import { createMemo, createResource, createSignal, onMount, Show, type JSX } from "solid-js"
 import path from "path"
 import type { SessionInfo } from "@opencode/client"
+import { Session } from "@opencode/schema/session"
 import { Project } from "@opencode/schema/project"
 import { TextAttributes, type RGBA } from "@opentui/core"
 import { useDialog } from "../ui/dialog"
@@ -260,7 +261,7 @@ export function DialogSessionList() {
               return
             }
             void client.api.session
-              .remove({ sessionID: option.value })
+              .remove({ sessionID: Session.ID.make(option.value, { disableChecks: true }) })
               .then(() => {
                 setSearchResults((result) =>
                   result
@@ -282,7 +283,7 @@ export function DialogSessionList() {
           command: "session.rename",
           title: "rename",
           onTrigger: (option: { value: string; title: string }) =>
-            DialogSessionRename.show(dialog, option.value, option.title),
+            DialogSessionRename.show(dialog, Session.ID.make(option.value, { disableChecks: true }), option.title),
         },
       ]}
       footerHints={[

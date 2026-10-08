@@ -52,12 +52,16 @@ describe("session tabs", () => {
       "c",
       "a",
     ])
-    expect(moveSessionTab(tabs, Session.ID.make("c", { disableChecks: true }), -5).map((tab) => tab.sessionID)).toEqual(
-      ["c", "a", "b"],
-    )
-    expect(moveSessionTab(tabs, Session.ID.make("b", { disableChecks: true }), 99).map((tab) => tab.sessionID)).toEqual(
-      ["a", "c", "b"],
-    )
+    expect(moveSessionTab(tabs, Session.ID.make("c", { disableChecks: true }), -5).map((tab) => tab.sessionID)).toEqual([
+      Session.ID.make("c", { disableChecks: true }),
+      Session.ID.make("a", { disableChecks: true }),
+      Session.ID.make("b", { disableChecks: true }),
+    ])
+    expect(moveSessionTab(tabs, Session.ID.make("b", { disableChecks: true }), 99).map((tab) => tab.sessionID)).toEqual([
+      Session.ID.make("a", { disableChecks: true }),
+      Session.ID.make("c", { disableChecks: true }),
+      Session.ID.make("b", { disableChecks: true }),
+    ])
     expect(moveSessionTab(tabs, Session.ID.make("b", { disableChecks: true }), 1)).toBe(tabs)
     expect(moveSessionTab(tabs, Session.ID.make("missing", { disableChecks: true }), 0)).toBe(tabs)
   })
@@ -126,8 +130,11 @@ describe("session tabs", () => {
         Session.ID.make("b", { disableChecks: true }),
       ),
     ).toEqual({
-      tabs: [{ sessionID: "a" }, { sessionID: "c" }],
-      next: "c",
+      tabs: [
+        { sessionID: Session.ID.make("a", { disableChecks: true }) },
+        { sessionID: Session.ID.make("c", { disableChecks: true }) },
+      ],
+      next: Session.ID.make("c", { disableChecks: true }),
     })
     expect<unknown>(
       closeSessionTab(
@@ -158,10 +165,10 @@ describe("session tabs", () => {
     const tabs = ["a", "c", "e"].map((sessionID) => ({
       sessionID: Session.ID.make(sessionID, { disableChecks: true }),
     }))
-    expect<unknown>(cycleSessionTab(tabs, "c", 1)?.sessionID).toBe("e")
-    expect<unknown>(cycleSessionTab(tabs, "c", -1)?.sessionID).toBe("a")
-    expect<unknown>(cycleSessionTab(tabs, "e", 1)?.sessionID).toBe("a")
-    expect<unknown>(cycleSessionTab(tabs, "b", 1)?.sessionID).toBe("a")
+    expect<unknown>(cycleSessionTab(tabs, Session.ID.make("c", { disableChecks: true }), 1)?.sessionID).toBe("e")
+    expect<unknown>(cycleSessionTab(tabs, Session.ID.make("c", { disableChecks: true }), -1)?.sessionID).toBe("a")
+    expect<unknown>(cycleSessionTab(tabs, Session.ID.make("e", { disableChecks: true }), 1)?.sessionID).toBe("a")
+    expect<unknown>(cycleSessionTab(tabs, Session.ID.make("b", { disableChecks: true }), 1)?.sessionID).toBe("a")
   })
 
   test("cycles to the nearest matching tab from an unmatched active tab", () => {
@@ -171,10 +178,18 @@ describe("session tabs", () => {
     const unread = new Set(["a", "d"])
     const matches = (tab: { sessionID: string }) => unread.has(tab.sessionID)
 
-    expect<unknown>(cycleSessionTab(tabs, "c", 1, matches)?.sessionID).toBe("d")
-    expect<unknown>(cycleSessionTab(tabs, "c", -1, matches)?.sessionID).toBe("a")
-    expect<unknown>(cycleSessionTab(tabs, "e", 1, matches)?.sessionID).toBe("a")
-    expect<unknown>(cycleSessionTab(tabs, "a", -1, matches)?.sessionID).toBe("d")
+    expect<unknown>(cycleSessionTab(tabs, Session.ID.make("c", { disableChecks: true }), 1, matches)?.sessionID).toBe(
+      "d",
+    )
+    expect<unknown>(
+      cycleSessionTab(tabs, Session.ID.make("c", { disableChecks: true }), -1, matches)?.sessionID,
+    ).toBe("a")
+    expect<unknown>(cycleSessionTab(tabs, Session.ID.make("e", { disableChecks: true }), 1, matches)?.sessionID).toBe(
+      "a",
+    )
+    expect<unknown>(
+      cycleSessionTab(tabs, Session.ID.make("a", { disableChecks: true }), -1, matches)?.sessionID,
+    ).toBe("d")
   })
 
   test("moves backward and forward through selection history", () => {
@@ -184,10 +199,10 @@ describe("session tabs", () => {
     const history = ["a", "b", "c", "d"]
       .map((id) => Session.ID.make(id, { disableChecks: true }))
       .reduce(recordSessionTabHistory, { entries: [], index: -1 })
-    const backToC = moveSessionTabHistory(history, tabs, "d", -1)
-    const backToB = moveSessionTabHistory(backToC.history, tabs, "c", -1)
-    const forwardToC = moveSessionTabHistory(backToB.history, tabs, "b", 1)
-    const forwardToD = moveSessionTabHistory(forwardToC.history, tabs, "c", 1)
+    const backToC = moveSessionTabHistory(history, tabs, Session.ID.make("d", { disableChecks: true }), -1)
+    const backToB = moveSessionTabHistory(backToC.history, tabs, Session.ID.make("c", { disableChecks: true }), -1)
+    const forwardToC = moveSessionTabHistory(backToB.history, tabs, Session.ID.make("b", { disableChecks: true }), 1)
+    const forwardToD = moveSessionTabHistory(forwardToC.history, tabs, Session.ID.make("c", { disableChecks: true }), 1)
 
     expect<unknown>([backToC.sessionID, backToB.sessionID, forwardToC.sessionID, forwardToD.sessionID]).toEqual([
       "c",
@@ -204,14 +219,20 @@ describe("session tabs", () => {
     const history = ["a", "b", "c"]
       .map((id) => Session.ID.make(id, { disableChecks: true }))
       .reduce(recordSessionTabHistory, { entries: [], index: -1 })
-    const back = moveSessionTabHistory(history, tabs, "c", -1)
+    const back = moveSessionTabHistory(history, tabs, Session.ID.make("c", { disableChecks: true }), -1)
     const branched = recordSessionTabHistory(back.history, Session.ID.make("d", { disableChecks: true }))
 
     expect(branched).toEqual({
-      entries: ["a", "b", "d"],
+      entries: [
+        Session.ID.make("a", { disableChecks: true }),
+        Session.ID.make("b", { disableChecks: true }),
+        Session.ID.make("d", { disableChecks: true }),
+      ],
       index: 2,
     })
-    expect(moveSessionTabHistory(branched, tabs, "d", 1).sessionID).toBeUndefined()
+    expect(
+      moveSessionTabHistory(branched, tabs, Session.ID.make("d", { disableChecks: true }), 1).sessionID,
+    ).toBeUndefined()
   })
 
   test("skips closed tabs and duplicate entries for the active tab", () => {
@@ -220,7 +241,9 @@ describe("session tabs", () => {
       .map((id) => Session.ID.make(id, { disableChecks: true }))
       .reduce(recordSessionTabHistory, { entries: [], index: -1 })
 
-    expect<unknown>(moveSessionTabHistory(history, tabs, "b", -1).sessionID).toBe("a")
+    expect<unknown>(
+      moveSessionTabHistory(history, tabs, Session.ID.make("b", { disableChecks: true }), -1).sessionID,
+    ).toBe("a")
     expect(recordSessionTabHistory(history, Session.ID.make("b", { disableChecks: true }))).toBe(history)
   })
 
@@ -254,7 +277,9 @@ describe("session tabs", () => {
     const closed = closeSessionTab(tabs, Session.ID.make("b", { disableChecks: true }))
     const current = recordSessionTabHistory(history, Session.ID.make("b", { disableChecks: true }))
 
-    expect(moveSessionTabHistory(current, closed.tabs, "b", -1).sessionID).toBe("c")
+    expect<unknown>(
+      moveSessionTabHistory(current, closed.tabs, Session.ID.make("b", { disableChecks: true }), -1).sessionID,
+    ).toBe("c")
   })
 
   test("reopens the most recently closed tab at its original position", () => {
@@ -272,7 +297,11 @@ describe("session tabs", () => {
     ])
 
     expect<unknown>(reopened.sessionID).toBe("b")
-    expect(reopened.tabs).toEqual([{ sessionID: "a" }, { sessionID: "b", title: "Middle" }, { sessionID: "c" }])
+    expect(reopened.tabs).toEqual([
+      { sessionID: Session.ID.make("a", { disableChecks: true }) },
+      { sessionID: Session.ID.make("b", { disableChecks: true }), title: "Middle" },
+      { sessionID: Session.ID.make("c", { disableChecks: true }) },
+    ])
     expect(reopened.stack).toEqual([])
     expect(reopenSessionTab([], tabs)).toEqual({ stack: [], tabs: undefined, sessionID: undefined })
   })
@@ -289,7 +318,10 @@ describe("session tabs", () => {
       Session.ID.make("b", { disableChecks: true }),
     )
     expect<unknown>(result.sessionID).toBe("b")
-    expect(result.tabs).toEqual([{ sessionID: "a" }, { sessionID: "b" }])
+    expect(result.tabs).toEqual([
+      { sessionID: Session.ID.make("a", { disableChecks: true }) },
+      { sessionID: Session.ID.make("b", { disableChecks: true }) },
+    ])
     expect<unknown>(result.stack).toEqual([{ tab: { sessionID: "c" }, index: 2 }])
     expect(reopenSessionTab(stack, [], Session.ID.make("missing", { disableChecks: true }))).toEqual({
       stack,
@@ -317,7 +349,10 @@ describe("session tabs", () => {
     const reopened = reopenSessionTab(stack, [{ sessionID: Session.ID.make("b", { disableChecks: true }) }])
 
     expect<unknown>(reopened.sessionID).toBe("a")
-    expect(reopened.tabs).toEqual([{ sessionID: "a" }, { sessionID: "b" }])
+    expect(reopened.tabs).toEqual([
+      { sessionID: Session.ID.make("a", { disableChecks: true }) },
+      { sessionID: Session.ID.make("b", { disableChecks: true }) },
+    ])
     expect(reopened.stack).toEqual([])
   })
 
@@ -330,7 +365,10 @@ describe("session tabs", () => {
     expect<unknown>(twice).toEqual([{ tab: { sessionID: "a" }, index: 2 }])
 
     const reopened = reopenSessionTab(twice, [{ sessionID: Session.ID.make("b", { disableChecks: true }) }])
-    expect(reopened.tabs).toEqual([{ sessionID: "b" }, { sessionID: "a" }])
+    expect(reopened.tabs).toEqual([
+      { sessionID: Session.ID.make("b", { disableChecks: true }) },
+      { sessionID: Session.ID.make("a", { disableChecks: true }) },
+    ])
 
     const overflow = Array.from({ length: 27 }, (_, index) => ({
       sessionID: Session.ID.make(String(index), { disableChecks: true }),
@@ -350,7 +388,7 @@ describe("session tabs", () => {
     const tabs = ["a", "b", "c", "d", "e", "f", "g"].map((sessionID) => ({
       sessionID: Session.ID.make(sessionID, { disableChecks: true }),
     }))
-    const layout = adaptiveSessionTabLayout(tabs, "d", 76)
+    const layout = adaptiveSessionTabLayout(tabs, Session.ID.make("d", { disableChecks: true }), 76)
 
     expect(layout).toMatchObject({ before: 0, after: 0, start: 0, total: 76 })
     expect(layout.widths).toEqual([9, 9, 9, 22, 9, 9, 9])
@@ -361,7 +399,7 @@ describe("session tabs", () => {
     const tabs = ["a", "b", "c", "d", "new"].map((sessionID) => ({
       sessionID: Session.ID.make(sessionID, { disableChecks: true }),
     }))
-    const layout = adaptiveSessionTabLayout(tabs, "new", 54)
+    const layout = adaptiveSessionTabLayout(tabs, Session.ID.make("new", { disableChecks: true }), 54)
 
     expect(layout.tabs).toEqual(tabs)
     expect(layout.widths).toEqual([8, 8, 8, 8, 22])
@@ -372,7 +410,7 @@ describe("session tabs", () => {
     const tabs = Array.from({ length: 10 }, (_, index) => ({
       sessionID: Session.ID.make(String(index), { disableChecks: true }),
     }))
-    const selected = adaptiveSessionTabLayout(tabs, "7", 70)
+    const selected = adaptiveSessionTabLayout(tabs, Session.ID.make("7", { disableChecks: true }), 70)
     const home = adaptiveSessionTabLayout(tabs, undefined, 70, selected.start)
 
     expect(selected.start).toBeGreaterThan(0)
@@ -383,8 +421,13 @@ describe("session tabs", () => {
     const tabs = ["a", "b", "c", "d", "e", "f", "g"].map((sessionID) => ({
       sessionID: Session.ID.make(sessionID, { disableChecks: true }),
     }))
-    const before = adaptiveSessionTabLayout(tabs, "c", 76)
-    const after = adaptiveSessionTabLayout(tabs, "d", 76, before.start)
+    const before = adaptiveSessionTabLayout(tabs, Session.ID.make("c", { disableChecks: true }), 76)
+    const after = adaptiveSessionTabLayout(
+      tabs,
+      Session.ID.make("d", { disableChecks: true }),
+      76,
+      before.start,
+    )
 
     expect(before.start).toBe(after.start)
     expect(before.widths).toEqual([9, 9, 22, 9, 9, 9, 9])
@@ -395,8 +438,13 @@ describe("session tabs", () => {
     const tabs = ["a", "b", "c"].map((sessionID) => ({
       sessionID: Session.ID.make(sessionID, { disableChecks: true }),
     }))
-    const before = adaptiveSessionTabLayout(tabs, "a", 100)
-    const after = adaptiveSessionTabLayout(tabs, "c", 100, before.start)
+    const before = adaptiveSessionTabLayout(tabs, Session.ID.make("a", { disableChecks: true }), 100)
+    const after = adaptiveSessionTabLayout(
+      tabs,
+      Session.ID.make("c", { disableChecks: true }),
+      100,
+      before.start,
+    )
 
     expect(before.widths).toEqual([32, 32, 32])
     expect(after.widths).toEqual(before.widths)
@@ -404,7 +452,11 @@ describe("session tabs", () => {
   })
 
   test("caps a single tab instead of stretching it across the terminal", () => {
-    const layout = adaptiveSessionTabLayout([{ sessionID: Session.ID.make("a", { disableChecks: true }) }], "a", 100)
+    const layout = adaptiveSessionTabLayout(
+      [{ sessionID: Session.ID.make("a", { disableChecks: true }) }],
+      Session.ID.make("a", { disableChecks: true }),
+      100,
+    )
 
     expect(layout.widths).toEqual([32])
     expect(layout.total).toBe(32)
@@ -415,15 +467,22 @@ describe("session tabs", () => {
       sessionID: Session.ID.make(sessionID, { disableChecks: true }),
     }))
 
-    expect(adaptiveSessionTabLayout(tabs, "b", 100).widths).toEqual([25, 25, 25, 25])
+    expect(adaptiveSessionTabLayout(tabs, Session.ID.make("b", { disableChecks: true }), 100).widths).toEqual([
+      25, 25, 25, 25,
+    ])
   })
 
   test("expands only the active tab under compact pressure", () => {
     const tabs = ["a", "b", "c", "d", "e"].map((sessionID) => ({
       sessionID: Session.ID.make(sessionID, { disableChecks: true }),
     }))
-    const before = adaptiveSessionTabLayout(tabs, "c", 100)
-    const after = adaptiveSessionTabLayout(tabs, "d", 100, before.start)
+    const before = adaptiveSessionTabLayout(tabs, Session.ID.make("c", { disableChecks: true }), 100)
+    const after = adaptiveSessionTabLayout(
+      tabs,
+      Session.ID.make("d", { disableChecks: true }),
+      100,
+      before.start,
+    )
 
     expect(before.widths).toEqual([19, 19, 24, 19, 19])
     expect(after.widths).toEqual([19, 19, 19, 24, 19])
@@ -433,9 +492,19 @@ describe("session tabs", () => {
     const tabs = Array.from({ length: 10 }, (_, index) => ({
       sessionID: Session.ID.make(String(index), { disableChecks: true }),
     }))
-    const initial = adaptiveSessionTabLayout(tabs, "3", 70)
-    const inside = adaptiveSessionTabLayout(tabs, "4", 70, initial.start)
-    const crossed = adaptiveSessionTabLayout(tabs, "7", 70, inside.start)
+    const initial = adaptiveSessionTabLayout(tabs, Session.ID.make("3", { disableChecks: true }), 70)
+    const inside = adaptiveSessionTabLayout(
+      tabs,
+      Session.ID.make("4", { disableChecks: true }),
+      70,
+      initial.start,
+    )
+    const crossed = adaptiveSessionTabLayout(
+      tabs,
+      Session.ID.make("7", { disableChecks: true }),
+      70,
+      inside.start,
+    )
 
     expect(initial.start).toBe(0)
     expect(inside.start).toBe(0)

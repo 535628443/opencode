@@ -339,7 +339,11 @@ test("keeps each visited session open", async () => {
     setup.route.navigate({ type: "session", sessionID: Session.ID.make("third", { disableChecks: true }) })
     await wait(() => setup.tabs.tabs().some((tab) => tab.sessionID === "third"))
 
-    expect(setup.tabs.tabs().map((tab) => tab.sessionID)).toEqual(["first", "second", "third"])
+    expect(setup.tabs.tabs().map((tab) => tab.sessionID)).toEqual([
+      Session.ID.make("first", { disableChecks: true }),
+      Session.ID.make("second", { disableChecks: true }),
+      Session.ID.make("third", { disableChecks: true }),
+    ])
   } finally {
     await setup.destroy()
   }
@@ -353,11 +357,16 @@ test("lists closed tabs newest first and reopens a selected entry", async () => 
     await wait(() => setup.tabs.tabs().length === 2)
     setup.tabs.close(Session.ID.make("third", { disableChecks: true }))
     await wait(() => setup.tabs.tabs().length === 1)
-    expect(setup.tabs.recentlyClosed().map((tab) => tab.sessionID)).toEqual(["third", "second"])
+    expect(setup.tabs.recentlyClosed().map((tab) => tab.sessionID)).toEqual([
+      Session.ID.make("third", { disableChecks: true }),
+      Session.ID.make("second", { disableChecks: true }),
+    ])
     setup.tabs.reopen(Session.ID.make("second", { disableChecks: true }))
     await wait(() => setup.tabs.tabs().some((tab) => tab.sessionID === "second"))
     expect<unknown>(setup.tabs.current()).toBe("second")
-    expect(setup.tabs.recentlyClosed().map((tab) => tab.sessionID)).toEqual(["third"])
+    expect(setup.tabs.recentlyClosed().map((tab) => tab.sessionID)).toEqual([
+      Session.ID.make("third", { disableChecks: true }),
+    ])
     setup.tabs.reopen()
     await wait(() => setup.tabs.tabs().length === 3)
     expect<unknown>(setup.tabs.current()).toBe("third")
@@ -847,7 +856,10 @@ test("tracks a temporary new session tab across close and creation", async () =>
 
     setup.route.navigate({ type: "home" })
     await wait(() => setup.tabs.newTab() && setup.tabs.current() === undefined)
-    expect(setup.tabs.tabs().map((tab) => tab.sessionID)).toEqual(["first", "second"])
+    expect(setup.tabs.tabs().map((tab) => tab.sessionID)).toEqual([
+      Session.ID.make("first", { disableChecks: true }),
+      Session.ID.make("second", { disableChecks: true }),
+    ])
     setup.tabs.close()
     await wait(() => setup.route.data.type === "session")
 

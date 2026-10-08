@@ -9,9 +9,11 @@ import { useConnected } from "./use-connected"
 import { useData } from "../context/data"
 import { modelPreferenceKey } from "../model-preference"
 import { useLocation } from "../context/location"
+import { Provider } from "@opencode/schema/provider"
+import { Model } from "@opencode/schema/model"
 import type { ProviderInfo } from "@opencode/client"
 
-export function DialogModel(props: { providerID?: string }) {
+export function DialogModel(props: { providerID?: Provider.ID }) {
   const local = useLocal()
   const data = useData()
   const dialog = useDialog()
@@ -125,7 +127,7 @@ export function DialogModel(props: { providerID?: string }) {
     return value.name
   })
 
-  function onSelect(providerID: string, modelID: string) {
+  function onSelect(providerID: Provider.ID, modelID: Model.ID) {
     local.model.set({ providerID, modelID }, { recent: true })
     const list = local.model.variant.list()
     const cur = local.model.variant.current()
@@ -151,7 +153,11 @@ export function DialogModel(props: { providerID?: string }) {
           onTrigger() {
             dialog.replace(() => (
               <DialogIntegration
-                onConnected={(providerID) => dialog.replace(() => <DialogModel providerID={providerID} />)}
+                onConnected={(providerID) =>
+                  dialog.replace(() => (
+                    <DialogModel providerID={providerID ? Provider.ID.make(providerID, { disableChecks: true }) : undefined} />
+                  ))
+                }
               />
             ))
           },
@@ -161,7 +167,7 @@ export function DialogModel(props: { providerID?: string }) {
           title: "Favorite",
           hidden: !connected(),
           onTrigger: (option) => {
-            local.model.toggleFavorite(option.value as { providerID: string; modelID: string })
+            local.model.toggleFavorite(option.value)
           },
         },
       ]}
@@ -175,7 +181,7 @@ export function DialogModel(props: { providerID?: string }) {
   )
 }
 
-export function prioritizeFavorites<T extends { value: { providerID: string; modelID: string } }>(
+export function prioritizeFavorites<T extends { value: { providerID: Provider.ID; modelID: Model.ID } }>(
   options: T[],
   favorites: Set<string>,
 ) {
