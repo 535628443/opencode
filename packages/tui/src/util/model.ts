@@ -5,7 +5,7 @@ export function parse(value: string) {
   const [providerID, ...modelID] = value.split("/")
   return {
     providerID: providerID ? Provider.ID.make(providerID, { disableChecks: true }) : undefined,
-    modelID: modelID.length ? Model.ID.make(modelID.join("/"), { disableChecks: true }) : undefined,
+    modelID: Model.ID.make(modelID.join("/"), { disableChecks: true }),
   }
 }
 
