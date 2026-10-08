@@ -71,6 +71,7 @@ export type TimelineProjectionInput = {
   shellToolDefaultOpen?: boolean
   editToolDefaultOpen?: boolean
   timelineDetail?: TimelineDetail
+  pendingInputIDs?: ReadonlySet<SessionMessage.ID>
   pendingUserMessageIDs?: ReadonlySet<SessionMessage.ID>
   queuedCompactionIDs?: readonly SessionMessage.ID[]
   previousRows?: TimelineRow.TimelineRow[]
@@ -84,8 +85,8 @@ export function createTimelineProjection(input: TimelineProjectionInput) {
     input.sessionMessages,
     input.reasoningMode !== "hidden",
     input.status,
-        undefined,
-        (input.shellToolDefaultOpen ?? false) as any,
+    input.pendingInputIDs ?? input.pendingUserMessageIDs,
+    input.shellToolDefaultOpen ?? false,
     input.editToolDefaultOpen ?? false,
     undefined,
     input.timelineDetail,
@@ -99,10 +100,10 @@ export function createTimelineProjection(input: TimelineProjectionInput) {
   const lastAssistantGroupKey = new Map<SessionMessage.ID, string>()
 
   rows.forEach((row, index) => {
-    if (!messageRowIndex.has(row.userMessageID as any)) messageRowIndex.set(row.userMessageID as any, index)
-    messageLastRowIndex.set(row.userMessageID as any, index)
+    if (!messageRowIndex.has(row.userMessageID)) messageRowIndex.set(row.userMessageID, index)
+    messageLastRowIndex.set(row.userMessageID, index)
 
-    if (Predicate.isTagged(row, "AssistantPart")) lastAssistantGroupKey.set(row.userMessageID as any, row.group.key)
+    if (Predicate.isTagged(row, "AssistantPart")) lastAssistantGroupKey.set(row.userMessageID, row.group.key)
   })
 
   return {
@@ -126,6 +127,7 @@ export function createReactiveTimelineProjection(input: {
   shellToolDefaultOpen?: Accessor<boolean>
   editToolDefaultOpen?: Accessor<boolean>
   timelineDetail?: Accessor<TimelineDetail>
+  pendingInputIDs?: Accessor<ReadonlySet<SessionMessage.ID>>
   pendingUserMessageIDs?: Accessor<ReadonlySet<SessionMessage.ID>>
   queuedCompactionIDs?: Accessor<readonly SessionMessage.ID[]>
 }) {
@@ -158,8 +160,8 @@ export function createReactiveTimelineProjection(input: {
       input.sessionMessages(),
       input.reasoningMode() !== "hidden",
       input.status(),
-            undefined,
-            (input.shellToolDefaultOpen?.() ?? false) as any,
+      input.pendingInputIDs?.() ?? input.pendingUserMessageIDs?.(),
+      input.shellToolDefaultOpen?.() ?? false,
       input.editToolDefaultOpen?.() ?? false,
       (content: any, showReasoning: any, detail: any) =>
         content.type === "tool"
@@ -199,7 +201,7 @@ export function createReactiveTimelineProjection(input: {
   const lastAssistantGroupKey = createMemo(() => {
     const result = new Map<SessionMessage.ID, string>()
     rows().forEach((row) => {
-      if (Predicate.isTagged(row, "AssistantPart")) result.set(row.userMessageID as any, row.group.key)
+      if (Predicate.isTagged(row, "AssistantPart")) result.set(row.userMessageID, row.group.key)
     })
 
     return result
@@ -224,12 +226,12 @@ export namespace Timeline {
     messages: SessionMessageInfo[],
     showReasoning: boolean,
     status: SessionStatus,
-    pendingUserMessageIDs?: ReadonlySet<SessionMessage.ID>,
+    pendingInputIDs?: ReadonlySet<SessionMessage.ID>,
     shellToolDefaultOpen = false,
     editToolDefaultOpen = false,
     isRenderable = renderable,
     detail?: TimelineDetail,
-    queuedCompactionIDs: readonly string[] = [],
+    queuedCompactionIDs: readonly SessionMessage.ID[] = [],
   ) {
     type Turn = {
       id: SessionMessage.ID
@@ -292,7 +294,8 @@ export namespace Timeline {
       current = turn
     })
 
-    const activeMessageID = turns.at(-1)?.id
+    const activeMessageID =
+      turns.findLast((turn) => !pendingInputIDs?.has(turn.id))?.id ?? turns.at(-1)?.id
 
     const visibleNotice = (message: Notice) =>
       !detail || detail.notices.placement !== "hidden" || timelineNoticeRequired(message)
@@ -353,7 +356,8 @@ export namespace Timeline {
     // steers, which own turns, and synthetic notices, which ride at the end of the active one.
     const pendingAt = rows.findIndex(
       (row) =>
-                false,
+        pendingInputIDs?.has(row.userMessageID) ||
+        (Predicate.isTagged(row, "Notice") && pendingInputIDs?.has(row.messageID)),
     )
 
     rows.splice(

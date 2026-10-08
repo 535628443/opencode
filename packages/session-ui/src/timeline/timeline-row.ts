@@ -69,8 +69,8 @@ export namespace TimelineRow {
 
   /** A compaction the server has admitted but not started. */
   export class CompactionQueued extends Data.TaggedClass("CompactionQueued")<{
-    userMessageID: string
-    inboxID: string
+    userMessageID: SessionMessage.ID
+    inboxID: SessionMessage.ID
   }> {}
 
   export type TimelineRow =
