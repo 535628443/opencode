@@ -253,7 +253,12 @@ describe("current session timeline rows", () => {
       },
     ] satisfies SessionMessageInfo[]
 
-    const result = Timeline.constructSessionMessageRows(source, true, { type: "busy" }, new Set(["msg_queued"]))
+    const result = Timeline.constructSessionMessageRows(
+      source,
+      true,
+      { type: "busy" },
+      new Set([SessionMessage.ID.make("msg_queued", { disableChecks: true })]),
+    )
 
     expect<unknown>(result.activeMessageID).toBe("msg_active")
     expect(result.rows.map(TimelineRow.key)).toEqual([
@@ -483,15 +488,23 @@ describe("current session timeline rows", () => {
     const document = storyDocument([{ type: "text", text: "Working" }], true)
 
     const result = Timeline.constructSessionMessageRows(
-      [...document.messages, { type: "user", id: "queued", text: "Next task", time: { created: 10 } }],
+      [
+        ...document.messages,
+        {
+          type: "user",
+          id: SessionMessage.ID.make("queued", { disableChecks: true }),
+          text: "Next task",
+          time: { created: 10 },
+        },
+      ],
       true,
       document.status,
-      new Set(["queued"]),
+      new Set([SessionMessage.ID.make("queued", { disableChecks: true })]),
       false,
       false,
       undefined,
       undefined,
-      ["inb_compact"],
+      [SessionMessage.ID.make("inb_compact", { disableChecks: true })],
     )
 
     expect(result.rows.map((row) => row._tag)).toEqual([
@@ -508,7 +521,7 @@ describe("current session timeline rows", () => {
     const document = storyDocument([{ type: "text", text: "Working" }], true)
 
     const notice = {
-      id: "notice",
+      id: SessionMessage.ID.make("notice", { disableChecks: true }),
       type: "synthetic",
       text: "done",
       description: "Background work completed",
@@ -519,12 +532,12 @@ describe("current session timeline rows", () => {
       [...document.messages, notice],
       true,
       document.status,
-      new Set(["notice"]),
+      new Set([notice.id]),
       false,
       false,
       undefined,
       undefined,
-      ["inb_compact"],
+      [SessionMessage.ID.make("inb_compact", { disableChecks: true })],
     )
 
     expect(result.rows.map((row) => row._tag)).toEqual(["UserMessage", "AssistantPart", "CompactionQueued", "Notice"])
@@ -534,7 +547,7 @@ describe("current session timeline rows", () => {
     const document = storyDocument([{ type: "reasoning", text: "Active thought" }], true)
 
     const notice = {
-      id: "notice",
+      id: SessionMessage.ID.make("notice", { disableChecks: true }),
       type: "synthetic",
       text: "done",
       description: "Background work completed",
