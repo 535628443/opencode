@@ -57,6 +57,7 @@ import { useDialog } from "../../ui/dialog"
 import { DialogSelect } from "../../ui/dialog-select"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { DialogImagePreview } from "../../component/dialog-image-preview"
+import { statusLabel } from "../../component/dialog-workspace-file-changes"
 import { DialogMessage } from "./dialog-message"
 import { DialogFork } from "./dialog-fork"
 import { DialogTimeline } from "./dialog-timeline"
@@ -964,14 +965,6 @@ export function Session(props: {
           .catch((error) => toast.show({ message: errorMessage(error), variant: "error" }))
         dialog.clear()
       },
-    },
-    {
-      title: "Unshare session",
-      id: "session.unshare",
-      group: "Session",
-      enabled: false,
-      slash: { name: "unshare" },
-      run: () => unavailable("Unsharing"),
     },
     {
       title: "Undo previous message",
@@ -2088,12 +2081,6 @@ function CompactionQueued() {
   )
 }
 
-function statusLabel(status: "added" | "modified" | "deleted") {
-  if (status === "added") return "A"
-  if (status === "deleted") return "D"
-  return "M"
-}
-
 function RevertMessage(props: {
   count: number
   files: ReadonlyArray<{
@@ -2253,9 +2240,11 @@ function UserMessage(props: { message: SessionMessageUser }) {
               ))
               return
             }
+            // The dialog outlives this row, whose props go stale when a resync drops the message.
+            const messageID = props.message.id
             dialog.replace(() => (
               <DialogMessage
-                messageID={props.message.id}
+                messageID={messageID}
                 sessionID={ctx.sessionID}
                 setPrompt={(value) => promptRef.current?.set(value)}
               />
@@ -2329,6 +2318,7 @@ function QueuedPromptDock(props: { prompts: { id: string; text: string }[]; onOp
 
   return (
     <box
+      marginBottom={1}
       border={["left"]}
       borderColor={theme.border.base}
       customBorderChars={SplitBorder.customBorderChars}
@@ -2612,11 +2602,9 @@ function useToolPermission(part: () => SessionMessageAssistantTool | undefined) 
 
 function InlineTool(props: {
   icon: string
-  iconColor?: RGBA
   color?: RGBA
   complete: unknown
   pending: string
-  failure?: string
   spinner?: boolean
   running?: boolean
   status?: JSX.Element
@@ -2656,7 +2644,6 @@ function InlineTool(props: {
   return (
     <InlineToolRow
       icon={props.icon}
-      iconColor={props.iconColor}
       color={fg()}
       errorColor={theme.text.feedback.error.base}
       failed={failed()}
@@ -2665,7 +2652,6 @@ function InlineTool(props: {
       errorExpanded={errorExpanded()}
       complete={props.complete}
       pending={props.pending}
-      failure={props.failure}
       spinner={props.spinner}
       status={props.status}
       onMouseOver={() => clickable() && setHover(true)}
@@ -3037,6 +3023,10 @@ function Read(props: ToolProps) {
         part={props.part}
       >
         Read {pathFormatter.format(stringValue(props.input.path))}
+        <Show when={props.input.offset !== undefined || props.input.limit !== undefined}>
+          :{finiteNumber(props.input.offset) || 1}-
+          {props.input.limit ? (finiteNumber(props.input.offset) || 1) + (finiteNumber(props.input.limit) || 0) - 1 : ""}
+        </Show>
       </InlineTool>
       <For each={loaded()}>
         {(filepath) => (
@@ -3217,7 +3207,11 @@ function Execute(props: ToolProps) {
   const hasRuntimeError = createMemo(() => props.metadata.error === true || props.part.state.status === "error")
   const outputPreview = createMemo(() => collapseToolOutput(output(), 4, 4 * Math.max(20, ctx.width - 6)).output)
   const showOutput = createMemo(() => output() && hasRuntimeError())
-  const openDetails = () => dialog.replace(() => <DialogExecute part={props.part} />)
+  const openDetails = () => {
+    // The dialog outlives this row, whose props go stale when a resync drops the message.
+    const part = props.part
+    dialog.replace(() => <DialogExecute part={part} />)
+  }
 
   return (
     <>

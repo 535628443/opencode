@@ -1,7 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import { describe, expect } from "bun:test"
-import { Cause, Effect, Exit, Layer, PlatformError } from "effect"
+import { Cause, Effect, Exit, Layer, Option, PlatformError, Stream } from "effect"
 import { ChildProcessSpawner } from "effect/unstable/process"
 import { CrossSpawnSpawner } from "@opencode/util/cross-spawn-spawner"
 import { Environment } from "@opencode/core/environment/index"
@@ -58,13 +58,18 @@ describe("FileSystem", () => {
     withTmp((directory) =>
       Effect.gen(function* () {
         yield* Effect.promise(() => fs.writeFile(path.join(directory, "text.txt"), "hello"))
-        yield* Effect.promise(() => fs.writeFile(path.join(directory, "data.bin"), Buffer.from([0, 1, 2])))
+        yield* Effect.promise(() => fs.writeFile(path.join(directory, "data.bin"), Buffer.from([0, 1, 2, 3, 4])))
         const service = yield* FileSystem.Service
         const text = yield* service.read({ path: RelativePath.make("text.txt") })
         const binary = yield* service.read({ path: RelativePath.make("data.bin") })
-        expect(new TextDecoder().decode(text.content)).toBe("hello")
+        expect(new TextDecoder().decode(yield* Stream.mkUint8Array(text.stream()))).toBe("hello")
         expect(text.mime).toBe("text/plain")
-        expect(binary.content).toEqual(new Uint8Array([0, 1, 2]))
+        expect(text.size).toBe(5)
+        expect(Option.isSome(text.mtime)).toBe(true)
+        expect(yield* Stream.mkUint8Array(binary.stream())).toEqual(new Uint8Array([0, 1, 2, 3, 4]))
+        expect(yield* Stream.mkUint8Array(binary.stream({ offset: 1, bytesToRead: 3 }))).toEqual(
+          new Uint8Array([1, 2, 3]),
+        )
       }).pipe(provide(directory)),
     ),
   )
@@ -210,9 +215,10 @@ describe("FileSystem", () => {
         // the location root to the real directory.
         const read = yield* FileSystem.Service.pipe(
           Effect.flatMap((service) => service.read({ path: RelativePath.make("file.txt") })),
+          Effect.flatMap((file) => Stream.mkUint8Array(file.stream())),
           provide(link),
         )
-        expect(new TextDecoder().decode(read.content)).toBe("linked")
+        expect(new TextDecoder().decode(read)).toBe("linked")
       }),
     ),
   )
@@ -280,10 +286,10 @@ describe("FileSystem", () => {
               ).sort(),
             )
             const result = yield* filesystem.read({ path: RelativePath.make("remote.txt") })
-            expect(new TextDecoder().decode(result.content)).toBe("workspace data")
+            expect(new TextDecoder().decode(yield* Stream.mkUint8Array(result.stream()))).toBe("workspace data")
             if (collision) {
               const read = yield* filesystem.read({ path: RelativePath.make("host.txt") })
-              expect(new TextDecoder().decode(read.content)).toBe("workspace collision")
+              expect(new TextDecoder().decode(yield* Stream.mkUint8Array(read.stream()))).toBe("workspace collision")
               const missing = yield* filesystem.read({ path: RelativePath.make("host-only.txt") }).pipe(Effect.exit)
               expect(Exit.isFailure(missing)).toBe(true)
               if (Exit.isFailure(missing)) {
@@ -342,22 +348,24 @@ describe("FileSystem", () => {
           const filesystem = yield* FileSystem.Service
           // Reading internal symlink succeeds
           const read = yield* filesystem.read({ path: RelativePath.make("link.txt") })
-          expect(new TextDecoder().decode(read.content)).toBe("real data")
+          expect(new TextDecoder().decode(yield* Stream.mkUint8Array(read.stream()))).toBe("real data")
 
           // Reading external symlink fails (escapes location)
           const external = yield* filesystem.read({ path: RelativePath.make("external.txt") }).pipe(Effect.exit)
           expect(Exit.isFailure(external)).toBe(true)
           if (Exit.isFailure(external)) {
-            expect(external.cause.reasons.filter(Cause.isDieReason)).toMatchObject([
-              { defect: new Error("Path escapes the location") },
-            ])
+            expect(Cause.findErrorOption(external.cause)).toMatchObject({
+              _tag: "Some",
+              value: { _tag: "FileSystem.NotFoundError", path: "external.txt" },
+            })
           }
           const lexical = yield* filesystem.read({ path: RelativePath.make("../outside/secret.txt") }).pipe(Effect.exit)
           expect(Exit.isFailure(lexical)).toBe(true)
           if (Exit.isFailure(lexical)) {
-            expect(lexical.cause.reasons.filter(Cause.isDieReason)).toMatchObject([
-              { defect: new Error("Path escapes the location") },
-            ])
+            expect(Cause.findErrorOption(lexical.cause)).toMatchObject({
+              _tag: "Some",
+              value: { _tag: "FileSystem.NotFoundError", path: "../outside/secret.txt" },
+            })
           }
           // Directory navigation can leave the location, but stays on the workspace filesystem.
           expect(yield* filesystem.list({ path: "../outside" })).toEqual([
@@ -414,9 +422,15 @@ describe("FileSystem", () => {
             [RelativePath.make("a.txt\n"), "file"],
             [RelativePath.make("z.bin"), "file"],
           ])
-          expect((yield* service.read({ path: RelativePath.make("binary-link") })).content).toEqual(
-            new Uint8Array([0, 255, 10, 13, 128]),
+          const binary = yield* service.read({ path: RelativePath.make("binary-link") })
+          expect(yield* Stream.mkUint8Array(binary.stream())).toEqual(new Uint8Array([0, 255, 10, 13, 128]))
+          expect(binary.size).toBe(5)
+          expect(Option.isSome(binary.mtime)).toBe(true)
+          expect(yield* Stream.mkUint8Array(binary.stream({ offset: 1, bytesToRead: 3 }))).toEqual(
+            new Uint8Array([255, 10, 13]),
           )
+          expect(yield* Stream.mkUint8Array(binary.stream({ offset: 5 }))).toEqual(new Uint8Array())
+          expect(yield* Stream.mkUint8Array(binary.stream({ bytesToRead: 0 }))).toEqual(new Uint8Array())
           expect(yield* service.list({ path: "directory-link" })).toEqual([
             FileSystem.Entry.make({ path: RelativePath.make("directory-link/remote.txt"), type: "file" }),
           ])
@@ -425,9 +439,10 @@ describe("FileSystem", () => {
           const readDirectory = yield* service.read({ path: RelativePath.make("a-dir") }).pipe(Effect.exit)
           expect(Exit.isFailure(readDirectory)).toBe(true)
           if (Exit.isFailure(readDirectory)) {
-            expect(readDirectory.cause.reasons.filter(Cause.isDieReason)).toMatchObject([
-              { defect: new Error("Path is not a file") },
-            ])
+            expect(Cause.findErrorOption(readDirectory.cause)).toMatchObject({
+              _tag: "Some",
+              value: { _tag: "FileSystem.NotFoundError", path: "a-dir" },
+            })
           }
           const listFile = yield* service.list({ path: "z.bin" }).pipe(Effect.exit)
           expect(Exit.isFailure(listFile)).toBe(true)
@@ -437,6 +452,35 @@ describe("FileSystem", () => {
             ])
           }
         }).pipe(provideWorkspace(current, driver, files))
+      }),
+    ),
+  )
+
+  it.live("streams workspace files across chunk boundaries and preserves later backend failures", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const driver = Environment.makeMemoryDriver()
+        const files = Environment.makeFiles(driver)
+        const bytes = Uint8Array.from({ length: 128 * 1024 + 17 }, (_, index) => index % 256)
+        yield* files.mkdir(directory)
+        yield* files.write(path.join(directory, "large.bin"), bytes)
+        yield* Effect.gen(function* () {
+          const service = yield* FileSystem.Service
+          const file = yield* service.read({ path: RelativePath.make("large.bin") })
+          expect(file.size).toBe(bytes.length)
+          expect(yield* Stream.mkUint8Array(file.stream())).toEqual(bytes)
+          expect(
+            yield* Stream.mkUint8Array(file.stream({ offset: 64 * 1024 - 3, bytesToRead: 64 * 1024 + 9 })),
+          ).toEqual(bytes.slice(64 * 1024 - 3, 128 * 1024 + 6))
+          expect(yield* Stream.mkUint8Array(file.stream())).toEqual(bytes)
+          yield* files.remove(path.join(directory, "large.bin"))
+          const result = yield* Stream.mkUint8Array(file.stream()).pipe(Effect.exit)
+          expect(Exit.isFailure(result)).toBe(true)
+          if (Exit.isFailure(result))
+            expect(result.cause.reasons.filter(Cause.isDieReason)).toMatchObject([
+              { defect: { _tag: "Environment.NotFound" } },
+            ])
+        }).pipe(provideWorkspace(directory, driver, files))
       }),
     ),
   )
@@ -660,7 +704,7 @@ describe("FileSystem", () => {
         yield* Effect.gen(function* () {
           const filesystem = yield* FileSystem.Service
           const read = yield* filesystem.read({ path: RelativePath.make("file.txt") })
-          expect(new TextDecoder().decode(read.content)).toBe("content in real")
+          expect(new TextDecoder().decode(yield* Stream.mkUint8Array(read.stream()))).toBe("content in real")
 
           const entries = yield* filesystem.list()
           expect(entries.map((entry) => entry.path)).toEqual([RelativePath.make("file.txt")])
@@ -697,14 +741,16 @@ describe("FileSystem", () => {
   )
 
   for (const rootNewline of [false, true]) {
-    it.live(`exec canonicalization preserves exact path bytes with trailing newlines (root newline: ${rootNewline})`, () =>
-      withTmp((temporary) =>
-        Effect.gen(function* () {
-          const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-          const shim = path.join(temporary, "bin")
-          yield* Effect.promise(() => fs.mkdir(shim))
-          // GNU realpath supports -z -e; on macOS/BSD, adapt arguments to preserve canonical paths with delimiter
-          const shimScript = `#!/bin/sh
+    it.live(
+      `exec canonicalization preserves exact path bytes with trailing newlines (root newline: ${rootNewline})`,
+      () =>
+        withTmp((temporary) =>
+          Effect.gen(function* () {
+            const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+            const shim = path.join(temporary, "bin")
+            yield* Effect.promise(() => fs.mkdir(shim))
+            // GNU realpath supports -z -e; on macOS/BSD, adapt arguments to preserve canonical paths with delimiter
+            const shimScript = `#!/bin/sh
 zero=0
 target=""
 while [ $# -gt 0 ]; do
@@ -729,51 +775,53 @@ else
   printf "%s\\n" "$res"
 fi
 `
-          yield* Effect.promise(() => fs.writeFile(path.join(shim, "realpath"), shimScript, { mode: 0o755 }))
-          const routed = ChildProcessSpawner.make((command) => {
-            if (command._tag !== "StandardCommand") return spawner.spawn(command)
-            return spawner.spawn({
-              ...command,
-              options: { ...command.options, env: { ...command.options.env, PATH: `${shim}:/usr/bin:/bin` } },
+            yield* Effect.promise(() => fs.writeFile(path.join(shim, "realpath"), shimScript, { mode: 0o755 }))
+            const routed = ChildProcessSpawner.make((command) => {
+              if (command._tag !== "StandardCommand") return spawner.spawn(command)
+              return spawner.spawn({
+                ...command,
+                options: { ...command.options, env: { ...command.options.env, PATH: `${shim}:/usr/bin:/bin` } },
+              })
             })
-          })
-          const base = Environment.makeFiles(Environment.makeLocalDriver(spawner))
-          const files = { ...base, realPath: Environment.execDefaults(routed).realPath }
-          const directory = path.join(temporary, rootNewline ? "root\n" : "root")
-          yield* base.mkdir(directory)
-          yield* base.write(path.join(directory, "value.txt"), new TextEncoder().encode("plain file"))
-          yield* base.write(path.join(directory, "value.txt\n"), new TextEncoder().encode("newline file"))
-          yield* Effect.gen(function* () {
-            const service = yield* FileSystem.Service
-            const result = yield* service.read({ path: RelativePath.make(rootNewline ? "value.txt" : "value.txt\n") })
-            expect(new TextDecoder().decode(result.content)).toBe(rootNewline ? "plain file" : "newline file")
-          }).pipe(
-            Effect.provide(
-              LayerNode.compile(FileSystem.node, {
-                replacements: [
-                  Location.node.replace(
-                    Layer.succeed(
-                      Location.Service,
-                      Location.Service.of(
-                        location({
-                          directory: AbsolutePath.make(directory),
-                          workspaceID: Workspace.ID.make("wrk_exec_newline_test"),
-                        }),
+            const base = Environment.makeFiles(Environment.makeLocalDriver(spawner))
+            const files = { ...base, realPath: Environment.execDefaults(routed).realPath }
+            const directory = path.join(temporary, rootNewline ? "root\n" : "root")
+            yield* base.mkdir(directory)
+            yield* base.write(path.join(directory, "value.txt"), new TextEncoder().encode("plain file"))
+            yield* base.write(path.join(directory, "value.txt\n"), new TextEncoder().encode("newline file"))
+            yield* Effect.gen(function* () {
+              const service = yield* FileSystem.Service
+              const result = yield* service.read({ path: RelativePath.make(rootNewline ? "value.txt" : "value.txt\n") })
+              expect(new TextDecoder().decode(yield* Stream.mkUint8Array(result.stream()))).toBe(
+                rootNewline ? "plain file" : "newline file",
+              )
+            }).pipe(
+              Effect.provide(
+                LayerNode.compile(FileSystem.node, {
+                  replacements: [
+                    Location.node.replace(
+                      Layer.succeed(
+                        Location.Service,
+                        Location.Service.of(
+                          location({
+                            directory: AbsolutePath.make(directory),
+                            workspaceID: Workspace.ID.make("wrk_exec_newline_test"),
+                          }),
+                        ),
                       ),
                     ),
-                  ),
-                  Environment.node.replace(
-                    Layer.succeed(Environment.Service, {
-                      files,
-                      spawner: routed,
-                    }),
-                  ),
-                ],
-              }),
-            ),
-          )
-        }).pipe(Effect.provide(LayerNode.compile(CrossSpawnSpawner.node))),
-      ),
+                    Environment.node.replace(
+                      Layer.succeed(Environment.Service, {
+                        files,
+                        spawner: routed,
+                      }),
+                    ),
+                  ],
+                }),
+              ),
+            )
+          }).pipe(Effect.provide(LayerNode.compile(CrossSpawnSpawner.node))),
+        ),
     )
   }
 })
