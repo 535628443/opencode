@@ -12,6 +12,9 @@ import { setCursorPosition } from "@/composer/editor/dom"
 import { promptLength } from "@/composer/prompt-parts"
 import { useCommand } from "@/shell/commands/command"
 import { useLanguage } from "@/runtime/i18n/language"
+import { useData } from "@/runtime/server/current"
+import { useServerSDK } from "@/runtime/server/client"
+import { showToast } from "@/shell/notifications/toast"
 import { useLocal } from "@/providers/models/selection"
 import { usePlatform } from "@/runtime/platform/platform"
 import { useWorkspaceLocation } from "@/workspaces/location"
@@ -39,7 +42,9 @@ export function createActiveSessionRegion(input: {
   visible: Accessor<boolean>
 }) {
   const command = useCommand()
-      const dialog = useDialog()
+  const data = useData()
+  const server = useServerSDK()
+  const dialog = useDialog()
   const language = useLanguage()
   const local = useLocal()
   const location = useWorkspaceLocation()
@@ -185,7 +190,28 @@ export function createActiveSessionRegion(input: {
 
   const revertMessage: NonNullable<SessionUserActions["revert"]> = ({ messageID }) => revert.to(messageID)
 
-  
+  const notifyFailed = () => {
+    showToast({ title: language.t("common.requestFailed") })
+  }
+
+  const pendingSteer: NonNullable<SessionUserActions["pending"]> = {
+    steer: (messageID) => {
+      const sessionID = input.session.identity.params.id
+
+      if (!sessionID) return false
+
+      return data.session.pending
+        .list(sessionID)
+        .some((item) => item.id === messageID && item.type === "user" && item.delivery === "steer")
+    },
+    queue: ({ sessionID, messageID }) =>
+      server.api.session.inbox
+        .update({ sessionID, inboxID: messageID, delivery: "queue" })
+        .then(() => undefined, notifyFailed),
+    remove: ({ sessionID, messageID }) =>
+      server.api.session.inbox.cancel({ sessionID, inboxID: messageID }).then(() => undefined, notifyFailed),
+  }
+
   useComposerCommands()
   useSessionCommands({
     session: input.session,
@@ -245,7 +271,12 @@ export function createActiveSessionRegion(input: {
 
           return revertMessage
         },
-                openAttachment,
+        get pending() {
+          if (input.session.data.isChild()) return
+
+          return pendingSteer
+        },
+        openAttachment,
       } satisfies SessionUserActions,
     },
     requests: state,

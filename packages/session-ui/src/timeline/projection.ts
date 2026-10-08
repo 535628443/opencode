@@ -163,7 +163,7 @@ export function createReactiveTimelineProjection(input: {
       input.pendingInputIDs?.() ?? input.pendingUserMessageIDs?.(),
       input.shellToolDefaultOpen?.() ?? false,
       input.editToolDefaultOpen?.() ?? false,
-      (content: any, showReasoning: any, detail: any) =>
+      (content: Content, showReasoning: boolean, detail?: TimelineDetail) =>
         content.type === "tool"
           ? renderable(content, showReasoning, detail)
           : (content.type === "text" || (detail ? detail.thinking.placement !== "hidden" : showReasoning)) &&
@@ -184,8 +184,8 @@ export function createReactiveTimelineProjection(input: {
   const messageRowIndex = createMemo(() => {
     const result = new Map<SessionMessage.ID, number>()
     rows().forEach((row, index) => {
-      if (result.has(row.userMessageID as any)) return
-      result.set(row.userMessageID as any, index)
+      if (result.has(row.userMessageID)) return
+      result.set(row.userMessageID, index)
     })
 
     return result
@@ -193,7 +193,7 @@ export function createReactiveTimelineProjection(input: {
 
   const messageLastRowIndex = createMemo(() => {
     const result = new Map<SessionMessage.ID, number>()
-    rows().forEach((row, index) => result.set(row.userMessageID as any, index))
+    rows().forEach((row, index) => result.set(row.userMessageID, index))
 
     return result
   })
@@ -562,7 +562,7 @@ function groupMessages(
         (Predicate.isTagged(row, "Shell") && detail.shell.placement === "grouped")) &&
       !separate.has(row.messageID)
         ? new TimelineRow.AssistantPart({
-            userMessageID: row.userMessageID as any,
+            userMessageID: row.userMessageID,
             previousAssistantPart: Predicate.isTagged(previous, "AssistantPart"),
             spacing:
               Predicate.isTagged(previous, "AssistantPart") || Predicate.isTagged(previous, "Error")
@@ -731,7 +731,7 @@ function stabilizeGroupKey(
   if (row.group.key === existing.row.group.key) return row
 
   return new TimelineRow.AssistantPart({
-    userMessageID: row.userMessageID as any,
+    userMessageID: row.userMessageID,
     previousAssistantPart: row.previousAssistantPart,
     spacing: row.spacing,
     group: { ...row.group, key: existing.row.group.key },

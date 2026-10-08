@@ -133,7 +133,10 @@ export function createSessionQueue(input: {
   })
   onCleanup(() => cancelEdit())
 
-  const rewrite = async (inboxIDs: SessionMessage.ID[], replace?: { original: string; admission: any }) => {
+  const rewrite = async (
+    inboxIDs: SessionMessage.ID[],
+    replace?: { original: SessionMessage.ID; admission: Parameters<typeof data.session.prompt>[0] },
+  ) => {
     const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
 
     if (pending.some((item) => item.delivery === "queue" && item.type !== "user"))
@@ -151,7 +154,7 @@ export function createSessionQueue(input: {
     // Existing inbox APIs cannot reorder rows, so replace only the changed suffix. A replacement
     // can fail (its file may be gone), so withdraw the ones already sent to keep the queue intact.
     // Each ID is recorded before sending: the server can admit a prompt whose response then fails.
-    const replacements: string[] = []
+    const replacements: SessionMessage.ID[] = []
 
     for (const item of ordered.slice(changed)) {
       const admission =
@@ -180,7 +183,7 @@ export function createSessionQueue(input: {
       await data.session.prompt({ ...admission, id }).catch(async (error) => {
         await Promise.all(
           replacements.map((inboxID) =>
-            server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: inboxID as any }).catch(() => undefined),
+            server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID }).catch(() => undefined),
           ),
         )
         throw error
@@ -231,13 +234,22 @@ export function createSessionQueue(input: {
       context: [...context.comments, ...context.files],
     })
   }
+  // Re-admitting a queued prompt commits a staged revert, which drops every prompt queued after its boundary.
+  const refuseReverted = () => {
+    if (!data.session.get(input.sessionID)?.revert) return false
+    showToast({ title: language.t("session.queue.reverted") })
+
+    return true
+  }
+
   const reorder = (inboxIDs: SessionMessage.ID[]) => {
-    if (mutation.isPending) return Promise.resolve()
+    if (mutation.isPending || refuseReverted()) return Promise.resolve()
+
     return mutation.mutateAsync({ type: "reorder", inboxIDs }).catch(() => undefined)
   }
 
   const edit = (id: SessionMessage.ID) => {
-    if (mutation.isPending) return false
+    if (mutation.isPending || refuseReverted()) return false
     if (state.editing?.id === id) return true
     const item = queued().find((entry) => entry.id === id)
 
@@ -282,7 +294,7 @@ export function createSessionQueue(input: {
   const confirmEdit = (delivery: ComposerDelivery) => {
     const editing = state.editing
 
-    if (!editing || mutation.isPending) return
+    if (!editing || mutation.isPending || refuseReverted()) return
     const prompt = clonePrompt(input.draft.current())
     const text = prompt.map((part) => ("content" in part ? part.content : "")).join("")
     const attachments = prompt.filter(isAttachment)

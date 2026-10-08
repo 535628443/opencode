@@ -381,8 +381,8 @@ export function createTimelineVirtualizer(input: Input) {
   function revealPart(target: string) {
     if (!active()) return false
 
-    const matches = (ref: { messageID: string; partID: string }) => {
-      const content = Timeline.resolveContent(input.projection.messageByID().get(ref.messageID as any), ref.partID)
+    const matches = (ref: { messageID: SessionMessage.ID; partID: string }) => {
+      const content = Timeline.resolveContent(input.projection.messageByID().get(ref.messageID), ref.partID)
 
       return (
         content?.type === "tool" &&
