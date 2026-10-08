@@ -309,7 +309,7 @@ test("loads location metadata when an open session moves", async () => {
     // a move that arrives before either has loaded is dropped.
     await wait(
       () =>
-        setup.data.session.get("first") !== undefined &&
+        setup.data.session.get(Session.ID.make("first", { disableChecks: true })) !== undefined &&
         setup.tabs.tabs().some((tab) => tab.sessionID === "first") &&
         setup.locations.includes(directory) &&
         setup.vcsLocations.includes(directory),
