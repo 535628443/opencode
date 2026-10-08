@@ -1,3 +1,4 @@
+import type { FileSystem } from "@opencode/core/filesystem"
 import { describe, expect, test } from "bun:test"
 import { AIError, TransportError } from "@opencode/ai"
 import { Database } from "@opencode/core/database/database"
@@ -15,7 +16,6 @@ import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
 import { SessionExecution } from "@opencode/core/session/execution"
 import { SessionRestart } from "@opencode/core/session/execution/restart"
-import { UserInterruptedError } from "@opencode/core/session/error"
 import { SessionEvent } from "@opencode/core/session/event"
 import { SessionInbox } from "@opencode/core/session/inbox"
 import { SessionMessage } from "@opencode/core/session/message"
@@ -50,10 +50,6 @@ describe("SessionExecution lifecycle", () => {
     const interrupted = Effect.runSyncExit(Effect.interrupt)
     expect(SessionExecution.terminal(interrupted)).toEqual({ type: "interrupted", reason: "shutdown" })
     expect(SessionExecution.terminal(interrupted, "user")).toEqual({ type: "interrupted", reason: "user" })
-    expect(SessionExecution.terminal(Exit.fail(new UserInterruptedError()))).toEqual({
-      type: "interrupted",
-      reason: "user",
-    })
   })
 
   it.effect("the sweep only lists claimed top-level Sessions", () =>
@@ -278,6 +274,7 @@ describe("SessionExecution lifecycle", () => {
           sessionID,
           text: "The server restarted while you were working. Continue from where you left off without repeating completed work.",
           description: "Continuing after restart",
+          metadata: { notice: "restart" },
         })),
       )
       // Drains completed naturally, so claims are released and counters reset.
@@ -379,7 +376,7 @@ describe("SessionExecution lifecycle", () => {
 })
 
 describe("SessionRestart background recovery", () => {
-  it.effect("wakes idle shell owners and delivers recovered notices exactly once", () =>
+  it.effect("keeps shell owners idle until a user prompt delivers recovered notices exactly once", () =>
     Effect.gen(function* () {
       const database = yield* Database.Service
       const store = yield* SessionStore.Service
@@ -416,6 +413,20 @@ describe("SessionRestart background recovery", () => {
       yield* restart.resumeSuspendedSessions
       yield* Effect.forEach([parent, child], execution.awaitIdle, { discard: true })
 
+      expect(drained).toEqual([])
+      expect(yield* SessionInbox.list(database.db, parent)).toHaveLength(1)
+      expect(yield* SessionInbox.list(database.db, child)).toHaveLength(1)
+      expect(yield* restarted.pendingBackground).toEqual([])
+      yield* restart.resumeSuspendedSessions
+      expect(drained).toEqual([])
+      expect(yield* SessionInbox.list(database.db, parent)).toHaveLength(1)
+      expect(yield* SessionInbox.list(database.db, child)).toHaveLength(1)
+
+      yield* seedInbox(database, parent, ["steer"])
+      yield* seedInbox(database, child, ["steer"])
+      yield* execution.wake(parent)
+      yield* execution.wake(child)
+      yield* Effect.forEach([parent, child], execution.awaitIdle, { discard: true })
       expect(drained.toSorted()).toEqual([parent, child].toSorted())
       expect((yield* store.context(parent)).filter((message) => message.type === "synthetic")).toMatchObject([
         {
@@ -493,7 +504,7 @@ describe("SessionRestart background recovery", () => {
         run: Deferred.await(complete),
       })
       yield* jobs.background("call-completed-shell")
-      yield* Deferred.succeed(complete, "(no output)\n\nCommand exited with code 7.")
+      yield* Deferred.succeed(complete, "Exited with code 7")
       yield* jobs.wait({ id: "call-completed-shell" })
 
       const scope = yield* Scope.make()
@@ -509,13 +520,13 @@ describe("SessionRestart background recovery", () => {
       yield* Context.get(context, SessionRestart.Service).resumeSuspendedSessions
       yield* Context.get(context, SessionExecution.Service).awaitIdle(sessionID)
 
-      expect(drained).toEqual([sessionID])
+      expect(drained).toEqual([])
       const inbox = yield* SessionInbox.list(database.db, sessionID)
       expect(inbox).toMatchObject([
         {
           type: "synthetic",
           payload: {
-            text: '<shell id="call-completed-shell" state="completed" command="exit 7">\n(no output)\n\nCommand exited with code 7.\n</shell>',
+            text: '<shell id="call-completed-shell" state="completed" command="exit 7">\nExited with code 7\n</shell>',
           },
         },
       ])
@@ -561,7 +572,6 @@ describe("SessionRestart background recovery", () => {
         expect(yield* restarted.pendingBackground).toEqual([])
         expect(yield* SessionInbox.list(database.db, sessionID)).toHaveLength(delivered ? 0 : 1)
         yield* SessionInbox.promote(database.db, bus, sessionID, "steer")
-        // Recovery ends a busy period, so an idle marker follows the notification.
         const messages = (yield* sessions.messages({ sessionID })).filter((message) => message.type !== "idle")
         expect(messages).toMatchObject([
           {
@@ -1362,7 +1372,7 @@ function buildExecution(
         () =>
           // The local execution test only needs the Session runner from the Location graph.
           // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-          runner as unknown as Layer.Layer<LocationServices>,
+          runner as unknown as Layer.Layer<LocationServices, FileSystem.DirectoryNotFoundError>,
       ),
     )
     return yield* Layer.buildWithScope(

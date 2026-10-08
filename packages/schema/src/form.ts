@@ -41,6 +41,9 @@ const FieldBase = {
   title: Schema.String.pipe(optional),
   description: Schema.String.pipe(optional),
   required: Schema.Boolean.pipe(optional),
+  hidden: Schema.Boolean.pipe(optional).annotate({
+    description: "Skip the interactive authentication prompt and use the default unless an answer is supplied",
+  }),
   when: Schema.Array(When).pipe(optional),
 }
 
@@ -146,7 +149,8 @@ export type Answer = typeof Answer.Type
 export const State = Schema.Union([
   Schema.Struct({ status: Schema.Literal("pending") }),
   Schema.Struct({ status: Schema.Literal("answered"), answer: Answer }),
-  Schema.Struct({ status: Schema.Literal("cancelled") }),
+  // A message tells the asker why nobody answered, e.g. a non-interactive client.
+  Schema.Struct({ status: Schema.Literal("cancelled"), message: Schema.String.pipe(optional) }),
 ])
   .pipe(Schema.toTaggedUnion("status"))
   .annotate({ identifier: "Form.State" })

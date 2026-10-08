@@ -1,6 +1,16 @@
 export type JsonValue = null | boolean | number | string | Array<JsonValue> | { [key: string]: JsonValue }
 
-export type ServerStatus = { version: string; pid: number; urls: Array<string> }
+export type ServerInfo = {
+  version: string
+  pid: number
+  urls: Array<string>
+  paths: { tmp: string }
+  capabilities?: { persistentPty?: boolean | undefined } | undefined
+}
+
+export type PairingCode = { code: string; expires_in: number }
+
+export type PairingSession = { token: string }
 
 export type LocationPublicInfo = { directory: string; project: { id: string; directory: string; canonical: string } }
 
@@ -8,7 +18,9 @@ export type LocationPublicRef = { directory: string }
 
 export type ModelRef = { id: string; providerID: string; variant?: string }
 
-export type ProviderSettings = { [x: string]: any }
+export type ProviderCompaction = { type: "summary" } | { type: "native" }
+
+export type ProviderTransport = "http" | "websocket"
 
 export type AgentColor = string
 
@@ -127,7 +139,7 @@ export type ToolTextContent = { type: "text"; text: string }
 
 export type ToolFileContent = { type: "file"; uri: string; mime: string; name?: string | null }
 
-export type SessionStructuredError = { type: string; message: string; status?: number }
+export type SessionStructuredError = { type: string; message: string; status?: number; response?: { body: string } }
 
 export type SessionMessageCompactionRunning = {
   type: "compaction"
@@ -182,6 +194,7 @@ export type ShellInfo = {
   file: string
   pid?: number
   exit?: number
+  signal?: string
   metadata: { [x: string]: any }
   time: { started: number; completed?: number }
 }
@@ -218,18 +231,7 @@ export type ModelReasoningField = "reasoning" | "reasoning_content" | "reasoning
 
 export type ModelMaxTokensField = "max_completion_tokens" | "max_tokens"
 
-export type ProviderCompaction = { mode: "local" } | { mode: "provider"; threshold?: number }
-
-export type ProviderTransport = "http" | "websocket"
-
 export type ModelCapabilities = { tools: boolean; input: Array<string>; output: Array<string> }
-
-export type ModelVariant = {
-  id: string
-  settings?: { [x: string]: any }
-  headers?: { [x: string]: string }
-  body?: { [x: string]: any }
-}
 
 export type MoneyUSDPerMillionTokens = number
 
@@ -239,9 +241,7 @@ export type IntegrationCommandMethod = { id: string; type: "command"; label: str
 
 export type IntegrationEnvMethod = { type: "env"; names: Array<string> }
 
-export type ConnectionCredentialInfo = { type: "credential"; id: string; label: string }
-
-export type ConnectionEnvInfo = { type: "env"; name: string }
+export type ConnectionStatus = { status: "needs_auth"; message: string; url?: string }
 
 export type IntegrationAttempt = {
   attemptID: string
@@ -299,13 +299,24 @@ export type McpResourceTemplate = {
   mimeType?: string
 }
 
+export type CredentialOAuth = {
+  type: "oauth"
+  methodID: string
+  refresh: string
+  access: string
+  expires: number
+  metadata?: { [x: string]: JsonValue }
+}
+
+export type CredentialExternal = { type: "external"; methodID: string; metadata?: { [x: string]: JsonValue } }
+
 export type ProjectVcs = string
 
 export type ProjectIcon = { url?: string; override?: string; color?: string }
 
 export type ProjectCommands = { start?: string }
 
-export type ProjectTime = { created: number; updated: number }
+export type ProjectTime = { created: number; updated: number; active: number }
 
 export type PermissionSource = { type: "tool"; messageID: string; id: string }
 
@@ -318,6 +329,8 @@ export type PermissionSavedInfo = {
 }
 
 export type FileSystemEntry = { path: string; type: "file" | "directory" }
+
+export type FileSystemWrite = { path: string }
 
 export type CommandInfo = { name: string; description?: string }
 
@@ -398,6 +411,7 @@ export type ShellInfo1 = {
   file: string
   pid?: number
   exit?: number
+  signal?: string
   metadata: { [x: string]: JsonValue }
   time: { started: number; completed?: number }
 }
@@ -431,6 +445,8 @@ export type McpProtocol = "legacy" | "auto" | "2026-07-28"
 
 export type ConfigWorktree = { directory: string }
 
+export type ConfigModelCapabilities = { tools?: boolean; input?: Array<string>; output?: Array<string> }
+
 export type ConfigShellOption = { path: string; name: string; acceptable: boolean }
 
 export type SessionMessageLocationSwitched = {
@@ -463,11 +479,25 @@ export type V2EventServerConnected = {
   data: {}
 }
 
-export type ProviderRequest = {
-  settings: ProviderSettings
-  headers: { [x: string]: string }
-  body: { [x: string]: any }
-}
+export type ModelSettings = { compaction?: ProviderCompaction } & { [x: string]: any }
+
+export type ConfigModelSettings = { compaction?: ProviderCompaction } & { [x: string]: JsonValue | null }
+
+export type ProviderSettings = {
+  timeout?: number | false
+  headerTimeout?: number | false
+  chunkTimeout?: number | false
+  compaction?: ProviderCompaction
+  transport?: ProviderTransport
+} & { [x: string]: any }
+
+export type ConfigProviderSettings = {
+  timeout?: number | false
+  headerTimeout?: number | false
+  chunkTimeout?: number | false
+  compaction?: ProviderCompaction
+  transport?: ProviderTransport
+} & { [x: string]: JsonValue | null }
 
 export type PermissionRule = { action: string; resource: string; effect: PermissionEffect }
 
@@ -710,7 +740,14 @@ export type SessionStepStarted = {
   type: "session.step.started"
   durable: { aggregateID: string; seq: number; version: 1 }
   location?: LocationRef
-  data: { sessionID: string; assistantMessageID: string; agent: string; model: ModelRef; snapshot?: string }
+  data: {
+    sessionID: string
+    assistantMessageID: string
+    agent: string
+    model: ModelRef
+    snapshot?: string
+    started: number
+  }
 }
 
 export type SessionStepStreamed = {
@@ -818,6 +855,15 @@ export type SessionUsageRecorded = {
   durable: { aggregateID: string; seq: number; version: 1 }
   location?: LocationRef
   data: { sessionID: string; source: "title" | "compaction"; cost: MoneyUSD; tokens: TokenUsageInfo }
+}
+
+export type LocationShutdown = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "location.shutdown"
+  location?: LocationRef
+  data: {}
 }
 
 export type ModelsDevRefreshed = {
@@ -1200,6 +1246,16 @@ export type SessionMoved = {
 
 export type SessionInboxMovePayload1 = { location: LocationRef; projectID: string; subpath?: string }
 
+export type SessionMetadataUpdated = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.metadata.updated"
+  durable: { aggregateID: string; seq: number; version: 1 }
+  location?: LocationRef
+  data: { sessionID: string; metadata: SessionMetadata }
+}
+
 export type SessionShellStarted = {
   id: string
   created: number
@@ -1349,6 +1405,7 @@ export type FormNumberField = {
   title?: string
   description?: string
   required?: boolean
+  hidden?: boolean
   when?: Array<FormWhen>
   type: "number"
   minimum?: number | "Infinity" | "-Infinity" | "NaN"
@@ -1361,6 +1418,7 @@ export type FormIntegerField = {
   title?: string
   description?: string
   required?: boolean
+  hidden?: boolean
   when?: Array<FormWhen>
   type: "integer"
   minimum?: number | "Infinity" | "-Infinity" | "NaN"
@@ -1373,6 +1431,7 @@ export type FormBooleanField = {
   title?: string
   description?: string
   required?: boolean
+  hidden?: boolean
   when?: Array<FormWhen>
   type: "boolean"
   default?: boolean
@@ -1383,6 +1442,7 @@ export type FormStringField = {
   title?: string
   description?: string
   required?: boolean
+  hidden?: boolean
   when?: Array<FormWhen>
   type: "string"
   format?: "email" | "uri" | "date" | "date-time"
@@ -1400,6 +1460,7 @@ export type FormMultiselectField = {
   title?: string
   description?: string
   required?: boolean
+  hidden?: boolean
   when?: Array<FormWhen>
   type: "multiselect"
   options: Array<FormOption>
@@ -1418,20 +1479,8 @@ export type ModelCompatibility = {
   requireFinishReason?: boolean
   requireAssistantAfterTool?: boolean
   supportsPromptCacheKey?: boolean
-}
-
-export type ProviderInfo = {
-  id: string
-  canonical?: string
-  integrationID?: string
-  name: string
-  activation: "auto" | "enabled" | "disabled"
-  package: string
-  compaction?: ProviderCompaction
-  transport?: ProviderTransport
-  settings?: { [x: string]: any }
-  headers?: { [x: string]: string }
-  body?: { [x: string]: any }
+  supportsThinkingBlockBinding?: boolean
+  supportsEffortUpdates?: boolean
 }
 
 export type ModelCost = {
@@ -1441,7 +1490,15 @@ export type ModelCost = {
   cache: { read: MoneyUSDPerMillionTokens; write: MoneyUSDPerMillionTokens }
 }
 
-export type ConnectionInfo = ConnectionCredentialInfo | ConnectionEnvInfo
+export type ConnectionCredentialInfo = {
+  type: "credential"
+  id: string
+  label: string
+  method: "key" | "oauth" | "external"
+  status?: ConnectionStatus
+}
+
+export type ConnectionEnvInfo = { type: "env"; name: string; status?: ConnectionStatus }
 
 export type McpServer = {
   name: string
@@ -1557,6 +1614,7 @@ export type FormStringField1 = {
   title?: string
   description?: string
   required?: boolean
+  hidden?: boolean
   when?: Array<FormWhen1>
   type: "string"
   format?: "email" | "uri" | "date" | "date-time"
@@ -1574,6 +1632,7 @@ export type FormNumberField1 = {
   title?: string
   description?: string
   required?: boolean
+  hidden?: boolean
   when?: Array<FormWhen1>
   type: "number"
   minimum?: number
@@ -1586,6 +1645,7 @@ export type FormIntegerField1 = {
   title?: string
   description?: string
   required?: boolean
+  hidden?: boolean
   when?: Array<FormWhen1>
   type: "integer"
   minimum?: number
@@ -1598,6 +1658,7 @@ export type FormBooleanField1 = {
   title?: string
   description?: string
   required?: boolean
+  hidden?: boolean
   when?: Array<FormWhen1>
   type: "boolean"
   default?: boolean
@@ -1608,6 +1669,7 @@ export type FormMultiselectField1 = {
   title?: string
   description?: string
   required?: boolean
+  hidden?: boolean
   when?: Array<FormWhen1>
   type: "multiselect"
   options: Array<FormOption>
@@ -1617,7 +1679,7 @@ export type FormMultiselectField1 = {
   default?: Array<string>
 }
 
-export type FormAnswer1 = { [x: string]: FormValue1 }
+export type FormAnswer2 = { [x: string]: FormValue1 }
 
 export type SessionStatusUpdated = {
   id: string
@@ -1641,6 +1703,31 @@ export type SessionInboxMove = {
   type: "move"
   delivery: SessionInboxDelivery
   payload: SessionInboxMovePayload
+}
+
+export type ModelVariant = {
+  id: string
+  settings?: ModelSettings
+  headers?: { [x: string]: string }
+  body?: { [x: string]: any }
+}
+
+export type ProviderRequest = {
+  settings: ProviderSettings
+  headers: { [x: string]: string }
+  body: { [x: string]: any }
+}
+
+export type ProviderInfo = {
+  id: string
+  canonical?: string
+  integrationID?: string
+  name: string
+  activation: "auto" | "enabled" | "disabled"
+  package: string
+  settings?: ProviderSettings
+  headers?: { [x: string]: string }
+  body?: { [x: string]: any }
 }
 
 export type PermissionRuleset = Array<PermissionRule>
@@ -1824,30 +1911,19 @@ export type FormField =
   | FormMultiselectField
   | FormExternalField
 
-export type FormState = { status: "pending" } | { status: "answered"; answer: FormAnswer } | { status: "cancelled" }
+export type FormState =
+  | { status: "pending" }
+  | { status: "answered"; answer: FormAnswer }
+  | { status: "cancelled"; message?: string }
 
-export type ModelInfo = {
-  id: string
-  modelID: string
-  providerID: string
-  canonical?: string
-  family?: string
-  name: string
-  compatibility?: ModelCompatibility
-  package?: string
-  compaction?: ProviderCompaction
-  transport?: ProviderTransport
-  settings?: { [x: string]: any }
-  headers?: { [x: string]: string }
-  body?: { [x: string]: any }
-  capabilities: ModelCapabilities
-  variants: Array<ModelVariant>
-  time: { released: number }
-  cost: Array<ModelCost>
-  status: "alpha" | "beta" | "deprecated" | "active"
-  enabled: boolean
-  limit: { context: number; input?: number; output: number }
+export type CredentialKey = {
+  type: "key"
+  key: string
+  metadata?: { [x: string]: JsonValue }
+  configuration?: FormAnswer
 }
+
+export type ConnectionInfo = ConnectionCredentialInfo | ConnectionEnvInfo
 
 export type FormField1 =
   | FormStringField1
@@ -1863,7 +1939,7 @@ export type FormReplied = {
   metadata?: { [x: string]: any }
   type: "form.replied"
   location?: LocationRef
-  data: { id: string; sessionID: string; answer: FormAnswer1 }
+  data: { id: string; sessionID: string; answer: FormAnswer2 }
 }
 
 export type ReferenceInfo = {
@@ -1872,6 +1948,27 @@ export type ReferenceInfo = {
   description?: string
   hidden?: boolean
   source: ReferenceSource
+}
+
+export type ModelInfo = {
+  id: string
+  modelID: string
+  providerID: string
+  canonical?: string
+  family?: string
+  name: string
+  compatibility?: ModelCompatibility
+  package?: string
+  settings?: ModelSettings
+  headers?: { [x: string]: string }
+  body?: { [x: string]: any }
+  capabilities: ModelCapabilities
+  variants: Array<ModelVariant>
+  time: { released: number }
+  cost: Array<ModelCost>
+  status: "alpha" | "beta" | "deprecated" | "active"
+  enabled: boolean
+  limit: { context: number; input?: number; output: number }
 }
 
 export type AgentInfo = {
@@ -2057,31 +2154,27 @@ export type ConfigEntry =
         warming?: boolean | { prompt?: string; interval?: string; duration?: string }
         providers?: {
           [x: string]: {
-            compaction?: ProviderCompaction
-            transport?: ProviderTransport
             canonical?: string
             name?: string
             env?: Array<string>
             package?: string
-            settings?: { [x: string]: JsonValue }
+            settings?: ConfigProviderSettings
             headers?: { [x: string]: string }
             body?: { [x: string]: JsonValue }
             models?: {
               [x: string]: {
-                compaction?: ProviderCompaction
-                transport?: ProviderTransport
                 modelID?: string
                 family?: string
                 name?: string
                 compatibility?: ModelCompatibility
                 package?: string
-                settings?: { [x: string]: JsonValue }
+                settings?: ConfigModelSettings
                 headers?: { [x: string]: string }
                 body?: { [x: string]: JsonValue }
-                capabilities?: ModelCapabilities
+                capabilities?: ConfigModelCapabilities
                 variants?: Array<{
                   id: string
-                  settings?: { [x: string]: JsonValue }
+                  settings?: ConfigModelSettings
                   headers?: { [x: string]: string }
                   body?: { [x: string]: JsonValue }
                 }>
@@ -2107,7 +2200,11 @@ export type ConfigEntry =
         experimental?: {
           portable_shell_scanner?: boolean
           subagent_depth?: number
-          policies?: Array<{ action: "provider.use"; resource: string; effect: "allow" | "deny" }>
+          policies?: Array<{
+            action: "provider.use" | "tool.use" | "integration.use"
+            resource: string
+            effect: "allow" | "deny"
+          }>
         }
       }
     }
@@ -2165,6 +2262,8 @@ export type SessionMessageAssistantTool1 = {
 
 export type FormFields = [FormField, ...Array<FormField>]
 
+export type CredentialValue = CredentialOAuth | CredentialKey | CredentialExternal
+
 export type FormFields2 = [FormField1, ...Array<FormField1>]
 
 export type SessionsResponse = { data: Array<SessionInfo>; cursor: { previous?: string | null; next?: string | null } }
@@ -2219,6 +2318,16 @@ export type IntegrationOAuthMethod = { id: string; type: "oauth"; label: string;
 
 export type IntegrationKeyMethod = { type: "key"; label?: string; form?: FormFields }
 
+export type IntegrationExternalMethod = { id: string; type: "external"; label: string; form?: FormFields }
+
+export type CredentialEntry = {
+  id: string
+  integrationID: string
+  label: string
+  active: boolean
+  value: CredentialValue
+}
+
 export type FormInfo1 = { id: string; sessionID: string; title: string; metadata?: FormMetadata1; fields: FormFields2 }
 
 export type SessionMessageInfo =
@@ -2248,6 +2357,7 @@ export type IntegrationMethod =
   | IntegrationOAuthMethod
   | IntegrationCommandMethod
   | IntegrationKeyMethod
+  | IntegrationExternalMethod
   | IntegrationEnvMethod
 
 export type FormCreated = {
@@ -2272,6 +2382,7 @@ export type SessionEventDurable =
   | SessionModelSelected
   | SessionMoved
   | SessionRenamed
+  | SessionMetadataUpdated
   | SessionPermissions
   | SessionViewed
   | SessionDeleted
@@ -2321,6 +2432,7 @@ export type IntegrationInfo = {
 }
 
 export type V2Event =
+  | LocationShutdown
   | ModelsDevRefreshed
   | CredentialUpdated
   | CredentialSwitched
@@ -2333,6 +2445,7 @@ export type V2Event =
   | SessionModelSelected
   | SessionMoved
   | SessionRenamed
+  | SessionMetadataUpdated
   | SessionPermissions
   | SessionViewed
   | SessionUsageUpdated
@@ -2429,13 +2542,13 @@ export type UnauthorizedError = { readonly _tag: "UnauthorizedError"; readonly m
 export const isUnauthorizedError = (value: unknown): value is UnauthorizedError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "UnauthorizedError"
 
-export type AgentNotFoundError = {
-  readonly _tag: "AgentNotFoundError"
-  readonly agentID: string
+export type LocationNotFoundError = {
+  readonly _tag: "LocationNotFoundError"
+  readonly location: { readonly directory: string }
   readonly message: string
 }
-export const isAgentNotFoundError = (value: unknown): value is AgentNotFoundError =>
-  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "AgentNotFoundError"
+export const isLocationNotFoundError = (value: unknown): value is LocationNotFoundError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "LocationNotFoundError"
 
 export type ServiceUnavailableError = {
   readonly _tag: "ServiceUnavailableError"
@@ -2444,6 +2557,14 @@ export type ServiceUnavailableError = {
 }
 export const isServiceUnavailableError = (value: unknown): value is ServiceUnavailableError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ServiceUnavailableError"
+
+export type AgentNotFoundError = {
+  readonly _tag: "AgentNotFoundError"
+  readonly agentID: string
+  readonly message: string
+}
+export const isAgentNotFoundError = (value: unknown): value is AgentNotFoundError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "AgentNotFoundError"
 
 export type InvalidCursorError = { readonly _tag: "InvalidCursorError"; readonly message: string }
 export const isInvalidCursorError = (value: unknown): value is InvalidCursorError =>
@@ -2639,19 +2760,36 @@ export const isShellNotFoundError = (value: unknown): value is ShellNotFoundErro
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ShellNotFoundError"
 
 export type WorktreeError = {
+  readonly _tag: "WorktreeError"
   readonly name: "WorktreeError"
   readonly data: { readonly message: string; readonly forceRequired?: boolean | undefined }
 }
 export const isWorktreeError = (value: unknown): value is WorktreeError =>
-  typeof value === "object" && value !== null && "name" in value && value["name"] === "WorktreeError"
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "WorktreeError"
 
-export type ServerStatusOutput = ServerStatus
+export type VcsInitNotSupportedError = {
+  readonly _tag: "VcsInitNotSupportedError"
+  readonly providerID: string
+  readonly message: string
+}
+export const isVcsInitNotSupportedError = (value: unknown): value is VcsInitNotSupportedError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "VcsInitNotSupportedError"
+
+export type ServerInfoOutput = ServerInfo
+
+export type ServerPairOutput = PairingCode
+
+export type ServerConnectInput = { readonly code: { readonly code: string }["code"] }
+
+export type ServerConnectOutput = PairingSession
 
 export type LocationGetInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
 }
 
 export type LocationGetOutput = LocationPublicInfo
+
+export type LocationReloadOutput = void
 
 export type AgentListInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
@@ -2814,6 +2952,7 @@ export type SessionStatsOutput = { data: SessionStatsInfo }["data"]
 export type SessionCreateInput = {
   readonly id?: {
     readonly id?: string | null
+    readonly parentID?: string | null
     readonly title?: string | null
     readonly agent?: string | null
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
@@ -2825,8 +2964,23 @@ export type SessionCreateInput = {
       readonly effect: "allow" | "deny" | "ask"
     }> | null
   }["id"]
+  readonly parentID?: {
+    readonly id?: string | null
+    readonly parentID?: string | null
+    readonly title?: string | null
+    readonly agent?: string | null
+    readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
+    readonly location?: { readonly directory: string } | null
+    readonly metadata?: { readonly [x: string]: JsonValue } | null
+    readonly permissions?: ReadonlyArray<{
+      readonly action: string
+      readonly resource: string
+      readonly effect: "allow" | "deny" | "ask"
+    }> | null
+  }["parentID"]
   readonly title?: {
     readonly id?: string | null
+    readonly parentID?: string | null
     readonly title?: string | null
     readonly agent?: string | null
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
@@ -2840,6 +2994,7 @@ export type SessionCreateInput = {
   }["title"]
   readonly agent?: {
     readonly id?: string | null
+    readonly parentID?: string | null
     readonly title?: string | null
     readonly agent?: string | null
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
@@ -2853,6 +3008,7 @@ export type SessionCreateInput = {
   }["agent"]
   readonly model?: {
     readonly id?: string | null
+    readonly parentID?: string | null
     readonly title?: string | null
     readonly agent?: string | null
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
@@ -2866,6 +3022,7 @@ export type SessionCreateInput = {
   }["model"]
   readonly location?: {
     readonly id?: string | null
+    readonly parentID?: string | null
     readonly title?: string | null
     readonly agent?: string | null
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
@@ -2879,6 +3036,7 @@ export type SessionCreateInput = {
   }["location"]
   readonly metadata?: {
     readonly id?: string | null
+    readonly parentID?: string | null
     readonly title?: string | null
     readonly agent?: string | null
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
@@ -2892,6 +3050,7 @@ export type SessionCreateInput = {
   }["metadata"]
   readonly permissions?: {
     readonly id?: string | null
+    readonly parentID?: string | null
     readonly title?: string | null
     readonly agent?: string | null
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
@@ -3112,7 +3271,12 @@ export type SessionImportInput = {
                   | {
                       readonly status: "error"
                       readonly input: { readonly [x: string]: JsonValue }
-                      readonly error: { readonly type: string; readonly message: string; readonly status?: number }
+                      readonly error: {
+                        readonly type: string
+                        readonly message: string
+                        readonly status?: number
+                        readonly response?: { readonly body: string }
+                      }
                       readonly content?: readonly [
                         (
                           | { readonly type: "text"; readonly text: string }
@@ -3149,11 +3313,21 @@ export type SessionImportInput = {
             readonly reasoning: number
             readonly cache: { readonly read: number; readonly write: number }
           }
-          readonly error?: { readonly type: string; readonly message: string; readonly status?: number }
+          readonly error?: {
+            readonly type: string
+            readonly message: string
+            readonly status?: number
+            readonly response?: { readonly body: string }
+          }
           readonly retry?: {
             readonly attempt: number
             readonly at: number
-            readonly error: { readonly type: string; readonly message: string; readonly status?: number }
+            readonly error: {
+              readonly type: string
+              readonly message: string
+              readonly status?: number
+              readonly response?: { readonly body: string }
+            }
           }
         }
       | (
@@ -3205,7 +3379,12 @@ export type SessionImportInput = {
               readonly time: { readonly created: number }
               readonly status: "failed"
               readonly reason: "auto" | "manual"
-              readonly error: { readonly type: string; readonly message: string; readonly status?: number }
+              readonly error: {
+                readonly type: string
+                readonly message: string
+                readonly status?: number
+                readonly response?: { readonly body: string }
+              }
               readonly cost?: number
               readonly tokens?: {
                 readonly input: number
@@ -3429,7 +3608,12 @@ export type SessionImportInput = {
                   | {
                       readonly status: "error"
                       readonly input: { readonly [x: string]: JsonValue }
-                      readonly error: { readonly type: string; readonly message: string; readonly status?: number }
+                      readonly error: {
+                        readonly type: string
+                        readonly message: string
+                        readonly status?: number
+                        readonly response?: { readonly body: string }
+                      }
                       readonly content?: readonly [
                         (
                           | { readonly type: "text"; readonly text: string }
@@ -3466,11 +3650,21 @@ export type SessionImportInput = {
             readonly reasoning: number
             readonly cache: { readonly read: number; readonly write: number }
           }
-          readonly error?: { readonly type: string; readonly message: string; readonly status?: number }
+          readonly error?: {
+            readonly type: string
+            readonly message: string
+            readonly status?: number
+            readonly response?: { readonly body: string }
+          }
           readonly retry?: {
             readonly attempt: number
             readonly at: number
-            readonly error: { readonly type: string; readonly message: string; readonly status?: number }
+            readonly error: {
+              readonly type: string
+              readonly message: string
+              readonly status?: number
+              readonly response?: { readonly body: string }
+            }
           }
         }
       | (
@@ -3522,7 +3716,12 @@ export type SessionImportInput = {
               readonly time: { readonly created: number }
               readonly status: "failed"
               readonly reason: "auto" | "manual"
-              readonly error: { readonly type: string; readonly message: string; readonly status?: number }
+              readonly error: {
+                readonly type: string
+                readonly message: string
+                readonly status?: number
+                readonly response?: { readonly body: string }
+              }
               readonly cost?: number
               readonly tokens?: {
                 readonly input: number
@@ -3746,7 +3945,12 @@ export type SessionImportInput = {
                   | {
                       readonly status: "error"
                       readonly input: { readonly [x: string]: JsonValue }
-                      readonly error: { readonly type: string; readonly message: string; readonly status?: number }
+                      readonly error: {
+                        readonly type: string
+                        readonly message: string
+                        readonly status?: number
+                        readonly response?: { readonly body: string }
+                      }
                       readonly content?: readonly [
                         (
                           | { readonly type: "text"; readonly text: string }
@@ -3783,11 +3987,21 @@ export type SessionImportInput = {
             readonly reasoning: number
             readonly cache: { readonly read: number; readonly write: number }
           }
-          readonly error?: { readonly type: string; readonly message: string; readonly status?: number }
+          readonly error?: {
+            readonly type: string
+            readonly message: string
+            readonly status?: number
+            readonly response?: { readonly body: string }
+          }
           readonly retry?: {
             readonly attempt: number
             readonly at: number
-            readonly error: { readonly type: string; readonly message: string; readonly status?: number }
+            readonly error: {
+              readonly type: string
+              readonly message: string
+              readonly status?: number
+              readonly response?: { readonly body: string }
+            }
           }
         }
       | (
@@ -3839,7 +4053,12 @@ export type SessionImportInput = {
               readonly time: { readonly created: number }
               readonly status: "failed"
               readonly reason: "auto" | "manual"
-              readonly error: { readonly type: string; readonly message: string; readonly status?: number }
+              readonly error: {
+                readonly type: string
+                readonly message: string
+                readonly status?: number
+                readonly response?: { readonly body: string }
+              }
               readonly cost?: number
               readonly tokens?: {
                 readonly input: number
@@ -3907,12 +4126,21 @@ export type SessionUpdateInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
   readonly title?: {
     readonly title?: string | undefined
+    readonly metadata?: { readonly [x: string]: JsonValue } | undefined
     readonly permissions?:
       | ReadonlyArray<{ readonly action: string; readonly resource: string; readonly effect: "allow" | "deny" | "ask" }>
       | undefined
   }["title"]
+  readonly metadata?: {
+    readonly title?: string | undefined
+    readonly metadata?: { readonly [x: string]: JsonValue } | undefined
+    readonly permissions?:
+      | ReadonlyArray<{ readonly action: string; readonly resource: string; readonly effect: "allow" | "deny" | "ask" }>
+      | undefined
+  }["metadata"]
   readonly permissions?: {
     readonly title?: string | undefined
+    readonly metadata?: { readonly [x: string]: JsonValue } | undefined
     readonly permissions?:
       | ReadonlyArray<{ readonly action: string; readonly resource: string; readonly effect: "allow" | "deny" | "ask" }>
       | undefined
@@ -4437,6 +4665,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4461,6 +4690,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4476,6 +4706,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4491,6 +4722,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4504,6 +4736,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4534,6 +4767,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4558,6 +4792,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4573,6 +4808,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4588,6 +4824,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4601,6 +4838,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4638,6 +4876,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4662,6 +4901,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4677,6 +4917,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4692,6 +4933,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4705,6 +4947,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4735,6 +4978,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4759,6 +5003,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4774,6 +5019,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4789,6 +5035,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4802,6 +5049,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4839,6 +5087,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4863,6 +5112,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4878,6 +5128,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4893,6 +5144,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4906,6 +5158,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4936,6 +5189,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4960,6 +5214,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4975,6 +5230,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -4990,6 +5246,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5003,6 +5260,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5040,6 +5298,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5064,6 +5323,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5079,6 +5339,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5094,6 +5355,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5107,6 +5369,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5137,6 +5400,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5161,6 +5425,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5176,6 +5441,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5191,6 +5457,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5204,6 +5471,7 @@ export type SessionFormCreateInput = {
             readonly title?: string
             readonly description?: string
             readonly required?: boolean
+            readonly hidden?: boolean
             readonly when?: ReadonlyArray<{
               readonly key: string
               readonly op: "eq" | "neq"
@@ -5254,6 +5522,7 @@ export type SessionFormReplyOutput = void
 export type SessionFormCancelInput = {
   readonly sessionID: { readonly sessionID: string; readonly formID: string }["sessionID"]
   readonly formID: { readonly sessionID: string; readonly formID: string }["formID"]
+  readonly message?: { readonly message?: string | undefined }["message"]
 }
 
 export type SessionFormCancelOutput = void
@@ -5426,6 +5695,28 @@ export type IntegrationConnectKeyInput = {
 
 export type IntegrationConnectKeyOutput = void
 
+export type IntegrationConnectExternalInput = {
+  readonly integrationID: { readonly integrationID: string }["integrationID"]
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+  readonly methodID: {
+    readonly methodID: string
+    readonly answer?: { readonly [x: string]: string | number | boolean | ReadonlyArray<string> } | undefined
+    readonly label?: string | undefined
+  }["methodID"]
+  readonly answer?: {
+    readonly methodID: string
+    readonly answer?: { readonly [x: string]: string | number | boolean | ReadonlyArray<string> } | undefined
+    readonly label?: string | undefined
+  }["answer"]
+  readonly label?: {
+    readonly methodID: string
+    readonly answer?: { readonly [x: string]: string | number | boolean | ReadonlyArray<string> } | undefined
+    readonly label?: string | undefined
+  }["label"]
+}
+
+export type IntegrationConnectExternalOutput = void
+
 export type IntegrationOauthConnectInput = {
   readonly integrationID: { readonly integrationID: string }["integrationID"]
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
@@ -5569,6 +5860,153 @@ export type McpResourceCatalogInput = {
 }
 
 export type McpResourceCatalogOutput = { location: LocationPublicRef; data: McpResourceCatalog }
+
+export type CredentialListOutput = { data: Array<CredentialEntry> }["data"]
+
+export type CredentialCreateInput = {
+  readonly id?: {
+    readonly id?: string
+    readonly integrationID: string
+    readonly label?: string
+    readonly value:
+      | {
+          readonly type: "oauth"
+          readonly methodID: string
+          readonly refresh: string
+          readonly access: string
+          readonly expires: number
+          readonly metadata?: { readonly [x: string]: JsonValue }
+        }
+      | {
+          readonly type: "key"
+          readonly key: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+          readonly configuration?: {
+            readonly [x: string]: string | number | "Infinity" | "-Infinity" | "NaN" | boolean | ReadonlyArray<string>
+          }
+        }
+      | {
+          readonly type: "external"
+          readonly methodID: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+        }
+    readonly activate?: boolean
+  }["id"]
+  readonly integrationID: {
+    readonly id?: string
+    readonly integrationID: string
+    readonly label?: string
+    readonly value:
+      | {
+          readonly type: "oauth"
+          readonly methodID: string
+          readonly refresh: string
+          readonly access: string
+          readonly expires: number
+          readonly metadata?: { readonly [x: string]: JsonValue }
+        }
+      | {
+          readonly type: "key"
+          readonly key: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+          readonly configuration?: {
+            readonly [x: string]: string | number | "Infinity" | "-Infinity" | "NaN" | boolean | ReadonlyArray<string>
+          }
+        }
+      | {
+          readonly type: "external"
+          readonly methodID: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+        }
+    readonly activate?: boolean
+  }["integrationID"]
+  readonly label?: {
+    readonly id?: string
+    readonly integrationID: string
+    readonly label?: string
+    readonly value:
+      | {
+          readonly type: "oauth"
+          readonly methodID: string
+          readonly refresh: string
+          readonly access: string
+          readonly expires: number
+          readonly metadata?: { readonly [x: string]: JsonValue }
+        }
+      | {
+          readonly type: "key"
+          readonly key: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+          readonly configuration?: {
+            readonly [x: string]: string | number | "Infinity" | "-Infinity" | "NaN" | boolean | ReadonlyArray<string>
+          }
+        }
+      | {
+          readonly type: "external"
+          readonly methodID: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+        }
+    readonly activate?: boolean
+  }["label"]
+  readonly value: {
+    readonly id?: string
+    readonly integrationID: string
+    readonly label?: string
+    readonly value:
+      | {
+          readonly type: "oauth"
+          readonly methodID: string
+          readonly refresh: string
+          readonly access: string
+          readonly expires: number
+          readonly metadata?: { readonly [x: string]: JsonValue }
+        }
+      | {
+          readonly type: "key"
+          readonly key: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+          readonly configuration?: {
+            readonly [x: string]: string | number | "Infinity" | "-Infinity" | "NaN" | boolean | ReadonlyArray<string>
+          }
+        }
+      | {
+          readonly type: "external"
+          readonly methodID: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+        }
+    readonly activate?: boolean
+  }["value"]
+  readonly activate?: {
+    readonly id?: string
+    readonly integrationID: string
+    readonly label?: string
+    readonly value:
+      | {
+          readonly type: "oauth"
+          readonly methodID: string
+          readonly refresh: string
+          readonly access: string
+          readonly expires: number
+          readonly metadata?: { readonly [x: string]: JsonValue }
+        }
+      | {
+          readonly type: "key"
+          readonly key: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+          readonly configuration?: {
+            readonly [x: string]: string | number | "Infinity" | "-Infinity" | "NaN" | boolean | ReadonlyArray<string>
+          }
+        }
+      | {
+          readonly type: "external"
+          readonly methodID: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+        }
+    readonly activate?: boolean
+  }["activate"]
+}
+
+export type CredentialCreateOutput = { data: CredentialEntry }["data"]
 
 export type CredentialUpdateInput = {
   readonly credentialID: { readonly credentialID: string }["credentialID"]
@@ -5780,6 +6218,20 @@ export type FileFindInput = {
 }
 
 export type FileFindOutput = { location: LocationPublicRef; data: Array<FileSystemEntry> }
+
+export type FileWriteInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined } | undefined
+    readonly path: string
+  }["location"]
+  readonly path: {
+    readonly location?: { readonly directory?: string | undefined } | undefined
+    readonly path: string
+  }["path"]
+  readonly payload: globalThis.Uint8Array
+}
+
+export type FileWriteOutput = { location: LocationPublicRef; data: FileSystemWrite }
 
 export type CommandListInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
@@ -6122,6 +6574,19 @@ export type WorktreeRemoveOutput = void
 export type WorktreeRefreshInput = { readonly projectID: { readonly projectID: string }["projectID"] }
 
 export type WorktreeRefreshOutput = void
+
+export type VcsInitInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined } | undefined
+    readonly provider?: string | undefined
+  }["location"]
+  readonly provider?: {
+    readonly location?: { readonly directory?: string | undefined } | undefined
+    readonly provider?: string | undefined
+  }["provider"]
+}
+
+export type VcsInitOutput = void
 
 export type VcsGetInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
