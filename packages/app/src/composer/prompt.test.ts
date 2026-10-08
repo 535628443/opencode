@@ -88,7 +88,7 @@ describe("extractPromptFromMessage", () => {
 
   test("restores every input another client sent without duplicating review comment files", () => {
     const message = {
-      id: "msg_1",
+      id: SessionMessage.ID.make("msg_1", { disableChecks: true }),
       type: "user",
       text: "model text",
       metadata: {
@@ -136,7 +136,7 @@ describe("extractPromptFromMessage", () => {
         { data: "", mime: "text/plain", source: { type: "inline" }, name: "empty.txt" },
       ],
       agents: [{ name: "plan" }],
-      skills: [{ id: "review", name: "Review" }],
+      skills: [{ id: Skill.ID.make("review"), name: "Review" }],
       time: { created: 1 },
     } satisfies SessionMessageUser
 

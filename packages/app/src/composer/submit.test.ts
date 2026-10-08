@@ -5,6 +5,7 @@ import { Model } from "@opencode/schema/model"
 import { describe, expect, test } from "bun:test"
 import type { ModelSelection } from "@/providers/models/selection"
 import type { SessionMessageUser } from "@opencode/client/promise"
+import { SessionMessage } from "@opencode/schema/session-message"
 import { Skill } from "@opencode/schema/skill"
 import type { ActiveComposerAdapter, ComposerControls, ComposerSession, NewSessionComposerAdapter } from "./adapter"
 import { createMemoryComposerState, type Prompt } from "./state"
@@ -150,7 +151,7 @@ function session(input: {
 
           // The admitted inbox item, as the server returns it.
           return {
-            id: value.id ?? "msg_admitted",
+            id: value.id ?? SessionMessage.ID.make("msg_admitted", { disableChecks: true }),
             sessionID: value.sessionID,
             time: { created: 0 },
             type: "user" as const,
@@ -217,7 +218,11 @@ describe("Composer submission", () => {
     },
     // A prompt commits a staged revert, which would delete the model switch made after its boundary.
     {
-      current: { agent: "plan", model: { id: "old", providerID: "old" }, revert: { messageID: "msg_reverted" } },
+      current: {
+        agent: Agent.ID.make("plan"),
+        model: { id: Model.ID.make("old"), providerID: Provider.ID.make("old") },
+        revert: { messageID: SessionMessage.ID.make("msg_reverted", { disableChecks: true }) },
+      },
       calls: ["switch-agent", "revert-commit", "switch-model"],
     },
   ])("applies the selection before sending one captured value: $calls", async (row) => {
