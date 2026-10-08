@@ -151,6 +151,22 @@ function formRequestOptions(sessionID: string, ref?: LocationRef) {
   }
 }
 
+export const SyncKey = {
+  session: (sessionID: SessionID) => `session:${sessionID}` as const,
+  sessionFamily: (sessionID: SessionID) => `session.family:${sessionID}` as const,
+  sessionPending: (sessionID: SessionID) => `session.pending:${sessionID}` as const,
+  sessionMessage: (sessionID: SessionID) => `session.message:${sessionID}` as const,
+  sessionPermission: (sessionID: SessionID) => `session.permission:${sessionID}` as const,
+  sessionForm: (sessionID: SessionID | "global" | (string & {}), locationKey = "") =>
+    `session.form:${sessionID}:${locationKey}` as const,
+  location: (locationKey: string) => `location:${locationKey}` as const,
+  locationResource: (field: string, locationKey: string) => `location.${field}:${locationKey}` as const,
+  project: () => "project" as const,
+  projectPermission: (projectID: ProjectID) => `project.permission:${projectID}` as const,
+}
+
+export type SyncKey = ReturnType<(typeof SyncKey)[keyof typeof SyncKey]>
+
 function createSync() {
   // `started` is false while a reload waits for the load it replaces. Invalidations that land in
   // that window are already covered, since the reload has not read anything yet.
@@ -566,8 +582,8 @@ export function createData(config: CreateDataInput) {
 
   function evictSession(sessionID: SessionID) {
     if (sessionOutbox.has(sessionID)) return
-    sync.invalidate(`session.pending:${sessionID}`)
-    sync.invalidate(`session.message:${sessionID}`)
+    sync.invalidate(SyncKey.sessionPending(sessionID))
+    sync.invalidate(SyncKey.sessionMessage(sessionID))
     messageLoads.delete(sessionID)
     // Keep unacknowledged submissions until their echo or rollback settles them.
     const pending = store.session.pending[sessionID]?.filter((item) => outbox.has(item.id)) ?? []
@@ -591,12 +607,12 @@ export function createData(config: CreateDataInput) {
     activeUpdates?.set(sessionID, undefined)
     store.session.pending[sessionID]?.forEach((item) => outbox.delete(item.id))
     messageIndex.delete(sessionID)
-    sync.invalidate(`session:${sessionID}`)
-    sync.invalidate(`session.family:${sessionID}`)
-    sync.invalidate(`session.pending:${sessionID}`)
-    sync.invalidate(`session.message:${sessionID}`)
-    sync.invalidate(`session.permission:${sessionID}`)
-    sync.invalidate(`session.form:${sessionID}:`)
+    sync.invalidate(SyncKey.session(sessionID))
+    sync.invalidate(SyncKey.sessionFamily(sessionID))
+    sync.invalidate(SyncKey.sessionPending(sessionID))
+    sync.invalidate(SyncKey.sessionMessage(sessionID))
+    sync.invalidate(SyncKey.sessionPermission(sessionID))
+    sync.invalidate(SyncKey.sessionForm(sessionID))
     setStore(
       "session",
       produce((draft) => {
@@ -665,8 +681,8 @@ export function createData(config: CreateDataInput) {
         // Fetching pending inputs and projected messages separately lets promotion move an input between snapshots,
         // causing both requests to miss it and overwrite event-built state. Skip those racy initial reads until
         // hydration can load pending and projected messages atomically.
-        sync.complete(`session.pending:${event.data.sessionID}`)
-        sync.complete(`session.message:${event.data.sessionID}`)
+        sync.complete(SyncKey.sessionPending(event.data.sessionID))
+        sync.complete(SyncKey.sessionMessage(event.data.sessionID))
         return
       case "session.deleted":
         removeSession(event.data.sessionID)
@@ -716,7 +732,7 @@ export function createData(config: CreateDataInput) {
       case "session.renamed": {
         // Preserve the live title when it races the session's initial read.
         refresh(() => {
-          const family = sync.pending(`session.family:${event.data.sessionID}`)
+          const family = sync.pending(SyncKey.sessionFamily(event.data.sessionID))
             ? result.session.sync(event.data.sessionID, { children: true })
             : Promise.resolve()
           return Promise.all([result.session.sync(event.data.sessionID), family]).then(() => {
@@ -1082,16 +1098,16 @@ export function createData(config: CreateDataInput) {
               ),
           )
         ) {
-          sync.invalidate(`session.message:${event.data.sessionID}`)
+          sync.invalidate(SyncKey.sessionMessage(event.data.sessionID))
           refresh(() => result.session.message.sync(event.data.sessionID))
         }
         // An event can overtake the first read; queue a revalidation when that read is still active.
-        if (!store.session.info[event.data.sessionID] && !sync.has(`session:${event.data.sessionID}`)) return
+        if (!store.session.info[event.data.sessionID] && !sync.has(SyncKey.session(event.data.sessionID))) return
         result.session.invalidate(event.data.sessionID)
         refresh(() => result.session.sync(event.data.sessionID))
         return
       case "session.viewed":
-        if (!store.session.info[event.data.sessionID] && !sync.has(`session:${event.data.sessionID}`)) return
+        if (!store.session.info[event.data.sessionID] && !sync.has(SyncKey.session(event.data.sessionID))) return
         result.session.invalidate(event.data.sessionID)
         refresh(() => result.session.sync(event.data.sessionID))
         return
@@ -1307,7 +1323,7 @@ export function createData(config: CreateDataInput) {
         break
       case "config.updated":
         result.location.config.invalidate(location)
-        if (result.location.config.list(location) !== undefined || sync.has(`location.config:${locationKey(location)}`))
+        if (result.location.config.list(location) !== undefined || sync.has(SyncKey.locationResource("config", locationKey(location))))
           refresh(() => result.location.config.sync(location))
         refresh(() => result.location.websearch.refresh(location))
         break
@@ -1342,14 +1358,14 @@ export function createData(config: CreateDataInput) {
       sync: (ref?: LocationRef) => {
         const location = ref ?? defaultLocation()
         const id = locationKey(location)
-        return sync.run(`location.${field}:${id}`, async () => {
+        return sync.run(SyncKey.locationResource(field, id), async () => {
           const response = await load(locationQuery(location))
           const key = locationKey(response.location)
           publish(key, response.data)
           if (options?.alias && key !== id) publish(id, response.data)
         })
       },
-      invalidate: (ref?: LocationRef) => sync.invalidate(`location.${field}:${locationKey(ref ?? defaultLocation())}`),
+      invalidate: (ref?: LocationRef) => sync.invalidate(SyncKey.locationResource(field, locationKey(ref ?? defaultLocation()))),
     }
   }
 
@@ -1379,7 +1395,7 @@ export function createData(config: CreateDataInput) {
       remember(info: SessionInfo) {
         batch(() => {
           setStore("session", "info", info.id, reconcile(info))
-          sync.complete(`session:${info.id}`)
+          sync.complete(SyncKey.session(info.id))
           registerSession(info.id)
         })
       },
@@ -1434,7 +1450,7 @@ export function createData(config: CreateDataInput) {
           return store.session.pending[sessionID] ?? []
         },
         sync(sessionID: SessionID) {
-          return sync.run(`session.pending:${sessionID}`, async () => {
+          return sync.run(SyncKey.sessionPending(sessionID), async () => {
             const updates = new Map<SessionMessage.ID, SessionInboxInfo | SessionInbox.Delivery | undefined>()
             pendingUpdates.set(sessionID, updates)
             try {
@@ -1472,7 +1488,7 @@ export function createData(config: CreateDataInput) {
           })
         },
         invalidate(sessionID: SessionID) {
-          sync.invalidate(`session.pending:${sessionID}`)
+          sync.invalidate(SyncKey.sessionPending(sessionID))
         },
       },
       // Optimistic session creation: admit a local record under a
@@ -1510,9 +1526,9 @@ export function createData(config: CreateDataInput) {
           })
           // A mounted optimistic session must not fetch its empty collections
           // before creation settles. The session.created echo re-syncs info.
-          sync.complete(`session.family:${id}`)
-          sync.complete(`session.pending:${id}`)
-          sync.complete(`session.message:${id}`)
+          sync.complete(SyncKey.sessionFamily(id))
+          sync.complete(SyncKey.sessionPending(id))
+          sync.complete(SyncKey.sessionMessage(id))
         }
         // Wrapped so even a synchronous client failure reaches the rollback.
         const request = Promise.resolve()
@@ -1621,7 +1637,7 @@ export function createData(config: CreateDataInput) {
         })
       },
       sync(sessionID: SessionID, options?: { children?: boolean }) {
-        return sync.run(options?.children ? `session.family:${sessionID}` : `session:${sessionID}`, async () => {
+        return sync.run(options?.children ? SyncKey.sessionFamily(sessionID) : SyncKey.session(sessionID), async () => {
           const [info, children] = await Promise.all([
             api().session.get({ sessionID }),
             options?.children
@@ -1640,14 +1656,14 @@ export function createData(config: CreateDataInput) {
               }),
             )
             for (const session of sessions) {
-              sync.complete(`session:${session.id}`)
+              sync.complete(SyncKey.session(session.id))
               registerSession(session.id)
             }
           })
         })
       },
       invalidate(sessionID: SessionID) {
-        sync.invalidate(`session:${sessionID}`)
+        sync.invalidate(SyncKey.session(sessionID))
       },
       message: {
         list(sessionID: SessionID) {
@@ -1659,7 +1675,7 @@ export function createData(config: CreateDataInput) {
           return position === undefined ? undefined : messages?.[position]
         },
         sync(sessionID: SessionID) {
-          return sync.run(`session.message:${sessionID}`, async () => {
+          return sync.run(SyncKey.sessionMessage(sessionID), async () => {
             const response = await api().message.list({
               sessionID,
               limit: config.initialMessageLimit?.() ?? messagePageLimit,
@@ -1757,7 +1773,7 @@ export function createData(config: CreateDataInput) {
           await request
         },
         invalidate(sessionID: SessionID) {
-          sync.invalidate(`session.message:${sessionID}`)
+          sync.invalidate(SyncKey.sessionMessage(sessionID))
         },
       },
       permission: {
@@ -1770,12 +1786,12 @@ export function createData(config: CreateDataInput) {
           )
         },
         sync(sessionID: SessionID) {
-          return sync.run(`session.permission:${sessionID}`, async () => {
+          return sync.run(SyncKey.sessionPermission(sessionID), async () => {
             setStore("session", "permission", sessionID, await api().permission.list({ sessionID }))
           })
         },
         invalidate(sessionID: SessionID) {
-          sync.invalidate(`session.permission:${sessionID}`)
+          sync.invalidate(SyncKey.sessionPermission(sessionID))
         },
         async reply(input: PermissionReplyInput) {
           await api()
@@ -1800,7 +1816,7 @@ export function createData(config: CreateDataInput) {
           )
         },
         sync(sessionID: string, ref?: LocationRef) {
-          const key = `session.form:${sessionID}:${sessionID === "global" ? locationKey(ref ?? defaultLocation()) : ""}`
+          const key = SyncKey.sessionForm(sessionID, sessionID === "global" ? locationKey(ref ?? defaultLocation()) : "")
           return sync.run(key, async () => {
             if (sessionID === "global") {
               const response = await api().form.list({
@@ -1823,7 +1839,7 @@ export function createData(config: CreateDataInput) {
         },
         invalidate(sessionID: string, ref?: LocationRef) {
           sync.invalidate(
-            `session.form:${sessionID}:${sessionID === "global" ? locationKey(ref ?? defaultLocation()) : ""}`,
+            SyncKey.sessionForm(sessionID, sessionID === "global" ? locationKey(ref ?? defaultLocation()) : ""),
           )
         },
         reply(input: SessionFormReplyInput, ref?: LocationRef) {
@@ -1842,25 +1858,25 @@ export function createData(config: CreateDataInput) {
         return store.project.info[projectID]
       },
       sync() {
-        return sync.run("project", async () => {
+        return sync.run(SyncKey.project(), async () => {
           const projects = await api().project.list()
           setStore("project", "info", reconcile(Object.fromEntries(projects.map((project) => [project.id, project]))))
         })
       },
       invalidate() {
-        sync.invalidate("project")
+        sync.invalidate(SyncKey.project())
       },
       permission: {
         list(projectID: ProjectID) {
           return store.project.permission[projectID]
         },
         sync(projectID: ProjectID) {
-          return sync.run(`project.permission:${projectID}`, async () => {
+          return sync.run(SyncKey.projectPermission(projectID), async () => {
             setStore("project", "permission", projectID, await api().permission.saved.list({ projectID }))
           })
         },
         invalidate(projectID: ProjectID) {
-          sync.invalidate(`project.permission:${projectID}`)
+          sync.invalidate(SyncKey.projectPermission(projectID))
         },
       },
     },
@@ -1890,7 +1906,7 @@ export function createData(config: CreateDataInput) {
       },
       syncInfo(ref?: LocationRef) {
         const current = ref ?? defaultLocation()
-        return sync.run(`location:${locationKey(current)}`, async () => {
+        return sync.run(SyncKey.location(locationKey(current)), async () => {
           const location = await api().location.get({ location: locationQuery(current) })
           const key = locationKey(location)
           if (!store.location[key]) setStore("location", key, {})
@@ -1920,7 +1936,7 @@ export function createData(config: CreateDataInput) {
       },
       invalidate(ref?: LocationRef) {
         const location = ref ?? defaultLocation()
-        sync.invalidate(`location:${locationKey(location)}`)
+        sync.invalidate(SyncKey.location(locationKey(location)))
         result.location.vcs.invalidate(location)
         result.location.agent.invalidate(location)
         result.location.command.invalidate(location)
