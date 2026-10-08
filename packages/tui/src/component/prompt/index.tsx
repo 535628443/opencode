@@ -209,7 +209,7 @@ export function Prompt(props: PromptProps) {
   const config = useConfig().data
   const dialog = useDialog()
   const toast = useToast()
-  const status = createMemo(() => data.session.status(props.sessionID ?? ""))
+  const status = createMemo(() => (props.sessionID ? data.session.status(props.sessionID) : "idle"))
   const history = usePromptHistory()
   const stash = usePromptStash()
   const keymap = Keymap.use()
@@ -1230,7 +1230,7 @@ export function Prompt(props: PromptProps) {
       // flight. Sends against the new session gate on the request.
       const newSessionID = args.takeNewSessionID()
       const created = data.session.create({
-        id: newSessionID,
+        id: newSessionID ? Session.ID.make(newSessionID, { disableChecks: true }) : undefined,
         location: directory ? { directory } : location,
         agent: agent.id,
         model: {

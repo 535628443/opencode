@@ -3689,7 +3689,11 @@ test("syncs direct child session info with a navigated root", async () => {
     expect<unknown>(data.session.get(Session.ID.make("child", { disableChecks: true }))?.parentID).toBe("root")
     expect<unknown>(data.session.get(Session.ID.make("sibling", { disableChecks: true }))?.parentID).toBe("root")
     expect(data.session.get(Session.ID.make("grandchild", { disableChecks: true }))).toBeUndefined()
-    expect(data.session.family(Session.ID.make("root", { disableChecks: true }))).toEqual(["root", "child", "sibling"])
+    expect(data.session.family(Session.ID.make("root", { disableChecks: true }))).toEqual([
+      Session.ID.make("root", { disableChecks: true }),
+      Session.ID.make("child", { disableChecks: true }),
+      Session.ID.make("sibling", { disableChecks: true }),
+    ])
   } finally {
     app.renderer.destroy()
   }
@@ -3700,15 +3704,29 @@ test("groups an orphan child under its missing parent until the root arrives", a
   try {
     await data.session.sync(Session.ID.make("child", { disableChecks: true }))
     // Parent info is absent, so the missing parent is the furthest-known ancestor.
-    expect(data.session.root(Session.ID.make("child", { disableChecks: true }))).toBe("root")
-    expect(data.session.family(Session.ID.make("child", { disableChecks: true }))).toEqual(["child"])
-    expect(data.session.family(Session.ID.make("root", { disableChecks: true }))).toEqual(["child"])
+    expect(data.session.root(Session.ID.make("child", { disableChecks: true }))).toBe(
+      Session.ID.make("root", { disableChecks: true }),
+    )
+    expect(data.session.family(Session.ID.make("child", { disableChecks: true }))).toEqual([
+      Session.ID.make("child", { disableChecks: true }),
+    ])
+    expect(data.session.family(Session.ID.make("root", { disableChecks: true }))).toEqual([
+      Session.ID.make("child", { disableChecks: true }),
+    ])
 
     await data.session.sync(Session.ID.make("root", { disableChecks: true }))
-    expect(data.session.root(Session.ID.make("root", { disableChecks: true }))).toBe("root")
+    expect(data.session.root(Session.ID.make("root", { disableChecks: true }))).toBe(
+      Session.ID.make("root", { disableChecks: true }),
+    )
     // The tentative root entry folds into the now-known root's family.
-    expect(data.session.family(Session.ID.make("child", { disableChecks: true }))).toEqual(["child", "root"])
-    expect(data.session.family(Session.ID.make("root", { disableChecks: true }))).toEqual(["child", "root"])
+    expect(data.session.family(Session.ID.make("child", { disableChecks: true }))).toEqual([
+      Session.ID.make("child", { disableChecks: true }),
+      Session.ID.make("root", { disableChecks: true }),
+    ])
+    expect(data.session.family(Session.ID.make("root", { disableChecks: true }))).toEqual([
+      Session.ID.make("child", { disableChecks: true }),
+      Session.ID.make("root", { disableChecks: true }),
+    ])
   } finally {
     app.renderer.destroy()
   }
@@ -3718,22 +3736,35 @@ test("indexes arbitrarily deep nesting under a single root", async () => {
   const { data, app } = await mountData({ grandchild: "child", child: "root" })
   try {
     await data.session.sync(Session.ID.make("grandchild", { disableChecks: true }))
-    expect(data.session.root(Session.ID.make("grandchild", { disableChecks: true }))).toBe("child")
-    expect(data.session.family(Session.ID.make("grandchild", { disableChecks: true }))).toEqual(["grandchild"])
+    expect(data.session.root(Session.ID.make("grandchild", { disableChecks: true }))).toBe(
+      Session.ID.make("child", { disableChecks: true }),
+    )
+    expect(data.session.family(Session.ID.make("grandchild", { disableChecks: true }))).toEqual([
+      Session.ID.make("grandchild", { disableChecks: true }),
+    ])
 
     await data.session.sync(Session.ID.make("child", { disableChecks: true }))
     // grandchild's tentative family (keyed by the missing "child") merges up
     // toward the still-missing "root".
-    expect(data.session.root(Session.ID.make("child", { disableChecks: true }))).toBe("root")
-    expect(data.session.family(Session.ID.make("grandchild", { disableChecks: true }))).toEqual(["grandchild", "child"])
+    expect(data.session.root(Session.ID.make("child", { disableChecks: true }))).toBe(
+      Session.ID.make("root", { disableChecks: true }),
+    )
+    expect(data.session.family(Session.ID.make("grandchild", { disableChecks: true }))).toEqual([
+      Session.ID.make("grandchild", { disableChecks: true }),
+      Session.ID.make("child", { disableChecks: true }),
+    ])
 
     await data.session.sync(Session.ID.make("root", { disableChecks: true }))
-    expect(data.session.root(Session.ID.make("grandchild", { disableChecks: true }))).toBe("root")
-    expect(data.session.root(Session.ID.make("child", { disableChecks: true }))).toBe("root")
-    expect<unknown>(data.session.family(Session.ID.make("root", { disableChecks: true }))).toEqual([
-      "grandchild",
-      "child",
-      "root",
+    expect(data.session.root(Session.ID.make("grandchild", { disableChecks: true }))).toBe(
+      Session.ID.make("root", { disableChecks: true }),
+    )
+    expect(data.session.root(Session.ID.make("child", { disableChecks: true }))).toBe(
+      Session.ID.make("root", { disableChecks: true }),
+    )
+    expect(data.session.family(Session.ID.make("root", { disableChecks: true }))).toEqual([
+      Session.ID.make("grandchild", { disableChecks: true }),
+      Session.ID.make("child", { disableChecks: true }),
+      Session.ID.make("root", { disableChecks: true }),
     ])
   } finally {
     app.renderer.destroy()
@@ -3762,7 +3793,11 @@ test("re-registering an existing session is idempotent", async () => {
     await data.session.sync(Session.ID.make("child", { disableChecks: true }))
     await data.session.sync(Session.ID.make("root", { disableChecks: true }))
     const before = data.session.family(Session.ID.make("root", { disableChecks: true }))
-    expect(before).toEqual(["grandchild", "child", "root"])
+    expect(before).toEqual([
+      Session.ID.make("grandchild", { disableChecks: true }),
+      Session.ID.make("child", { disableChecks: true }),
+      Session.ID.make("root", { disableChecks: true }),
+    ])
 
     await data.session.sync(Session.ID.make("child", { disableChecks: true }))
     await data.session.sync(Session.ID.make("root", { disableChecks: true }))
@@ -3780,8 +3815,13 @@ test("stops at the last non-repeating ancestor on a parent cycle", async () => {
     await data.session.sync(Session.ID.make("x", { disableChecks: true }))
     await data.session.sync(Session.ID.make("y", { disableChecks: true }))
     // Does not hang; walking up from "y" stops before re-entering "x".
-    expect(data.session.root(Session.ID.make("y", { disableChecks: true }))).toBe("x")
-    expect(data.session.family(Session.ID.make("y", { disableChecks: true }))).toEqual(["x", "y"])
+    expect(data.session.root(Session.ID.make("y", { disableChecks: true }))).toBe(
+      Session.ID.make("x", { disableChecks: true }),
+    )
+    expect(data.session.family(Session.ID.make("y", { disableChecks: true }))).toEqual([
+      Session.ID.make("x", { disableChecks: true }),
+      Session.ID.make("y", { disableChecks: true }),
+    ])
   } finally {
     app.renderer.destroy()
   }

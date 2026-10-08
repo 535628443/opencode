@@ -120,13 +120,17 @@ export function createPluginContext(input: {
         return
       }
       const route = host.route.data
-      if (route.type === "session" && host.data.session.root(route.sessionID) === host.data.session.root(sessionID)) {
+      if (
+        route.type === "session" &&
+        host.data.session.root(route.sessionID) ===
+          host.data.session.root(Session.ID.make(sessionID, { disableChecks: true }))
+      ) {
         host.toast.show(toast)
         return
       }
       host.toast.show({
         ...toast,
-        title: toast.title ?? host.data.session.get(sessionID)?.title,
+        title: toast.title ?? host.data.session.get(Session.ID.make(sessionID, { disableChecks: true }))?.title,
         action: {
           label: "Open",
           run: () =>
@@ -278,7 +282,7 @@ export function createPluginContext(input: {
         },
         move(sessionID, index) {
           if (!host.sessionTabs.enabled()) return false
-          const target = host.data.session.root(sessionID)
+          const target = host.data.session.root(Session.ID.make(sessionID, { disableChecks: true }))
           if (!host.sessionTabs.tabs().some((tab) => tab.sessionID === target)) return false
           host.sessionTabs.move(target, index)
           return true

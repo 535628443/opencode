@@ -115,13 +115,14 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
       )
     }
 
-    const root = (sessionID: Session.ID | string) => Session.ID.make(data.session.root(sessionID), { disableChecks: true })
+    const root = (sessionID: Session.ID | string) =>
+      Session.ID.make(data.session.root(Session.ID.make(sessionID, { disableChecks: true })), { disableChecks: true })
     const title = (sessionID: Session.ID | string, persisted?: string, fallback?: string) => {
-      const session = data.session.get(sessionID)
+      const session = data.session.get(Session.ID.make(sessionID, { disableChecks: true }))
       return session?.title ?? persisted ?? fallback ?? (session ? withTimestampedFallback(session) : undefined)
     }
     const isUnread = (sessionID: Session.ID | string) => {
-      const info = data.session.get(sessionID)
+      const info = data.session.get(Session.ID.make(sessionID, { disableChecks: true }))
       return info?.time.idle !== undefined && (info.time.viewed === undefined || info.time.idle > info.time.viewed)
     }
     const family = (sessionID: Session.ID | string) => {
@@ -267,11 +268,15 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
       const sessionIDs = signature.split("\n")
       let stale = false
       void (async () => {
-        await Promise.allSettled(sessionIDs.map((sessionID) => data.session.sync(sessionID, { children: true })))
+        await Promise.allSettled(
+          sessionIDs.map((sessionID) =>
+            data.session.sync(Session.ID.make(sessionID, { disableChecks: true }), { children: true }),
+          ),
+        )
         if (stale) return
         const locations = new Map(
           sessionIDs
-            .map((sessionID) => data.session.get(sessionID)?.location)
+            .map((sessionID) => data.session.get(Session.ID.make(sessionID, { disableChecks: true }))?.location)
             .filter((location) => location !== undefined)
             .map((location) => [locationKey(location), location]),
         )

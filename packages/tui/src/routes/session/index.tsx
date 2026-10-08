@@ -544,7 +544,8 @@ export function Session(props: {
       first ??= item
       const inset =
         item.target.type === "group" ||
-        data.session.message.get(sessionID, item.target.ref.messageID)?.type === "assistant"
+        data.session.message.get(sessionID, SessionMessage.ID.make(item.target.ref.messageID, { disableChecks: true }))
+          ?.type === "assistant"
           ? 1
           : 0
       if (item.screenY <= inset && (!anchor || item.screenY > anchor.screenY)) anchor = item
@@ -733,7 +734,7 @@ export function Session(props: {
       const child = anchors.forMessage(messageID)
       if (!child) return
       const y = scroll.scrollTop + child.node.y - scroll.viewport.y
-      const message = data.session.message.get(route.sessionID, messageID)
+      const message = data.session.message.get(route.sessionID, SessionMessage.ID.make(messageID, { disableChecks: true }))
       alignMessage(messageID, Math.max(0, y - (message?.type === "assistant" ? 1 : 0)))
     })
 
@@ -1412,7 +1413,9 @@ export function Session(props: {
                   {(row, index) => (
                     <SessionRowView
                       row={row}
-                      message={(messageID) => data.session.message.get(route.sessionID, messageID)}
+                      message={(messageID) =>
+                        data.session.message.get(route.sessionID, SessionMessage.ID.make(messageID, { disableChecks: true }))
+                      }
                       boundaryID={boundaries()[index() + hidden()]}
                     />
                   )}
