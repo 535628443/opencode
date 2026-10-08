@@ -82,6 +82,7 @@ describe("visibleTimelineMessages", () => {
         shellToolDefaultOpen: () => false,
         editToolDefaultOpen: () => false,
         timelineDetail: () => timelinePresets[2].value,
+        pendingInputIDs: () => new Set([steer.id]),
       })
 
       expect<unknown>(projection.activeMessageID()).toBe("msg_1")

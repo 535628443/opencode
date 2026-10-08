@@ -86,7 +86,16 @@ export function createTimelineController(input: { session: TimelineSessionSource
     )
   })
 
-  
+  const pendingInputIDs = createMemo(() => {
+    const id = input.session.identity.sessionID()
+
+    return new Set(
+      (id ? data.session.pending.list(id) : []).flatMap((item) =>
+        (item.type === "user" && item.delivery === "steer") || item.type === "synthetic" ? [item.id] : [],
+      ),
+    )
+  })
+
   const queuedCompactionIDs = createMemo(() => {
     const id = input.session.identity.sessionID()
 
@@ -157,7 +166,7 @@ export function createTimelineController(input: { session: TimelineSessionSource
     shellToolDefaultOpen: shellToolPartsExpanded,
     editToolDefaultOpen: editToolPartsExpanded,
     timelineDetail,
-    
+    pendingInputIDs,
     queuedCompactionIDs,
   })
 

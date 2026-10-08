@@ -1,4 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
+import { Event } from "@opencode/schema/event"
+import { Session } from "@opencode/schema/session"
+import { SessionMessage } from "@opencode/schema/session-message"
 import { base64Encode } from "@opencode/util/encode"
 import { fixture } from "../utils/session-fixture"
 import { mockOpenCodeServer } from "../utils/mock-server"
@@ -10,7 +13,7 @@ for (const endpoint of ["/api/location", "/api/agent"]) {
     test(`keeps the composer when ${endpoint} ${recover ? "recovers on retry" : "fails"}`, async ({ page }) => {
       const recovery = recoveryRequests(page)
       const directory = "/projects/working-tree"
-      const sessionID = "ses_location_sync_failure"
+      const sessionID = Session.ID.make("ses_location_sync_failure", { disableChecks: true })
       await mockOpenCodeServer(page, {
         directory: fixture.directory,
         project: fixture.project,
@@ -18,7 +21,7 @@ for (const endpoint of ["/api/location", "/api/agent"]) {
         sessions: [{ id: sessionID, projectID: fixture.project.id, directory, title: "Workspace sync" }],
         fileList: () => [],
         pageMessages: () => ({
-          items: [{ id: "msg_saved", type: "user", text: "Keep working in this worktree", time: { created: 1 } }],
+          items: [{ id: SessionMessage.ID.make("msg_saved", { disableChecks: true }), type: "user", text: "Keep working in this worktree", time: { created: 1 } }],
         }),
       })
       let requests = 0
@@ -72,7 +75,7 @@ test("replaces the composer when the location is not found and recovers by movin
 }) => {
   const directory = "/projects/deleted-worktree"
   const destination = "/projects/existing-worktree"
-  const sessionID = "ses_location_not_found"
+  const sessionID = Session.ID.make("ses_location_not_found", { disableChecks: true })
   const session = { id: sessionID, projectID: fixture.project.id, directory, title: "Missing location" }
   const moves: unknown[] = []
   const transport = await installSseTransport(page, { server: fixture.serverKey })
@@ -84,7 +87,7 @@ test("replaces the composer when the location is not found and recovers by movin
     fileList: () => [],
     worktrees: [{ directory: fixture.directory }, { directory: destination, strategy: "git" }],
     pageMessages: () => ({
-      items: [{ id: "msg_saved", type: "user", text: "Keep this session history", time: { created: 1 } }],
+      items: [{ id: SessionMessage.ID.make("msg_saved", { disableChecks: true }), type: "user", text: "Keep this session history", time: { created: 1 } }],
     }),
   })
   let requests = 0
@@ -122,10 +125,10 @@ test("replaces the composer when the location is not found and recovers by movin
 
   session.directory = destination
   await transport.send({
-    id: "evt_location_not_found_moved",
+    id: Event.ID.make("evt_location_not_found_moved", { disableChecks: true }),
     type: "session.moved",
     created: 2,
-    durable: { aggregateID: sessionID, seq: 1, version: 1 },
+    durable: { aggregateID: sessionID, seq: Event.Seq.make(1, { disableChecks: true }), version: 1 },
     data: { sessionID, location: { directory: destination }, projectID: fixture.project.id },
   })
   await expect(page.getByRole("textbox", { name: "Prompt", exact: true })).toBeEditable()
@@ -137,7 +140,7 @@ test("follows a live session move while the agent catalog is still loading", asy
   const recovery = recoveryRequests(page)
   const directory = "/projects/old-tree"
   const destination = "/projects/current-tree"
-  const sessionID = "ses_location_moved_while_loading"
+  const sessionID = Session.ID.make("ses_location_moved_while_loading", { disableChecks: true })
   const session = { id: sessionID, projectID: fixture.project.id, directory, title: "Moved session" }
   const requested = Promise.withResolvers<void>()
   const release = Promise.withResolvers<void>()
@@ -155,7 +158,7 @@ test("follows a live session move while the agent catalog is still loading", asy
     sessions: [session],
     fileList: () => [],
     pageMessages: () => ({
-      items: [{ id: "msg_saved", type: "user", text: "Follow the session move", time: { created: 1 } }],
+      items: [{ id: SessionMessage.ID.make("msg_saved", { disableChecks: true }), type: "user", text: "Follow the session move", time: { created: 1 } }],
     }),
   })
   await page.route("**/api/**", async (route) => {
@@ -184,10 +187,10 @@ test("follows a live session move while the agent catalog is still loading", asy
 
   session.directory = destination
   await transport.send({
-    id: "evt_location_moved_while_loading",
+    id: Event.ID.make("evt_location_moved_while_loading", { disableChecks: true }),
     type: "session.moved",
     created: 2,
-    durable: { aggregateID: sessionID, seq: 1, version: 1 },
+    durable: { aggregateID: sessionID, seq: Event.Seq.make(1, { disableChecks: true }), version: 1 },
     data: { sessionID, location: { directory: destination }, projectID: fixture.project.id },
   })
   await resolved
@@ -212,7 +215,7 @@ test("follows a live session move while the agent catalog is still loading", asy
 test("keeps the side panel's tabs and selection when the session moves", async ({ page }) => {
   const directory = "/projects/tabs-before-move"
   const destination = "/projects/tabs-after-move"
-  const sessionID = "ses_location_moved_tabs"
+  const sessionID = Session.ID.make("ses_location_moved_tabs", { disableChecks: true })
   const session = { id: sessionID, projectID: fixture.project.id, directory, title: "Moved tabs" }
   const transport = await installSseTransport(page, { server: fixture.serverKey })
   await mockOpenCodeServer(page, {
@@ -227,7 +230,7 @@ test("keeps the side panel's tabs and selection when the session moves", async (
         .map((name) => fileNode(session.directory, name)),
     fileContent: (path) => ({ type: "text", content: `contents:${session.directory}:${path}` }),
     pageMessages: () => ({
-      items: [{ id: "msg_saved", type: "user", text: "Keep my tabs", time: { created: 1 } }],
+      items: [{ id: SessionMessage.ID.make("msg_saved", { disableChecks: true }), type: "user", text: "Keep my tabs", time: { created: 1 } }],
     }),
   })
   await page.goto(`/server/${base64Encode(fixture.serverKey)}/session/${sessionID}`)
@@ -270,10 +273,10 @@ test("keeps the side panel's tabs and selection when the session moves", async (
 
   session.directory = destination
   await transport.send({
-    id: "evt_location_moved_tabs",
+    id: Event.ID.make("evt_location_moved_tabs", { disableChecks: true }),
     type: "session.moved",
     created: 2,
-    durable: { aggregateID: sessionID, seq: 1, version: 1 },
+    durable: { aggregateID: sessionID, seq: Event.Seq.make(1, { disableChecks: true }), version: 1 },
     data: { sessionID, location: { directory: destination }, projectID: fixture.project.id },
   })
   await resolved
@@ -288,7 +291,7 @@ test("refreshes a session moved during disconnection without losing the draft", 
   const recovery = recoveryRequests(page)
   const directory = "/projects/before-reconnect"
   const destination = "/projects/after-reconnect"
-  const sessionID = "ses_location_reconnect"
+  const sessionID = Session.ID.make("ses_location_reconnect", { disableChecks: true })
   const session = { id: sessionID, projectID: fixture.project.id, directory, title: "Reconnected session" }
   const transport = await installSseTransport(page, { server: fixture.serverKey })
   await mockOpenCodeServer(page, {
@@ -298,7 +301,7 @@ test("refreshes a session moved during disconnection without losing the draft", 
     sessions: [session],
     fileList: () => [],
     pageMessages: () => ({
-      items: [{ id: "msg_saved", type: "user", text: "Resume in the current worktree", time: { created: 1 } }],
+      items: [{ id: SessionMessage.ID.make("msg_saved", { disableChecks: true }), type: "user", text: "Resume in the current worktree", time: { created: 1 } }],
     }),
   })
   await page.goto(`/server/${base64Encode(fixture.serverKey)}/session/${sessionID}`)
@@ -330,7 +333,7 @@ test("refreshes a session moved during disconnection without losing the draft", 
 test("ignores an old failed location read after reconnecting", async ({ page }) => {
   const recovery = recoveryRequests(page)
   const directory = "/projects/reconnected-tree"
-  const sessionID = "ses_location_stale_response"
+  const sessionID = Session.ID.make("ses_location_stale_response", { disableChecks: true })
   const requested = Promise.withResolvers<void>()
   const release = Promise.withResolvers<void>()
   const transport = await installSseTransport(page, { server: fixture.serverKey })

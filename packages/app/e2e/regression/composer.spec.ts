@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
+import { SessionMessage } from "@opencode/schema/session-message"
 import { NO_PROVIDER, T0, provider } from "../utils/app"
 import { openDraft, openSession } from "../utils/workspace"
 
@@ -228,8 +229,9 @@ test("lists slash commands in their built-in order", async ({ page }) => {
       { name: "init", description: "Create AGENTS.md" },
       { name: "review", description: "Review changes" },
     ],
-    // A sent message enables /undo, /compact and /fork.
-    pageMessages: () => ({ items: [{ id: "msg_slash", type: "user", text: "Hello", time: { created: T0 } }] }),
+    pageMessages: () => ({
+      items: [{ id: SessionMessage.ID.make("msg_slash", { disableChecks: true }), type: "user", text: "Hello", time: { created: T0 } }],
+    }),
   })
 
   await editor.fill("/")

@@ -1,4 +1,5 @@
 import { devices, expect, test, type Page } from "@playwright/test"
+import { Session } from "@opencode/schema/session"
 import {
   assistantMessage,
   partDelta,
@@ -324,7 +325,7 @@ for (const device of ["Pixel 7", "iPhone 13"]) {
       test(`detached session gestures do not unpin the selected session (${width}px, ${release})`, async ({
         page,
       }, testInfo) => {
-        const second = "ses_gesture_destination"
+        const second = Session.ID.make("ses_gesture_destination", { disableChecks: true })
         const content = Array.from({ length: 60 }, (_, index) => `Read output ${index}.`).join("\n\n")
         const fixture = await setupTimeline(page, {
           tabs: [sessionID, second],

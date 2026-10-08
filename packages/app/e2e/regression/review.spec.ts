@@ -1,4 +1,9 @@
 import type { OpenCodeEvent, SessionMessageInfo } from "@opencode/client/promise"
+import { Agent } from "@opencode/schema/agent"
+import { Event } from "@opencode/schema/event"
+import { Model } from "@opencode/schema/model"
+import { Provider } from "@opencode/schema/provider"
+import { SessionMessage } from "@opencode/schema/session-message"
 import { expect, test, type Locator, type Page } from "@playwright/test"
 import { base64Encode } from "@opencode/util/encode"
 import { SERVER, holdRoute, project, provider, session, workspaceKey } from "../utils/app"
@@ -407,7 +412,7 @@ test("file tree expands Windows paths and scrolls long names in both directions"
   await viewport.evaluate((element) => {
     element.setAttribute("dir", "rtl")
     element.scrollLeft = 0
-    element.dispatchEvent(new Event("scroll"))
+    element.dispatchEvent(new window.Event("scroll"))
   })
   await viewport.hover()
   await dragThumb(page, thumb, -40)
@@ -463,12 +468,12 @@ test("rereads a file each time an artifact link opens it", async ({ page }) => {
   const file = { content: "first draft" }
 
   const messages = [
-    { id: "msg_prompt", type: "user", text: "Write the shopping list", time: { created: 1 } },
+    { id: SessionMessage.ID.make("msg_prompt", { disableChecks: true }), type: "user", text: "Write the shopping list", time: { created: 1 } },
     {
-      id: "msg_reply",
+      id: SessionMessage.ID.make("msg_reply", { disableChecks: true }),
       type: "assistant",
-      agent: "build",
-      model: { id: "test", providerID: "opencode" },
+      agent: Agent.ID.make("build", { disableChecks: true }),
+      model: { id: Model.ID.make("test", { disableChecks: true }), providerID: Provider.ID.make("opencode", { disableChecks: true }) },
       content: [{ type: "text", text: "Updated [shopping.txt](shopping.txt)." }],
       time: { created: 2, completed: 3 },
     },
@@ -969,7 +974,7 @@ async function statusInset(status: Locator, side: "left" | "right") {
 
 function filesystemEvent(directory: string, file: string, event: "add" | "change" | "unlink"): OpenCodeEvent {
   return {
-    id: `evt_${file}_${event}`,
+    id: Event.ID.make(`evt_${file}_${event}`, { disableChecks: true }),
     created: 1,
     type: "filesystem.changed",
     location: { directory },

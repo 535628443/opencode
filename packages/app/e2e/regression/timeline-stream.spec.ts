@@ -1,5 +1,13 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 import type { SessionMessageAssistant, SessionMessageInfo, ShellInfo } from "@opencode/client/promise"
+import { Agent } from "@opencode/schema/agent"
+import { Event } from "@opencode/schema/event"
+import { Model } from "@opencode/schema/model"
+import { Provider } from "@opencode/schema/provider"
+import { Session } from "@opencode/schema/session"
+import { SessionMessage } from "@opencode/schema/session-message"
+import { Shell } from "@opencode/schema/shell"
+import { Skill } from "@opencode/schema/skill"
 import { timelinePresets } from "@opencode/session-ui/timeline/detail"
 import { createTwoFilesPatch } from "diff"
 import {
@@ -29,13 +37,13 @@ import {
 
 const detailed = timelinePresets[2].value
 
-const user = { id: "msg_user", type: "user", text: "Run it", time: { created: 1 } } satisfies SessionMessageInfo
+const user = { id: SessionMessage.ID.make("msg_user", { disableChecks: true }), type: "user", text: "Run it", time: { created: 1 } } satisfies SessionMessageInfo
 
 const completed = {
-  id: "msg_assistant",
+  id: SessionMessage.ID.make("msg_assistant", { disableChecks: true }),
   type: "assistant",
-  agent: "build",
-  model: { id: "model", providerID: "provider" },
+  agent: Agent.ID.make("build", { disableChecks: true }),
+  model: { id: Model.ID.make("model", { disableChecks: true }), providerID: Provider.ID.make("provider", { disableChecks: true }) },
   content: [{ type: "text", text: "Working" }],
   time: { created: 2, completed: 3 },
 } satisfies SessionMessageAssistant
@@ -51,10 +59,10 @@ test.describe("static projection", () => {
       settings: { timelineDetail: { ...detailed, notices: { placement: "separate" } } },
       sessionMessages: [
         user,
-        { id: "msg_agent", type: "agent-switched", agent: "explore", time: { created: 2 } },
+        { id: SessionMessage.ID.make("msg_agent", { disableChecks: true }), type: "agent-switched", agent: Agent.ID.make("explore", { disableChecks: true }), time: { created: 2 } },
         completed,
         {
-          id: "msg_subagent",
+          id: SessionMessage.ID.make("msg_subagent", { disableChecks: true }),
           type: "synthetic",
           text: "done",
           description: "Search code",
@@ -62,13 +70,13 @@ test.describe("static projection", () => {
           time: { created: 4 },
         },
         {
-          id: "msg_restart",
+          id: SessionMessage.ID.make("msg_restart", { disableChecks: true }),
           type: "synthetic",
           text: "continue",
           description: "Continuing after restart",
           time: { created: 5 },
         },
-        { id: "msg_skill", type: "skill", skill: "review", name: "Review", text: "instructions", time: { created: 6 } },
+        { id: SessionMessage.ID.make("msg_skill", { disableChecks: true }), type: "skill", skill: Skill.ID.make("review", { disableChecks: true }), name: "Review", text: "instructions", time: { created: 6 } },
       ],
     })
 
@@ -93,24 +101,24 @@ test.describe("static projection", () => {
     )
 
     const aborted = assistantMessage([{ id: "prt_before_abort", type: "text", text: "Before interruption" }], {
-      id: "msg_1001_assistant_aborted",
+      id: SessionMessage.ID.make("msg_1001_assistant_aborted", { disableChecks: true }),
       error: { type: "MessageAbortedError", message: "Stopped" },
     })
 
     const failed = assistantMessage([{ id: "prt_after_abort", type: "text", text: "After interruption" }], {
-      id: "msg_1002_assistant_failed",
+      id: SessionMessage.ID.make("msg_1002_assistant_failed", { disableChecks: true }),
       error: { type: "APIError", message: "Visible provider failure" },
       created: 1700000003000,
     })
 
     const nextUser = userMessage([userText("Second turn", { id: "prt_second_user" })], {
-      id: "msg_2000_second_user",
+      id: SessionMessage.ID.make("msg_2000_second_user", { disableChecks: true }),
       created: 1700000005000,
     })
 
     const nextAssistant = assistantMessage([{ id: "prt_second_text", type: "text", text: "Second response" }], {
-      id: "msg_2001_second_assistant",
-      parentID: "msg_2000_second_user",
+      id: SessionMessage.ID.make("msg_2001_second_assistant", { disableChecks: true }),
+      parentID: SessionMessage.ID.make("msg_2000_second_user", { disableChecks: true }),
       created: 1700000006000,
     })
 
@@ -759,15 +767,15 @@ test.describe("Working", () => {
     await expect(working).toBeVisible()
 
     await timeline.send({
-      id: "evt_working_text_started",
+      id: Event.ID.make("evt_working_text_started", { disableChecks: true }),
       type: "session.text.started",
       created: 1700000002000,
       location: { directory },
-      durable: { aggregateID: sessionID, seq: 0, version: 1 },
+      durable: { aggregateID: sessionID, seq: Event.Seq.make(0, { disableChecks: true }), version: 1 },
       data: { sessionID, assistantMessageID: assistantID, ordinal: 0 },
     })
     await timeline.send({
-      id: "evt_working_text_delta",
+      id: Event.ID.make("evt_working_text_delta", { disableChecks: true }),
       type: "session.text.delta",
       created: 1700000002001,
       location: { directory },
@@ -859,18 +867,18 @@ test.describe("background shortcut", () => {
   }
 
   test("separates blocking and already-backgrounded work into two rows", async ({ page }) => {
-    const backgroundID = "ses_background_existing"
-    const blockingID = "ses_background_blocking"
+    const backgroundID = Session.ID.make("ses_background_existing", { disableChecks: true })
+    const blockingID = Session.ID.make("ses_background_blocking", { disableChecks: true })
 
     const timeline = await setupTimeline(page, {
       settings: { timelineDetail: detailed },
       sessionMessages: [
         user,
         {
-          id: "msg_backgrounded",
+          id: SessionMessage.ID.make("msg_backgrounded", { disableChecks: true }),
           type: "assistant",
-          agent: "build",
-          model: { id: "model", providerID: "provider" },
+          agent: Agent.ID.make("build", { disableChecks: true }),
+          model: { id: Model.ID.make("model", { disableChecks: true }), providerID: Provider.ID.make("provider", { disableChecks: true }) },
           content: [
             {
               type: "tool",
@@ -892,7 +900,7 @@ test.describe("background shortcut", () => {
                 status: "completed",
                 input: { command: "sleep 120" },
                 content: [{ type: "text", text: "working" }],
-                metadata: { shellID: "sh_backgrounded", status: "running" },
+                metadata: { shellID: Shell.ID.make("sh_backgrounded", { disableChecks: true }), status: "running" },
               },
               time: { created: 2, completed: 3 },
             },
@@ -900,10 +908,10 @@ test.describe("background shortcut", () => {
           time: { created: 2, completed: 3 },
         },
         {
-          id: "msg_blocking",
+          id: SessionMessage.ID.make("msg_blocking", { disableChecks: true }),
           type: "assistant",
-          agent: "build",
-          model: { id: "model", providerID: "provider" },
+          agent: Agent.ID.make("build", { disableChecks: true }),
+          model: { id: Model.ID.make("model", { disableChecks: true }), providerID: Provider.ID.make("provider", { disableChecks: true }) },
           content: [
             {
               type: "tool",
@@ -922,8 +930,8 @@ test.describe("background shortcut", () => {
       ],
       sessions: [
         session(),
-        session({ id: backgroundID, parentID: sessionID, title: "Background task", agent: "explore" }),
-        session({ id: blockingID, parentID: sessionID, title: "Foreground task", agent: "build" }),
+        session({ id: backgroundID, parentID: sessionID, title: "Background task", agent: Agent.ID.make("explore", { disableChecks: true }) }),
+        session({ id: blockingID, parentID: sessionID, title: "Foreground task", agent: Agent.ID.make("build", { disableChecks: true }) }),
       ],
       sessionStatus: {
         [sessionID]: { type: "busy" },
@@ -933,13 +941,13 @@ test.describe("background shortcut", () => {
     })
 
     await timeline.transport.send({
-      id: "evt_background_shell_created",
+      id: Event.ID.make("evt_background_shell_created", { disableChecks: true }),
       created: 3,
       type: "shell.created",
       location: { directory },
       data: {
         info: {
-          id: "sh_backgrounded",
+          id: Shell.ID.make("sh_backgrounded", { disableChecks: true }),
           status: "running",
           command: "sleep 120",
           cwd: directory,
@@ -1015,13 +1023,13 @@ test.describe("background shortcut", () => {
   })
 
   test("hides the running switcher when viewing the only running subagent", async ({ page }) => {
-    const childID = "ses_only_running_child"
+    const childID = Session.ID.make("ses_only_running_child", { disableChecks: true })
 
     const timeline = await setupTimeline(page, {
       sessionMessages: [user, completed],
       sessions: [
         session(),
-        session({ id: childID, parentID: sessionID, title: "Only running task", agent: "explore" }),
+        session({ id: childID, parentID: sessionID, title: "Only running task", agent: Agent.ID.make("explore", { disableChecks: true }) }),
       ],
       sessionStatus: { [childID]: { type: "busy" } },
     })
@@ -1075,15 +1083,15 @@ test.describe("background shortcut", () => {
   })
 
   test("keeps the running menu closed when work restarts after all subagents finish", async ({ page }) => {
-    const childID = "ses_restarted_child"
-    const otherID = "ses_counted_child"
+    const childID = Session.ID.make("ses_restarted_child", { disableChecks: true })
+    const otherID = Session.ID.make("ses_counted_child", { disableChecks: true })
 
     const timeline = await setupTimeline(page, {
       sessionMessages: [user, completed],
       sessions: [
         session(),
-        session({ id: childID, parentID: sessionID, title: "Restarted task", agent: "explore" }),
-        session({ id: otherID, parentID: sessionID, title: "Other task", agent: "build" }),
+        session({ id: childID, parentID: sessionID, title: "Restarted task", agent: Agent.ID.make("explore", { disableChecks: true }) }),
+        session({ id: otherID, parentID: sessionID, title: "Other task", agent: Agent.ID.make("build", { disableChecks: true }) }),
       ],
       sessionStatus: {},
     })
@@ -1115,15 +1123,15 @@ test.describe("background shortcut", () => {
   })
 
   test("keeps the subagent title anchored when its additional count disappears", async ({ page }) => {
-    const childID = "ses_collapsing_viewed"
-    const otherID = "ses_collapsing_sibling"
+    const childID = Session.ID.make("ses_collapsing_viewed", { disableChecks: true })
+    const otherID = Session.ID.make("ses_collapsing_sibling", { disableChecks: true })
 
     const timeline = await setupTimeline(page, {
       sessionMessages: [user, completed],
       sessions: [
         session(),
-        session({ id: childID, parentID: sessionID, title: "Viewed task", agent: "explore" }),
-        session({ id: otherID, parentID: sessionID, title: "Other task", agent: "build" }),
+        session({ id: childID, parentID: sessionID, title: "Viewed task", agent: Agent.ID.make("explore", { disableChecks: true }) }),
+        session({ id: otherID, parentID: sessionID, title: "Other task", agent: Agent.ID.make("build", { disableChecks: true }) }),
       ],
       sessionStatus: { [childID]: { type: "busy" }, [otherID]: { type: "busy" } },
     })
@@ -1160,8 +1168,8 @@ test.describe("background shortcut", () => {
 
   test("moves between siblings and to the parent's shell from inside a subagent", async ({ page }) => {
     const siblings = [
-      { id: "ses_sibling_one", agent: "explore", description: "Draft TUI proposal" },
-      { id: "ses_sibling_two", agent: "build", description: "Fix context controls" },
+      { id: Session.ID.make("ses_sibling_one", { disableChecks: true }), agent: Agent.ID.make("explore", { disableChecks: true }), description: "Draft TUI proposal" },
+      { id: Session.ID.make("ses_sibling_two", { disableChecks: true }), agent: Agent.ID.make("build", { disableChecks: true }), description: "Fix context controls" },
     ]
 
     const timeline = await setupTimeline(page, {
@@ -1169,10 +1177,10 @@ test.describe("background shortcut", () => {
       sessionMessages: [
         user,
         {
-          id: "msg_sibling_shell",
+          id: SessionMessage.ID.make("msg_sibling_shell", { disableChecks: true }),
           type: "assistant",
-          agent: "build",
-          model: { id: "model", providerID: "provider" },
+          agent: Agent.ID.make("build", { disableChecks: true }),
+          model: { id: Model.ID.make("model", { disableChecks: true }), providerID: Provider.ID.make("provider", { disableChecks: true }) },
           content: [
             {
               type: "tool",
@@ -1182,7 +1190,7 @@ test.describe("background shortcut", () => {
                 status: "completed",
                 input: { command: "sleep 120" },
                 content: [{ type: "text", text: "working" }],
-                metadata: { shellID: "shell_sibling", status: "running" },
+                metadata: { shellID: Shell.ID.make("shell_sibling", { disableChecks: true }), status: "running" },
               },
               time: { created: 2, completed: 3 },
             },
@@ -1190,10 +1198,10 @@ test.describe("background shortcut", () => {
           time: { created: 2, completed: 3 },
         },
         {
-          id: "msg_siblings",
+          id: SessionMessage.ID.make("msg_siblings", { disableChecks: true }),
           type: "assistant",
-          agent: "build",
-          model: { id: "model", providerID: "provider" },
+          agent: Agent.ID.make("build", { disableChecks: true }),
+          model: { id: Model.ID.make("model", { disableChecks: true }), providerID: Provider.ID.make("provider", { disableChecks: true }) },
           content: siblings.map((item) => ({
             type: "tool" as const,
             id: `call_${item.id}`,
@@ -1220,13 +1228,13 @@ test.describe("background shortcut", () => {
     })
 
     await timeline.transport.send({
-      id: "evt_sibling_shell_created",
+      id: Event.ID.make("evt_sibling_shell_created", { disableChecks: true }),
       created: 3,
       type: "shell.created",
       location: { directory },
       data: {
         info: {
-          id: "shell_sibling",
+          id: Shell.ID.make("shell_sibling", { disableChecks: true }),
           status: "running",
           command: "sleep 120",
           cwd: directory,
@@ -1521,7 +1529,7 @@ test("changes timeline presets and saves custom thinking details", async ({ page
 
 test.describe("shell completion", () => {
   const background = {
-    id: "sh_background",
+    id: Shell.ID.make("sh_background", { disableChecks: true }),
     status: "running",
     command: "bun run check",
     cwd: directory,
@@ -1538,10 +1546,10 @@ test.describe("shell completion", () => {
   ] as const) {
     test(`stops ${grouped ? "grouped" : "standalone"} background shell shimmer when ${exit}`, async ({ page }) => {
       const message: SessionMessageAssistant = {
-        id: "msg_background",
+        id: SessionMessage.ID.make("msg_background", { disableChecks: true }),
         type: "assistant",
-        agent: "build",
-        model: { id: "model", providerID: "provider" },
+        agent: Agent.ID.make("build", { disableChecks: true }),
+        model: { id: Model.ID.make("model", { disableChecks: true }), providerID: Provider.ID.make("provider", { disableChecks: true }) },
         content: [
           ...(grouped
             ? [
@@ -1559,7 +1567,7 @@ test.describe("shell completion", () => {
                 } satisfies SessionMessageAssistant["content"][number],
               ]
             : []),
-          ...[background.id, "sh_other"].map((id): SessionMessageAssistant["content"][number] => ({
+          ...[background.id, Shell.ID.make("sh_other", { disableChecks: true })].map((id): SessionMessageAssistant["content"][number] => ({
             type: "tool",
             id: `call_${id}`,
             name: "shell",
@@ -1594,10 +1602,10 @@ test.describe("shell completion", () => {
         settings: { shellToolPartsExpanded: !grouped },
         sessionStatus: { [sessionID]: { type: "busy" } },
         sessionMessages: [
-          { id: "msg_user", type: "user", text: "Run two independent checks.", time: { created: 1 } },
+          { id: SessionMessage.ID.make("msg_user", { disableChecks: true }), type: "user", text: "Run two independent checks.", time: { created: 1 } },
           message,
         ],
-        shellCommands: () => [...(state.finished ? [] : [background]), { ...background, id: "sh_other" }],
+        shellCommands: () => [...(state.finished ? [] : [background]), { ...background, id: Shell.ID.make("sh_other", { disableChecks: true }) }],
         shellOutput: ({ id }) => {
           if (id !== background.id) return "Checking project\n"
           state.requests++
@@ -1634,7 +1642,7 @@ test.describe("shell completion", () => {
 
       state.finished = true
       await timeline.transport.send({
-        id: "evt_shell_exited",
+        id: Event.ID.make("evt_shell_exited", { disableChecks: true }),
         created: 4,
         type: "shell.exited",
         location: { directory },
@@ -1669,12 +1677,12 @@ test.describe("shell completion", () => {
     const timeline = await setupTimeline(page, {
       settings: { shellToolPartsExpanded: true },
       sessionMessages: [
-        { id: "msg_user", type: "user", text: "Run the check.", time: { created: 1 } },
+        { id: SessionMessage.ID.make("msg_user", { disableChecks: true }), type: "user", text: "Run the check.", time: { created: 1 } },
         {
-          id: "msg_foreground",
+          id: SessionMessage.ID.make("msg_foreground", { disableChecks: true }),
           type: "assistant",
-          agent: "build",
-          model: { id: "model", providerID: "provider" },
+          agent: Agent.ID.make("build", { disableChecks: true }),
+          model: { id: Model.ID.make("model", { disableChecks: true }), providerID: Provider.ID.make("provider", { disableChecks: true }) },
           content: [
             {
               type: "tool",
@@ -1699,13 +1707,13 @@ test.describe("shell completion", () => {
     await expect(shimmer).toHaveAttribute("data-active", "true")
     await expect(card.locator('[data-slot="bash-result"]')).toHaveText("Checking project")
     await timeline.transport.send({
-      id: "evt_foreground_complete",
+      id: Event.ID.make("evt_foreground_complete", { disableChecks: true }),
       created: 3,
       type: "session.tool.success",
-      durable: { aggregateID: sessionID, seq: 0, version: 2 },
+      durable: { aggregateID: sessionID, seq: Event.Seq.make(0, { disableChecks: true }), version: 2 },
       data: {
         sessionID,
-        assistantMessageID: "msg_foreground",
+        assistantMessageID: SessionMessage.ID.make("msg_foreground", { disableChecks: true }),
         id: "call_foreground",
         executed: true,
         content: [{ type: "text", text: "Checking project\nCheck finished\nCommand exited with code 0." }],
@@ -1723,8 +1731,9 @@ function pauseExitAnimations(locator: Locator) {
   return locator.evaluateHandle((element) => {
     const animations: Animation[] = []
 
-    const pause = (event: AnimationEvent) => {
-      if (event.target !== element || event.animationName !== "exit") return
+    const pause: EventListener = (event) => {
+      const animEvent = event as AnimationEvent
+      if (animEvent.target !== element || animEvent.animationName !== "exit") return
 
       animations.push(...element.getAnimations())
       animations.forEach((animation) => animation.pause())

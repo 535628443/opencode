@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 import type { OpenCodeEvent, WorktreeDirectory } from "@opencode/client/promise"
+import { SessionMessage } from "@opencode/schema/session-message"
 import { draftHref, expectPath, provider, sessionHref } from "../utils/app"
 import type { MockAnswer } from "../utils/mock-server"
 import { openDraft, openSession, openWorktreeDraft, type WorkspaceInput } from "../utils/workspace"
@@ -455,7 +456,7 @@ for (const row of [
       ],
       pageMessages: () => ({
         items: [
-          { id: "msg_workspace_accent", type: "user", text: "Check this fixture workspace.", time: { created: 1 } },
+          { id: SessionMessage.ID.make("msg_workspace_accent", { disableChecks: true }), type: "user", text: "Check this fixture workspace.", time: { created: 1 } },
         ],
       }),
       worktrees: () => inventory,

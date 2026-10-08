@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test"
 import type { SessionMessageInfo } from "@opencode/client/promise"
+import { Agent } from "@opencode/schema/agent"
+import { Event } from "@opencode/schema/event"
+import { Model } from "@opencode/schema/model"
+import { Provider } from "@opencode/schema/provider"
+import { Session } from "@opencode/schema/session"
+import { SessionMessage } from "@opencode/schema/session-message"
 import { timelinePresets } from "@opencode/session-ui/timeline/detail"
 import { expected, messages } from "../utils/markdown-sessions"
 import { expectPath, seed, sessionHref, type SeedInput } from "../utils/app"
@@ -214,12 +220,12 @@ test("disposes the old workspace's shell when the prepared destination is select
         items:
           id === fixture.sourceID
             ? ([
-                { id: "msg_workspace_source", type: "user", text: "Follow the shell", time: { created: 1 } },
+                { id: SessionMessage.ID.make("msg_workspace_source", { disableChecks: true }), type: "user", text: "Follow the shell", time: { created: 1 } },
                 {
-                  id: "msg_workspace_shell",
+                  id: SessionMessage.ID.make("msg_workspace_shell", { disableChecks: true }),
                   type: "assistant",
-                  agent: "build",
-                  model: { id: "claude-opus-4-6", providerID: "opencode" },
+                  agent: Agent.ID.make("build", { disableChecks: true }),
+                  model: { id: Model.ID.make("claude-opus-4-6", { disableChecks: true }), providerID: Provider.ID.make("opencode", { disableChecks: true }) },
                   time: { created: 2 },
                   content: [
                     {
@@ -287,7 +293,7 @@ test("loads the transcript code font before opening rich history", async ({ page
   const font = page.waitForResponse((response) => /IBMPlexMono-Text[^/]*\.woff2/.test(response.url()))
   await openTabs(page, {
     pageMessages: () => ({
-      items: [{ id: "msg_font_source", type: "user", text: "A transcript with no code", time: { created: 1 } }],
+      items: [{ id: SessionMessage.ID.make("msg_font_source", { disableChecks: true }), type: "user", text: "A transcript with no code", time: { created: 1 } }],
     }),
   })
   await page.goto(sessionHref(fixture.sourceID))
@@ -331,12 +337,12 @@ for (const grouped of [true, false]) {
       [fixture.sourceID, fixture.targetID].map((id) => [
         id,
         [
-          { id: `msg_user_${id}`, type: "user", text: `Prompt for ${id}`, time: { created: 1 } },
+          { id: SessionMessage.ID.make(`msg_user_${id}`, { disableChecks: true }), type: "user", text: `Prompt for ${id}`, time: { created: 1 } },
           {
-            id: `msg_assistant_${id}`,
+            id: SessionMessage.ID.make(`msg_assistant_${id}`, { disableChecks: true }),
             type: "assistant",
-            agent: "build",
-            model: { id: "claude-opus-4-6", providerID: "opencode" },
+            agent: Agent.ID.make("build", { disableChecks: true }),
+            model: { id: Model.ID.make("claude-opus-4-6", { disableChecks: true }), providerID: Provider.ID.make("opencode", { disableChecks: true }) },
             time: { created: 2, completed: 3 },
             content: [
               {
@@ -395,14 +401,14 @@ for (const grouped of [true, false]) {
     await expect(page.locator("[data-timeline-virtual-content]")).toHaveCount(1)
     await mock.push([
       {
-        id: "evt_cached_text",
+        id: Event.ID.make("evt_cached_text", { disableChecks: true }),
         created: 4,
         type: "session.text.ended",
         location: { directory: fixture.directory },
-        durable: { aggregateID: fixture.sourceID, seq: 0, version: 1 },
+        durable: { aggregateID: fixture.sourceID, seq: Event.Seq.make(0, { disableChecks: true }), version: 1 },
         data: {
           sessionID: fixture.sourceID,
-          assistantMessageID: `msg_assistant_${fixture.sourceID}`,
+          assistantMessageID: SessionMessage.ID.make(`msg_assistant_${fixture.sourceID}`, { disableChecks: true }),
           ordinal: 0,
           text: "Updated while inactive",
         },
@@ -439,13 +445,13 @@ for (const grouped of [true, false]) {
   })
 }
 
-function placeholderHistory(id: string) {
-  return { items: [{ id: `msg_${id}`, type: "user", text: `History for ${id}`, time: { created: 1 } }] } satisfies {
+function placeholderHistory(id: Session.ID | string) {
+  return { items: [{ id: SessionMessage.ID.make(`msg_${id}`, { disableChecks: true }), type: "user" as const, text: `History for ${id}`, time: { created: 1 } }] } satisfies {
     items: SessionMessageInfo[]
   }
 }
 
-function tab(page: Page, sessionID: string) {
+function tab(page: Page, sessionID: Session.ID) {
   return page.locator(`[data-titlebar-tab-link][href="${sessionHref(sessionID)}"]`)
 }
 
@@ -469,7 +475,7 @@ async function openTimeline(page: Page, history: SessionMessageInfo[]) {
   await expect(page.locator("[data-timeline-virtual-content]")).toHaveCSS("visibility", "visible")
 }
 
-async function expectAtTail(page: Page, lastUserID: string) {
+async function expectAtTail(page: Page, lastUserID: SessionMessage.ID) {
   const content = page.locator("[data-timeline-virtual-content]")
   await expect(content).toHaveCSS("visibility", "visible")
   await expect(content.locator(`[data-timeline-row="UserMessage"][data-message-id="${lastUserID}"]`)).toBeInViewport()
@@ -486,11 +492,11 @@ type TabPaint = { first?: { last: boolean; bottomError?: number }; settled: bool
 
 // Samples painted frames of the timeline showing `sessionID`: the first frame that shows any of its messages, and
 // every node of the first settled frame (at the tail, Markdown rendered) that is later removed.
-async function sampleTabPaint(page: Page, sessionID: string) {
+async function sampleTabPaint(page: Page, sessionID: Session.ID) {
   const history = fixture.messages[sessionID]!
   await page.evaluate(
     ({ ids, last }) => {
-      const destination = new Set(ids)
+      const destination = new Set<string>(ids)
       const painted = new WeakSet<Node>()
       let running = true
 

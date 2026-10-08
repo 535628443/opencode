@@ -1,4 +1,9 @@
 import type { SessionMessageAssistant, SessionMessageInfo } from "@opencode/client/promise"
+import { Agent } from "@opencode/schema/agent"
+import { Model } from "@opencode/schema/model"
+import { Provider } from "@opencode/schema/provider"
+import { Session } from "@opencode/schema/session"
+import { SessionMessage } from "@opencode/schema/session-message"
 import { expect, test, type Page } from "@playwright/test"
 import { seed, sessionHref } from "../utils/app"
 import { trackPageErrors } from "../utils/errors"
@@ -247,10 +252,10 @@ test.describe("timeline history", () => {
 
   for (const shape of ["assistant-only", "mixed"] as const) {
     test(`renders the ${shape} tail before parent hydration and preserves it afterward`, async ({ page }) => {
-      const session = { ...fixture.sessions[0]!, id: `ses_hydration_${shape}` }
+      const session = { ...fixture.sessions[0]!, id: Session.ID.make(`ses_hydration_${shape}`, { disableChecks: true }) }
       // Compact's initial 40 and the next 20 begin with an assistant; page three supplies its parent.
       const messages = Array.from({ length: 61 }, (_, index): SessionMessageInfo => {
-        const id = `msg_hydration_${index}`
+        const id = SessionMessage.ID.make(`msg_hydration_${index}`, { disableChecks: true })
         const time = { created: 1700000000000 + index * 1_000 }
         if (index === 0 || (shape === "mixed" && index === 59))
           return { id, type: "user", time, text: `Prompt ${index}` }
@@ -258,8 +263,8 @@ test.describe("timeline history", () => {
           id,
           type: "assistant",
           time: { ...time, completed: time.created + 500 },
-          model: { id: "claude-opus-4-6", providerID: "opencode" },
-          agent: "build",
+          model: { id: Model.ID.make("claude-opus-4-6", { disableChecks: true }), providerID: Provider.ID.make("opencode", { disableChecks: true }) },
+          agent: Agent.ID.make("build", { disableChecks: true }),
           content: [{ type: "text", text: index === 60 ? "## Hydrated tail\n\n**Ready.**" : `Answer ${index}` }],
         }
       })
@@ -431,11 +436,11 @@ function partIDs(message: SessionMessageInfo) {
 // 21 turns: the latest 40-message page starts at the second turn, so one older page of 20 reaches the first.
 function rootHistory() {
   return Array.from({ length: 21 }, (_, index) => {
-    const id = `msg_${String(index + 1001).padStart(4, "0")}_history_root_user`
+    const id = SessionMessage.ID.make(`msg_${String(index + 1001).padStart(4, "0")}_history_root_user`, { disableChecks: true })
     return [
       userMessage(undefined, { id, created: 1700000000000 + index * 2_000 }),
       assistantMessage([textPart(`prt_history_root_${index}`, `Assistant response ${index}`)], {
-        id: `msg_${String(index + 1001).padStart(4, "0")}_history_root_assistant`,
+        id: SessionMessage.ID.make(`msg_${String(index + 1001).padStart(4, "0")}_history_root_assistant`, { disableChecks: true }),
         parentID: id,
         created: 1700000001000 + index * 2_000,
         completed: index < 20,

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
+import { Event } from "@opencode/schema/event"
 import { SERVER, holdRoute, seed, sessionHref } from "../utils/app"
 import { openWithDirection } from "../utils/direction"
 import { mockOpenCodeServer } from "../utils/mock-server"
@@ -190,7 +191,7 @@ test("the details follow the routed session when it moves to another worktree", 
   if (moved) moved.directory = `${root}/other`
   await mock.push([
     {
-      id: "evt_details_session_moved",
+      id: Event.ID.make("evt_details_session_moved", { disableChecks: true }),
       type: "session.moved",
       created: 2,
       durable: { aggregateID: fixture.targetID, seq: 1, version: 1 },
