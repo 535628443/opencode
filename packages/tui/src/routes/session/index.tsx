@@ -2240,9 +2240,11 @@ function UserMessage(props: { message: SessionMessageUser }) {
               ))
               return
             }
+            // The dialog outlives this row, whose props go stale when a resync drops the message.
+            const messageID = props.message.id
             dialog.replace(() => (
               <DialogMessage
-                messageID={props.message.id}
+                messageID={messageID}
                 sessionID={ctx.sessionID}
                 setPrompt={(value) => promptRef.current?.set(value)}
               />
@@ -2316,6 +2318,7 @@ function QueuedPromptDock(props: { prompts: { id: string; text: string }[]; onOp
 
   return (
     <box
+      marginBottom={1}
       border={["left"]}
       borderColor={theme.border.base}
       customBorderChars={SplitBorder.customBorderChars}
@@ -3020,6 +3023,10 @@ function Read(props: ToolProps) {
         part={props.part}
       >
         Read {pathFormatter.format(stringValue(props.input.path))}
+        <Show when={props.input.offset !== undefined || props.input.limit !== undefined}>
+          :{finiteNumber(props.input.offset) || 1}-
+          {props.input.limit ? (finiteNumber(props.input.offset) || 1) + (finiteNumber(props.input.limit) || 0) - 1 : ""}
+        </Show>
       </InlineTool>
       <For each={loaded()}>
         {(filepath) => (
@@ -3200,7 +3207,11 @@ function Execute(props: ToolProps) {
   const hasRuntimeError = createMemo(() => props.metadata.error === true || props.part.state.status === "error")
   const outputPreview = createMemo(() => collapseToolOutput(output(), 4, 4 * Math.max(20, ctx.width - 6)).output)
   const showOutput = createMemo(() => output() && hasRuntimeError())
-  const openDetails = () => dialog.replace(() => <DialogExecute part={props.part} />)
+  const openDetails = () => {
+    // The dialog outlives this row, whose props go stale when a resync drops the message.
+    const part = props.part
+    dialog.replace(() => <DialogExecute part={part} />)
+  }
 
   return (
     <>

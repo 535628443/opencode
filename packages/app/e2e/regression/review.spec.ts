@@ -1,7 +1,7 @@
 import type { OpenCodeEvent, SessionMessageInfo } from "@opencode/client/promise"
 import { expect, test, type Locator, type Page } from "@playwright/test"
 import { base64Encode } from "@opencode/util/encode"
-import { SERVER, project, provider, session, workspaceKey } from "../utils/app"
+import { SERVER, holdRoute, project, provider, session, workspaceKey } from "../utils/app"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { fileDiff, fileNode, openSession } from "../utils/workspace"
 import { expectSessionTitle } from "../utils/waits"
@@ -32,6 +32,85 @@ for (const view of ["desktop", "mobile"] as const) {
     await expect(init).toHaveCount(0)
   })
 }
+
+test("Git initialization belongs to its session and refreshes after a session switch", async ({ page }) => {
+  const requests: { directory: string; provider?: string }[] = []
+
+  const workspace = await openSession(page, {
+    name: "ReviewInitSwitch",
+    project: { vcs: undefined },
+    onVcsInit: (input) => requests.push(input),
+    sessions: [
+      { id: "ses_init_a", title: "Initialize Alpha" },
+      { id: "ses_init_b", title: "Initialize Beta" },
+    ],
+    seed: { panes: { ses_init_a: { review: true }, ses_init_b: { review: true } } },
+  })
+
+  // The successful init finishes while another session is routed.
+  const request = await holdRoute(page, (url) => url.pathname === "/api/vcs/init", { method: "POST" })
+  const panel = page.locator("#review-panel")
+  const init = panel.getByRole("button", { name: "Create Git repository", exact: true })
+  const pending = panel.getByRole("button", { name: "Creating Git repository…", exact: true })
+  await expect(init).toBeEnabled()
+  await init.click()
+  await request.arrived
+  await expect(pending).toBeDisabled()
+
+  await page.locator("[data-titlebar-tab-slot]", { hasText: "Initialize Beta" }).click()
+  await expectSessionTitle(page, "Initialize Beta")
+  await expect(init).toBeEnabled()
+  await expect(pending).toHaveCount(0)
+
+  await page.locator("[data-titlebar-tab-slot]", { hasText: "Initialize Alpha" }).click()
+  await expectSessionTitle(page, "Initialize Alpha")
+  await expect(pending).toBeDisabled()
+  await page.locator("[data-titlebar-tab-slot]", { hasText: "Initialize Beta" }).click()
+  await expectSessionTitle(page, "Initialize Beta")
+  await expect(init).toBeEnabled()
+
+  const response = page.waitForResponse((item) => new URL(item.url()).pathname === "/api/vcs/init")
+  // The worktree event can refresh project-wide UI by itself; the completed action must also reload Alpha's cache.
+  const refreshed = page.waitForResponse((item) => new URL(item.url()).pathname === "/api/session/ses_init_a")
+  request.release()
+  expect((await response).status()).toBe(204)
+  expect((await refreshed).status()).toBe(200)
+  expect(requests).toEqual([{ directory: workspace.directory, provider: "git" }])
+  await expect(panel.getByRole("button", { name: "Git changes", exact: true })).toBeVisible()
+  await expect(init).toHaveCount(0)
+  await expect(page.getByText("Request failed", { exact: true })).toHaveCount(0)
+
+  await page.locator("[data-titlebar-tab-slot]", { hasText: "Initialize Alpha" }).click()
+  await expectSessionTitle(page, "Initialize Alpha")
+  await expect(panel.getByRole("button", { name: "Git changes", exact: true })).toBeVisible()
+  await expect(pending).toHaveCount(0)
+})
+
+test("a rejected Git init releases its session's button without showing an error in another session", async ({ page }) => {
+  await openSession(page, {
+    name: "ReviewInitFailure",
+    project: { vcs: undefined },
+    sessions: [
+      { id: "ses_init_failure_a", title: "Initialize Alpha" },
+      { id: "ses_init_failure_b", title: "Initialize Beta" },
+    ],
+    seed: { panes: { ses_init_failure_a: { review: true }, ses_init_failure_b: { review: true } } },
+  })
+  const request = await holdRoute(page, (url) => url.pathname === "/api/vcs/init", { method: "POST" })
+  const init = page.locator("#review-panel").getByRole("button", { name: "Create Git repository", exact: true })
+  await init.click()
+  await request.arrived
+  await page.locator("[data-titlebar-tab-slot]", { hasText: "Initialize Beta" }).click()
+  await expectSessionTitle(page, "Initialize Beta")
+  await expect(init).toBeEnabled()
+  const response = page.waitForResponse((item) => new URL(item.url()).pathname === "/api/vcs/init")
+  request.release()
+  expect((await response).status()).toBe(501)
+  await expect(page.getByText("Request failed", { exact: true })).toHaveCount(0)
+  await page.locator("[data-titlebar-tab-slot]", { hasText: "Initialize Alpha" }).click()
+  await expectSessionTitle(page, "Initialize Alpha")
+  await expect(init).toBeEnabled()
+})
 
 test("open file tab browses, searches, and tracks missing files", async ({ page }) => {
   const searches: { query: string; dirs?: string; limit?: number }[] = []
@@ -754,6 +833,32 @@ test("a chosen mode the session stops offering shows as Git, and comes back when
   await expect(file).toHaveText("beta.ts")
 })
 
+test("names a single change source and keeps the review header rows at 48px", async ({ page }) => {
+  // Turn changes are offered only for Git, so another VCS offers one source.
+  await openSession(page, { name: "ReviewHeader", project: { vcs: "hg" }, vcsDiff: [fileDiff("src/alpha.ts")] })
+  await page.getByRole("button", { name: "Toggle review", exact: true }).click()
+  const panel = page.locator("#review-panel")
+  const toggle = panel.getByRole("button", { name: "Toggle file tree" })
+  const header = panel.locator('[data-slot="session-review-v2-sidebar-header"]')
+  const toolbar = panel.locator('[data-slot="session-review-v2-toolbar"]')
+
+  await expect(header.getByText("Git changes", { exact: true })).toBeVisible()
+  await expect(panel.getByRole("button", { name: "Git changes" })).toHaveCount(0)
+  await expect(toggle).toHaveAttribute("aria-expanded", "true")
+  await expect(header).toHaveCSS("height", "48px")
+  await expect(toolbar).toHaveCSS("height", "48px")
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute("aria-expanded", "false")
+  await expect(toolbar.getByText("Git changes", { exact: true })).toBeVisible()
+  await expect(toolbar).toHaveCSS("height", "48px")
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute("aria-expanded", "true")
+  await expect(header).toHaveCSS("height", "48px")
+  await expect(toolbar).toHaveCSS("height", "48px")
+})
+
 for (const direction of ["ltr", "rtl"] as const) {
   test(`review toggle stays at the header edge in ${direction}`, async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 900 })
@@ -785,13 +890,20 @@ for (const direction of ["ltr", "rtl"] as const) {
         )
       })
       .toBe(true)
-    await expect
-      .poll(async () => {
-        const box = await panel.locator('[data-slot="session-side-panel-actions"]').boundingBox()
 
-        return box ? box.y + box.height / 2 : undefined
-      })
-      .toBe(closed.y + closed.height / 2)
+    for (const control of [
+      panel.locator('[data-slot="session-side-panel-actions"]'),
+      panel.getByRole("button", { name: "Open file", exact: true }),
+    ]) {
+      await expect
+        .poll(async () => {
+          const box = await control.boundingBox()
+
+          return box ? box.y + box.height / 2 : undefined
+        })
+        .toBe(closed.y + closed.height / 2)
+    }
+
     await toggle.press("Enter")
     await expect(toggle).toHaveAttribute("aria-expanded", "false")
     await expect(toggle).toBeFocused()

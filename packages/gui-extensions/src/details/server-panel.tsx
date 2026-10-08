@@ -7,6 +7,7 @@ import { Tooltip } from "@opencode/ui/tooltip"
 import { getDirectory } from "@opencode/util/path"
 import { useMutation } from "@tanstack/solid-query"
 import {
+  children,
   createMemo,
   createResource,
   createSignal,
@@ -19,7 +20,7 @@ import {
   type JSX,
 } from "solid-js"
 import { createStore } from "solid-js/store"
-import { createKeyed, useExtension, type MountedSession } from "../sdk"
+import { createKeyed, useDrawer, useExtension, type MountedSession } from "../sdk"
 import { configuredLsps } from "./configured-lsp"
 
 const services = [
@@ -112,35 +113,35 @@ function ServiceMenu(props: ServiceMenuProps) {
 
 function LspMenu(props: ServiceMenuProps) {
   const ctx = useExtension()
-  const data = props.session.server.data
+  const data = () => props.session.server.data
 
   const [load, { refetch }] = createResource(
-    () => props.shown && props.directory,
-    (directory) => {
-      data.location.config.invalidate({ directory })
+    () => props.shown && data(),
+    (current) => {
+      const directory = props.directory
 
-      return data.location.config.sync({ directory })
+      current.location.config.invalidate({ directory })
+
+      return current.location.config.sync({ directory })
     },
   )
 
-  const names = createMemo(() => configuredLsps(data.location.config.list({ directory: props.directory }) ?? []))
+  const names = createMemo(() => configuredLsps(data().location.config.list({ directory: props.directory }) ?? []))
 
-  createKeyed(
-    () => props.directory,
-    (directory) =>
-      onCleanup(
-        data.on("config.updated", (event) => {
-          if (event.location?.directory !== directory) return
-          void refetch()
-        }),
-      ),
+  createKeyed(data, (current) =>
+    onCleanup(
+      current.on("config.updated", (event) => {
+        if (event.location?.directory !== props.directory) return
+        void refetch()
+      }),
+    ),
   )
 
   return (
     <ServicePopover
       {...props}
       loading={load.loading}
-      ready={data.location.config.list({ directory: props.directory }) !== undefined}
+      ready={data().location.config.list({ directory: props.directory }) !== undefined}
       empty={names().length === 0}
       error={load.error}
       retry={refetch}
@@ -172,11 +173,12 @@ function LspMenu(props: ServiceMenuProps) {
 function McpMenu(props: ServiceMenuProps) {
   const ctx = useExtension()
   const system = ctx.system
-  const data = props.session.server.data
+  const data = () => props.session.server.data
 
   const toggle = useMutation(() => ({
     mutationFn: async (input: { name: string; enabled: boolean }) => {
       const client = props.session.server.client
+      const source = data()
       const ref = { directory: props.directory }
       const server = (await client.mcp.list({ location: ref })).data.find((item) => item.name === input.name)
 
@@ -190,9 +192,9 @@ function McpMenu(props: ServiceMenuProps) {
         await client.mcp.connect({ server: input.name, location: ref })
       }
 
-      data.location.mcp.server.invalidate(ref)
-      await data.location.mcp.server.sync(ref)
-      const current = data.location.mcp.server.list(ref)?.find((item) => item.name === input.name)
+      source.location.mcp.server.invalidate(ref)
+      await source.location.mcp.server.sync(ref)
+      const current = source.location.mcp.server.list(ref)?.find((item) => item.name === input.name)
 
       if (input.enabled && current?.status.status === "needs_auth" && current.integrationID) {
         const integration = await client.integration.get({ integrationID: current.integrationID, location: ref })
@@ -209,8 +211,8 @@ function McpMenu(props: ServiceMenuProps) {
         system.openExternal(attempt.data.url)
       }
 
-      data.location.mcp.resource.invalidate(ref)
-      await data.location.mcp.resource.sync(ref)
+      source.location.mcp.resource.invalidate(ref)
+      await source.location.mcp.resource.sync(ref)
       // A successful HTTP response can still leave the MCP connection in a failed state.
       const status = current?.status
 
@@ -225,15 +227,17 @@ function McpMenu(props: ServiceMenuProps) {
   }))
 
   const [load, { refetch }] = createResource(
-    () => props.shown && props.directory,
-    async (directory) => {
-      data.location.mcp.server.invalidate({ directory })
-      await data.location.mcp.server.sync({ directory })
+    () => props.shown && data(),
+    async (current) => {
+      const directory = props.directory
+
+      current.location.mcp.server.invalidate({ directory })
+      await current.location.mcp.server.sync({ directory })
     },
   )
 
   const servers = createMemo(() =>
-    (data.location.mcp.server.list({ directory: props.directory }) ?? []).toSorted((a, b) =>
+    (data().location.mcp.server.list({ directory: props.directory }) ?? []).toSorted((a, b) =>
       a.name.localeCompare(b.name),
     ),
   )
@@ -242,7 +246,7 @@ function McpMenu(props: ServiceMenuProps) {
     <ServicePopover
       {...props}
       loading={load.loading}
-      ready={data.location.mcp.server.list({ directory: props.directory }) !== undefined}
+      ready={data().location.mcp.server.list({ directory: props.directory }) !== undefined}
       empty={servers().length === 0}
       error={load.error}
       retry={refetch}
@@ -334,11 +338,13 @@ function McpMenu(props: ServiceMenuProps) {
 
 function ServiceCatalog(props: ServiceMenuProps) {
   const ctx = useExtension()
-  const data = props.session.server.data
+  const data = () => props.session.server.data
 
   const [items, { refetch }] = createResource(
-    () => props.shown && props.directory,
-    async (directory) => {
+    () => props.shown && data(),
+    async (current) => {
+      const directory = props.directory
+
       if (props.service.type === "plugins") {
         const result = await props.session.server.client.plugin.list({ location: { directory } })
 
@@ -351,8 +357,8 @@ function ServiceCatalog(props: ServiceMenuProps) {
           }))
       }
 
-      data.location.skill.invalidate({ directory })
-      await data.location.skill.sync({ directory })
+      current.location.skill.invalidate({ directory })
+      await current.location.skill.sync({ directory })
 
       return undefined
     },
@@ -366,7 +372,7 @@ function ServiceCatalog(props: ServiceMenuProps) {
         ? loaded()
           ? (items.latest ?? [])
           : []
-        : (data.location.skill.list({ directory: props.directory }) ?? []).map((skill) => ({
+        : (data().location.skill.list({ directory: props.directory }) ?? []).map((skill) => ({
             name: skill.name,
             status: "active",
             error: undefined,
@@ -375,15 +381,13 @@ function ServiceCatalog(props: ServiceMenuProps) {
     return entries.toSorted((a, b) => a.name.localeCompare(b.name))
   })
 
-  createKeyed(
-    () => props.directory,
-    (directory) =>
-      onCleanup(
-        data.on(props.service.type === "plugins" ? "plugin.updated" : "skill.updated", (event) => {
-          if (event.location?.directory !== directory) return
-          void refetch()
-        }),
-      ),
+  createKeyed(data, (current) =>
+    onCleanup(
+      current.on(props.service.type === "plugins" ? "plugin.updated" : "skill.updated", (event) => {
+        if (event.location?.directory !== props.directory) return
+        void refetch()
+      }),
+    ),
   )
 
   return (
@@ -393,7 +397,7 @@ function ServiceCatalog(props: ServiceMenuProps) {
       ready={
         props.service.type === "plugins"
           ? loaded()
-          : data.location.skill.list({ directory: props.directory }) !== undefined
+          : data().location.skill.list({ directory: props.directory }) !== undefined
       }
       empty={list().length === 0}
       error={items.error}
@@ -434,22 +438,50 @@ function ServiceCatalog(props: ServiceMenuProps) {
   )
 }
 
-function ServicePopover(
-  props: ServiceMenuProps & {
-    loading: boolean
-    ready: boolean
-    empty: boolean
-    error: unknown
-    retry: () => void
-    children: JSX.Element
-  },
-) {
+type ServiceBodyProps = {
+  loading: boolean
+  ready: boolean
+  error: unknown
+  retry: () => void
+  children: JSX.Element
+}
+
+function ServicePopover(props: ServiceMenuProps & ServiceBodyProps & { empty: boolean }) {
   const ctx = useExtension()
   const locale = ctx.locale
+  const drawer = useDrawer()
 
   const placement = createMemo(() =>
     props.mobile ? "top-end" : locale.direction() === "rtl" ? "right-start" : "left-start",
   )
+
+  // In a narrow-screen drawer the service list replaces the drawer's view instead of opening a popover over it.
+  if (props.mobile && drawer) {
+    const content = children(() => (
+      <div
+        class="session-summary-card session-service-drawer"
+        data-service={props.service.type}
+        aria-busy={props.loading}
+      >
+        <ServiceBody {...props} />
+      </div>
+    ))
+
+    return (
+      <button
+        type="button"
+        class="session-summary-row"
+        onClick={(event) => {
+          if (!props.loading) void props.retry()
+          drawer.open({ title: ctx.t(props.service.label), content: content(), trigger: event.currentTarget })
+        }}
+      >
+        <Icon name={props.service.icon} class="shrink-0 text-v2-icon-icon-muted" />
+        <span class="session-summary-label">{ctx.t(props.service.label)}</span>
+        <Icon name="chevron-right" class="session-summary-menu-indicator shrink-0 text-v2-icon-icon-muted" />
+      </button>
+    )
+  }
 
   return (
     <Popover
@@ -477,31 +509,39 @@ function ServicePopover(
           aria-busy={props.loading}
           aria-label={ctx.t(props.service.label)}
         >
-          <Show
-            when={props.ready || !props.loading}
-            fallback={
-              <div class="session-service-message" role="status">
-                {ctx.t("common.loading")}
-              </div>
-            }
-          >
-            <Show
-              when={!props.error}
-              fallback={
-                <div class="session-service-message" role="alert">
-                  <p>{ctx.t("common.requestFailed")}</p>
-                  <button type="button" class="session-summary-row" onClick={() => props.retry()}>
-                    {ctx.t("retry")}
-                  </button>
-                </div>
-              }
-            >
-              {props.children}
-            </Show>
-          </Show>
+          <ServiceBody {...props} />
         </Popover.Content>
       </Popover.Portal>
     </Popover>
+  )
+}
+
+function ServiceBody(props: ServiceBodyProps) {
+  const ctx = useExtension()
+
+  return (
+    <Show
+      when={props.ready || !props.loading}
+      fallback={
+        <div class="session-service-message" role="status">
+          {ctx.t("common.loading")}
+        </div>
+      }
+    >
+      <Show
+        when={!props.error}
+        fallback={
+          <div class="session-service-message" role="alert">
+            <p>{ctx.t("common.requestFailed")}</p>
+            <button type="button" class="session-summary-row" onClick={() => props.retry()}>
+              {ctx.t("retry")}
+            </button>
+          </div>
+        }
+      >
+        {props.children}
+      </Show>
+    </Show>
   )
 }
 

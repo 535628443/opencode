@@ -34,6 +34,8 @@ import { Persist, persisted } from "@/runtime/persistence/storage"
 import { ServerScope } from "@/runtime/server/scope"
 import { ExtensionHostProvider, useExtensionHost, type HostApiFactories } from "../src/runtime/extension/host"
 import { createHostApis } from "../src/runtime/extension/host-apis"
+import { createInstalled } from "../src/runtime/extension/installed"
+import { extensionEnabled } from "@opencode/gui-extensions/sdk/bridge"
 import { createRegion, RegionContent } from "../src/runtime/extension/panels"
 import { ExtensionSlot } from "../src/runtime/extension/render"
 import { persistedHandle } from "../src/runtime/extension/stores"
@@ -83,7 +85,7 @@ const router: Router = { routing: () => false, path: () => "/" }
 
 const keybinds: Keybinds = { keybind: () => [], keys: (bind) => bind.split("+"), matches: () => false }
 
-const servers: Servers = { list: () => [] }
+const servers: Servers = { list: () => [], get: () => undefined }
 
 const workspaces: Workspaces = { on: () => () => undefined }
 
@@ -186,8 +188,8 @@ export function mountExtensionHost() {
     disable: () => setDisabled(new Set(["fixture"])),
     enable: () => setDisabled(new Set<string>()),
     status: () => hosts[0]?.state.status.fixture,
-    /** Contributions the host holds for a point; readable after the host unmounts. */
-    entries: (point: string) => hosts[0]?.state.entries[point]?.length ?? 0,
+    /** Contributions the host holds for a registry; readable after the host unmounts. */
+    entries: (registry: string) => hosts[0]?.state.entries[registry]?.length ?? 0,
   }
 }
 
@@ -199,6 +201,7 @@ export function mountExtensionHost() {
 export function mountExtensions(input: {
   definitions: readonly Definition[]
   disabled?: readonly string[]
+  bridge?: Parameters<typeof createInstalled>[0]
   stored?: Readonly<Record<string, Json>>
   /** Shows the production developer settings page for status-label contracts. */
   settings?: boolean
@@ -242,10 +245,24 @@ export function mountExtensions(input: {
   })
 
   function MountedHost() {
+    const installed = input.bridge ? createInstalled(input.bridge) : undefined
+
+    const disabledState = createMemo(() => {
+      if (!installed) return disabled()
+
+      const state = installed.enableState()
+
+      if (!state) return undefined
+
+      return new Set(
+        input.definitions.flatMap((definition) => (extensionEnabled(definition, state) ? [] : [definition.id])),
+      )
+    })
+
     return (
       <ExtensionHostProvider
         definitions={input.definitions}
-        disabled={disabled}
+        disabled={disabledState}
         apis={fakeApis(storage)}
         whenMounted={mounted}
       >
@@ -292,7 +309,7 @@ export function mountExtensions(input: {
     ready: () => hosts[0]?.ready() ?? false,
     status: (id: string) => hosts[0]?.state.status[id],
     failure: (id: string) => hosts[0]?.state.failures[id],
-    entries: (point: string) => hosts[0]?.state.entries[point]?.length ?? 0,
+    entries: (registry: string) => hosts[0]?.state.entries[registry]?.length ?? 0,
   }
 }
 
@@ -331,6 +348,7 @@ function standIn(overrides: Partial<Interface>): Interface {
     keybind: () => [],
     matches: () => false,
     servers: () => ["local"],
+    server: () => undefined,
     ...overrides,
   }
 }

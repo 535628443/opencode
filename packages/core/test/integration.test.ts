@@ -1408,7 +1408,7 @@ describe("Integration.connection.recover", () => {
     )
   })
 })
-;["key", "oauth"].forEach((type) =>
+;["key", "oauth", "external"].forEach((type) =>
   it.effect(`keeps ${type} credentials usable while an SSO sign-in is required`, () =>
     Effect.gen(function* () {
       const integrations = yield* Integration.Service
@@ -1419,13 +1419,15 @@ describe("Integration.connection.recover", () => {
         value:
           type === "key"
             ? Credential.Key.make({ type: "key", key: "secret" })
-            : Credential.OAuth.make({
-                type: "oauth",
-                methodID: Integration.MethodID.make("oauth"),
-                access: "secret",
-                refresh: "refresh",
-                expires: Number.MAX_SAFE_INTEGER,
-              }),
+            : type === "external"
+              ? Credential.External.make({ type: "external", methodID: Integration.MethodID.make("external") })
+              : Credential.OAuth.make({
+                  type: "oauth",
+                  methodID: Integration.MethodID.make("oauth"),
+                  access: "secret",
+                  refresh: "refresh",
+                  expires: Number.MAX_SAFE_INTEGER,
+                }),
       })
       const connection = { type: "credential" as const, id: credential.id, label: "SSO", method: credential.value.type }
       yield* integrations.connection.status({
