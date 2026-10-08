@@ -1,4 +1,5 @@
 import { useSessionParams } from "@/shell/routes/session"
+import { SessionID } from "@opencode/schema/session-id"
 import { Route, useBeforeLeave } from "@solidjs/router"
 import { createMemo, lazy, onCleanup, Show, Suspense, type ParentProps } from "solid-js"
 import { Home } from "@/home/route"
@@ -102,15 +103,15 @@ function AppLayout(props: ParentProps) {
       const draftID = new URLSearchParams(event.from.search).get("draftId")
       if (!tabs.store.some((tab) => tab.type === "draft" && tab.draftID === draftID)) return
     }
-    if (from && tabs.pendingSession(requireServerKey(from[1]), from[2] as any)) return
+    if (from && tabs.pendingSession(requireServerKey(from[1]), SessionID.make(from[2], { disableChecks: true }))) return
     const pathname = event.to.split(/[?#]/, 1)[0]
     if (pathname === event.from.pathname) return
     const match = pathname.match(/^\/server\/([^/]+)\/session\/([^/]+)$/)
     if (!match) return
     const key = requireServerKey(match[1])
-    const id = match[2]
+    const id = SessionID.make(match[2], { disableChecks: true })
     const server = global.serverCtx(key)
-    if (!server || tabs.pendingSession(key, id as any)) return
+    if (!server || tabs.pendingSession(key, id)) return
     // Keep the current view mounted while the destination's lazy route, history,
     // and tail Markdown load. Its virtualizer can then measure before the first paint.
     event.preventDefault()

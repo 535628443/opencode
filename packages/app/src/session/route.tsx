@@ -30,7 +30,7 @@ import { PreparingComposer } from "./preparing-composer"
 import { preloadMarkdown } from "@opencode/session-ui/markdown-cache"
 import { Timeline } from "@opencode/session-ui/timeline/projection"
 
-export async function preloadSession(data: ReturnType<typeof useData>, id: string) {
+export async function preloadSession(data: ReturnType<typeof useData>, id: SessionID) {
   await Promise.all([data.session.sync(id, { children: true }), data.session.message.sync(id)])
   const messages = data.session.message.list(id)
   const tail = messages.slice(

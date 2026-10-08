@@ -12,8 +12,10 @@ import { useData, useServer } from "@/runtime/server/current"
 import { showToast } from "@/shell/notifications/toast"
 import { createWorktree } from "@/workspaces/create"
 import { useDirectoryPicker } from "@/workspaces/selection/picker"
+import type { SessionID } from "@opencode/schema/session-id"
+import type { ProjectID } from "@opencode/schema/project-id"
 
-export function SessionLocationMissing(props: { sessionID: string; projectID: string; directory: string }) {
+export function SessionLocationMissing(props: { sessionID: SessionID; projectID: ProjectID; directory: string }) {
   const language = useLanguage()
   const server = useServer()
   const data = useData()
