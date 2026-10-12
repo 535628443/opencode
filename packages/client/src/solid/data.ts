@@ -1877,7 +1877,9 @@ export function createData(config: CreateDataInput) {
     },
     project: {
       list() {
-        return Object.values(store.project.info).toSorted((a, b) => b.time.active - a.time.active)
+        return Object.values(store.project.info)
+          .filter((project) => project.time.archived === undefined)
+          .toSorted((a, b) => b.time.active - a.time.active)
       },
       get(projectID: ProjectID) {
         return store.project.info[projectID]
