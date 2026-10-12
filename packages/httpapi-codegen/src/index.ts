@@ -341,6 +341,7 @@ export function emitPromise(
     readonly outputTypes?: Readonly<Record<string, { readonly name: string; readonly import: string }>>
     readonly mutableOutputs?: boolean
     readonly brandReferences?: ReadonlyArray<EffectTypeReference>
+    readonly brandInputs?: boolean
   },
 ): Output {
   const groups = contract.groups
@@ -357,6 +358,7 @@ export function emitPromise(
           options?.outputTypes,
           options?.mutableOutputs ?? false,
           options?.brandReferences ?? [],
+          options?.brandInputs ?? true,
         ),
       },
       {
@@ -810,6 +812,7 @@ function renderPromiseTypes(
   outputTypes?: Readonly<Record<string, { readonly name: string; readonly import: string }>>,
   mutableOutputs = false,
   brandReferences: ReadonlyArray<EffectTypeReference> = [],
+  brandInputs = true,
 ) {
   const brandMap = new Map<string, EffectTypeReference>()
   for (const ref of brandReferences) {
@@ -825,12 +828,14 @@ function renderPromiseTypes(
   }
   const brandImports = new Set<string>()
   const types = new Map<SchemaAST.AST, string>()
-  const typeOf = (schema: Schema.Top, decoded = false) => {
+  const unbrandedTypes = new Map<SchemaAST.AST, string>()
+  const typeOf = (schema: Schema.Top, decoded = false, branded = true) => {
     const projected = decoded ? Schema.toType(schema) : Schema.toEncoded(schema)
-    const cached = types.get(projected.ast)
+    const cache = branded ? types : unbrandedTypes
+    const cached = cache.get(projected.ast)
     if (cached !== undefined) return cached
-    const type = structuralType(projected, brandMap, brandImports)
-    types.set(projected.ast, type)
+    const type = structuralType(projected, branded ? brandMap : undefined, branded ? brandImports : undefined)
+    cache.set(projected.ast, type)
     return type
   }
   const outputMarkers = new Map<SchemaAST.AST, string>()
@@ -876,7 +881,7 @@ function renderPromiseTypes(
             const schema = schemas[field.source]
             if (schema === undefined)
               throw new GenerationError({ reason: `Missing input schema: ${prefix}.${field.name}` })
-            return `readonly ${JSON.stringify(field.name)}${field.optional ? "?" : ""}: ${isOpaquePayload(endpoint) && field.source === "payload" ? typeOf(schema) : `(${typeOf(schema, field.source === "query")})[${JSON.stringify(field.name)}]`}`
+            return `readonly ${JSON.stringify(field.name)}${field.optional ? "?" : ""}: ${isOpaquePayload(endpoint) && field.source === "payload" ? typeOf(schema, false, brandInputs) : `(${typeOf(schema, field.source === "query", brandInputs)})[${JSON.stringify(field.name)}]`}`
           })
           .join("; ")
         const successSchema = endpoint.successes[0]
@@ -1127,9 +1132,7 @@ function structuralTypes(
       const pattern = `(?<![A-Za-z0-9_$.'"])${reference.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9_$.'"])`
       type = type.replace(new RegExp(pattern, "g"), name)
     }
-    const output = type
-      .replaceAll("Schema.Json", "JsonValue")
-      .replaceAll(/(?<!["'])\bunknown\b(?!["'])/g, "any")
+    const output = type.replaceAll("Schema.Json", "JsonValue").replaceAll(/(?<!["'])\bunknown\b(?!["'])/g, "any")
     return mutable ? mutableType(preserveStringSuggestions(output)) : preserveStringSuggestions(output)
   }
   const equivalent = new Map<string, string>()
