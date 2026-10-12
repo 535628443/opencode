@@ -202,12 +202,18 @@ test("new-session fallback still skips unavailable CLI and recent models", async
     args: { model: "provider/missing-cli" },
     preferences: {
       recent: [
-        { providerID: "provider", modelID: "missing-recent" },
-        { providerID: "provider", modelID: "second" },
+        {
+          providerID: Provider.ID.make("provider", { disableChecks: true }),
+          modelID: Model.ID.make("missing-recent", { disableChecks: true }),
+        },
+        {
+          providerID: Provider.ID.make("provider", { disableChecks: true }),
+          modelID: Model.ID.make("second", { disableChecks: true }),
+        },
       ],
     },
   })
-  expect(setup.local.model.current()?.modelID).toBe("second")
+  expect(setup.local.model.current()?.modelID).toBe(Model.ID.make("second", { disableChecks: true }))
   expect(setup.local.model.available()).toBe(true)
 })
 

@@ -183,9 +183,14 @@ describe("visibleTimelineMessages", () => {
 
   test("keeps a pre-promotion failed idle marker after the pending input that triggered it", () => {
     const failed = [
-      { id: "msg_3", type: "user", text: "queued", time: { created: 3 } },
       {
-        id: "msg_idle",
+        id: SessionMessage.ID.make("msg_3", { disableChecks: true }),
+        type: "user",
+        text: "queued",
+        time: { created: 3 },
+      },
+      {
+        id: SessionMessage.ID.make("msg_idle", { disableChecks: true }),
         type: "idle",
         outcome: "failed",
         error: { type: "unknown", message: 'Agent not found: "build"' },
@@ -193,7 +198,10 @@ describe("visibleTimelineMessages", () => {
       },
     ] satisfies SessionMessageInfo[]
 
-    expect(visibleTimelineMessages(failed, [steer]).map((message) => message.id)).toEqual(["msg_3", "msg_idle"])
+    expect(visibleTimelineMessages(failed, [steer]).map((message) => message.id)).toEqual([
+      SessionMessage.ID.make("msg_3", { disableChecks: true }),
+      SessionMessage.ID.make("msg_idle", { disableChecks: true }),
+    ])
   })
 })
 

@@ -1111,7 +1111,8 @@ function structuralTypes(
   const referenceNames = new Set(references.map((reference) => reference.$ref))
   for (const reference of references) {
     const seed = identifierPart(reference.$ref)
-    const brand = brandMap?.get(reference.$ref) ?? brandMap?.get(seed)
+    const base = seed.replace(/\d+$/, "")
+    const brand = brandMap?.get(reference.$ref) ?? brandMap?.get(seed) ?? brandMap?.get(base)
     if (brand !== undefined) {
       names.set(reference.$ref, brand.name)
       brandImports?.add(brand.import)
@@ -1134,7 +1135,8 @@ function structuralTypes(
   const equivalent = new Map<string, string>()
   for (const reference of references) {
     const seed = identifierPart(reference.$ref)
-    if (brandMap?.has(reference.$ref) || brandMap?.has(seed)) continue
+    const baseBrand = seed.replace(/\d+$/, "")
+    if (brandMap?.has(reference.$ref) || brandMap?.has(seed) || brandMap?.has(baseBrand)) continue
     const base = reference.$ref.replace(/_\d+$/, "")
     const identifier = referenceNames.has(base) ? base : reference.$ref
     const key = `${identifier}\0${render(inlineAnonymous(reference.code.Type))}`
@@ -1152,7 +1154,8 @@ function structuralTypes(
     types: document.codes.map((code) => render(inlineAnonymous(code.Type))),
     definitions: references.flatMap((reference) => {
       const seed = identifierPart(reference.$ref)
-      if (brandMap?.has(reference.$ref) || brandMap?.has(seed)) return []
+      const baseBrand = seed.replace(/\d+$/, "")
+      if (brandMap?.has(reference.$ref) || brandMap?.has(seed) || brandMap?.has(baseBrand)) return []
       const name = names.get(reference.$ref)
       if (name === undefined) throw new GenerationError({ reason: `Missing Promise type name: ${reference.$ref}` })
       if (emitted.has(name)) return []
@@ -1190,7 +1193,8 @@ function structuralType(
       const pattern = `(?<![A-Za-z0-9_$.'"])${reference.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9_$.'"])`
       if (!new RegExp(pattern).test(type)) continue
       const seed = identifierPart(reference)
-      const brand = brandMap?.get(reference) ?? brandMap?.get(seed)
+      const base = seed.replace(/\d+$/, "")
+      const brand = brandMap?.get(reference) ?? brandMap?.get(seed) ?? brandMap?.get(base)
       if (brand !== undefined) {
         brandImports?.add(brand.import)
         type = type.replace(new RegExp(pattern, "g"), brand.name)

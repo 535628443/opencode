@@ -1568,18 +1568,26 @@ describe("current session timeline rows", () => {
 
   test("surfaces failed idle errors when no assistant step owns the failure", () => {
     const preStep = [
-      { id: "msg_user", type: "user", text: "prompt", time: { created: 1 } },
       {
-        id: "msg_idle",
+        id: SessionMessage.ID.make("msg_user", { disableChecks: true }),
+        type: "user",
+        text: "prompt",
+        time: { created: 1 },
+      },
+      {
+        id: SessionMessage.ID.make("msg_idle", { disableChecks: true }),
         type: "idle",
         outcome: "failed",
         error: { type: "provider.no-route", message: "Model unavailable: opencode/gpt-5.2" },
         time: { created: 2 },
       },
       {
-        id: "msg_model",
+        id: SessionMessage.ID.make("msg_model", { disableChecks: true }),
         type: "model-switched",
-        model: { id: "next", providerID: "provider" },
+        model: {
+          id: Model.ID.make("next", { disableChecks: true }),
+          providerID: Provider.ID.make("provider", { disableChecks: true }),
+        },
         time: { created: 3 },
       },
     ] satisfies SessionMessageInfo[]
@@ -1587,22 +1595,33 @@ describe("current session timeline rows", () => {
     const preStepRows = Timeline.constructSessionMessageRows(preStep, true, { type: "idle" }).rows
     expect(preStepRows.map((row) => row._tag)).toEqual(["UserMessage", "Error", "Notice"])
     expect(preStepRows[1]).toEqual(
-      new TimelineRow.Error({ userMessageID: "msg_user", text: "Model unavailable: opencode/gpt-5.2" }),
+      new TimelineRow.Error({
+        userMessageID: SessionMessage.ID.make("msg_user", { disableChecks: true }),
+        text: "Model unavailable: opencode/gpt-5.2",
+      }),
     )
 
     const betweenSteps = [
-      { id: "msg_user", type: "user", text: "prompt", time: { created: 1 } },
       {
-        id: "msg_assistant",
+        id: SessionMessage.ID.make("msg_user", { disableChecks: true }),
+        type: "user",
+        text: "prompt",
+        time: { created: 1 },
+      },
+      {
+        id: SessionMessage.ID.make("msg_assistant", { disableChecks: true }),
         type: "assistant",
-        agent: "build",
-        model: { id: "model", providerID: "provider" },
+        agent: Agent.ID.make("build", { disableChecks: true }),
+        model: {
+          id: Model.ID.make("model", { disableChecks: true }),
+          providerID: Provider.ID.make("provider", { disableChecks: true }),
+        },
         content: [storyTool("tool_read", "read", "completed", {})],
         finish: "tool-calls",
         time: { created: 2, completed: 3 },
       },
       {
-        id: "msg_idle",
+        id: SessionMessage.ID.make("msg_idle", { disableChecks: true }),
         type: "idle",
         outcome: "failed",
         error: { type: "unknown", message: "Failed to execute statement" },
@@ -1615,19 +1634,27 @@ describe("current session timeline rows", () => {
     ).toEqual(["UserMessage", "AssistantPart", "Error"])
 
     const duplicate = [
-      { id: "msg_user", type: "user", text: "prompt", time: { created: 1 } },
       {
-        id: "msg_assistant",
+        id: SessionMessage.ID.make("msg_user", { disableChecks: true }),
+        type: "user",
+        text: "prompt",
+        time: { created: 1 },
+      },
+      {
+        id: SessionMessage.ID.make("msg_assistant", { disableChecks: true }),
         type: "assistant",
-        agent: "build",
-        model: { id: "model", providerID: "provider" },
+        agent: Agent.ID.make("build", { disableChecks: true }),
+        model: {
+          id: Model.ID.make("model", { disableChecks: true }),
+          providerID: Provider.ID.make("provider", { disableChecks: true }),
+        },
         content: [],
         finish: "error",
         error: { type: "provider.auth", message: "Your organization does not have access to this model." },
         time: { created: 2, completed: 3 },
       },
       {
-        id: "msg_idle",
+        id: SessionMessage.ID.make("msg_idle", { disableChecks: true }),
         type: "idle",
         outcome: "failed",
         error: { type: "provider.auth", message: "Your organization does not have access to this model." },
@@ -1640,18 +1667,26 @@ describe("current session timeline rows", () => {
     )
 
     const exhausted = [
-      { id: "msg_user", type: "user", text: "prompt", time: { created: 1 } },
       {
-        id: "msg_assistant",
+        id: SessionMessage.ID.make("msg_user", { disableChecks: true }),
+        type: "user",
+        text: "prompt",
+        time: { created: 1 },
+      },
+      {
+        id: SessionMessage.ID.make("msg_assistant", { disableChecks: true }),
         type: "assistant",
-        agent: "build",
-        model: { id: "model", providerID: "provider" },
+        agent: Agent.ID.make("build", { disableChecks: true }),
+        model: {
+          id: Model.ID.make("model", { disableChecks: true }),
+          providerID: Provider.ID.make("provider", { disableChecks: true }),
+        },
         content: [],
         error: { type: "aborted", message: "Step interrupted" },
         time: { created: 2, completed: 3 },
       },
       {
-        id: "msg_idle",
+        id: SessionMessage.ID.make("msg_idle", { disableChecks: true }),
         type: "idle",
         outcome: "failed",
         error: {
@@ -1664,7 +1699,7 @@ describe("current session timeline rows", () => {
 
     expect(Timeline.constructSessionMessageRows(exhausted, true, { type: "idle" }).rows.at(-1)).toEqual(
       new TimelineRow.Error({
-        userMessageID: "msg_user",
+        userMessageID: SessionMessage.ID.make("msg_user", { disableChecks: true }),
         text: "Execution was interrupted repeatedly and will not be resumed automatically.",
       }),
     )

@@ -1043,8 +1043,13 @@ test.describe("background shortcut", () => {
                 "prt_far_shell",
                 "shell",
                 "completed",
-                { command: "sleep 120" },
-                { output: "working", metadata: { shellID: "shell_far", status: "running" } },
+                {
+                  output: "working",
+                  metadata: {
+                    shellID: Shell.ID.make("shell_far", { disableChecks: true }),
+                    status: "running",
+                  },
+                },
               ),
               // The open group outgrows the viewport, so aligning the group instead of the shell misses it.
               ...searches(42 - fixture.searches, fixture.searches),
@@ -1056,13 +1061,13 @@ test.describe("background shortcut", () => {
       })
 
       await timeline.transport.send({
-        id: "evt_far_shell_created",
+        id: Event.ID.make("evt_far_shell_created", { disableChecks: true }),
         created: 3,
         type: "shell.created",
         location: { directory },
         data: {
           info: {
-            id: "shell_far",
+            id: Shell.ID.make("shell_far", { disableChecks: true }),
             status: "running",
             command: "sleep 120",
             cwd: directory,

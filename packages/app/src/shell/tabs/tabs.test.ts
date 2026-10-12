@@ -217,8 +217,7 @@ describe("closed tab stack", () => {
     ]
 
     const result = takeClosedTab(stack, [])
-
-    expect(result.entry?.tab.sessionId).toBe("b")
+    expect(result.entry?.tab.sessionId).toBe(SessionID.make("b", { disableChecks: true }))
     expect(result.stack).toEqual([{ tab: sessionTab("a"), index: 0 }])
   })
 
@@ -230,7 +229,7 @@ describe("closed tab stack", () => {
 
     const result = takeClosedTab(stack, [sessionTab("b")])
 
-    expect(result.entry?.tab.sessionId).toBe("a")
+    expect(result.entry?.tab.sessionId).toBe(SessionID.make("a", { disableChecks: true }))
     expect(result.stack).toEqual([])
   })
 
@@ -241,7 +240,10 @@ describe("closed tab stack", () => {
       { tab: sessionTab("c"), index: 2 },
     ]
 
-    expect(listClosedTabs(stack, [sessionTab("b")]).map((entry) => entry.tab.sessionId)).toEqual(["c", "a"])
+    expect(listClosedTabs(stack, [sessionTab("b")]).map((entry) => entry.tab.sessionId)).toEqual([
+      SessionID.make("c", { disableChecks: true }),
+      SessionID.make("a", { disableChecks: true }),
+    ])
   })
 
   test("deduplicates previously stored close records", () => {
@@ -252,8 +254,8 @@ describe("closed tab stack", () => {
     ]
 
     expect(listClosedTabs(stack, []).map((entry) => [entry.tab.sessionId, entry.index])).toEqual([
-      ["a", 2],
-      ["b", 1],
+      [SessionID.make("a", { disableChecks: true }), 2],
+      [SessionID.make("b", { disableChecks: true }), 1],
     ])
   })
 
@@ -266,8 +268,11 @@ describe("closed tab stack", () => {
 
     const result = takeClosedTab(stack, [], sessionTab("a"))
 
-    expect(result.entry?.tab.sessionId).toBe("a")
-    expect(result.stack.map((entry) => entry.tab.sessionId)).toEqual(["b", "c"])
+    expect(result.entry?.tab.sessionId).toBe(SessionID.make("a", { disableChecks: true }))
+    expect(result.stack.map((entry) => entry.tab.sessionId)).toEqual([
+      SessionID.make("b", { disableChecks: true }),
+      SessionID.make("c", { disableChecks: true }),
+    ])
   })
 
   test("returns no entry when everything is open or empty", () => {

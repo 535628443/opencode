@@ -25,7 +25,12 @@ export function useConfiguredModel() {
 
     if (!model) return
 
-    if (typeof model !== "string") return { providerID: model.providerID, modelID: Model.ID.make(model.model), variant: model.variant }
+    if (typeof model !== "string")
+      return {
+        providerID: Provider.ID.make(model.providerID),
+        modelID: Model.ID.make(model.model),
+        variant: model.variant ? Model.VariantID.make(model.variant) : undefined,
+      }
     const [providerID, ...parts] = model.split("/")
     return { providerID: Provider.ID.make(providerID), modelID: Model.ID.make(parts.join("/")), variant: undefined }
 

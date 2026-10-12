@@ -384,7 +384,7 @@ export function createProviderConnectionController(options: {
     if (selected.type === "external") {
       const saved = await serverSDK.api.integration.connect
         .external({
-          integrationID: options.provider(),
+          integrationID: Integration.ID.make(options.provider()),
           methodID: selected.id,
           answer: Object.keys(merged).length ? merged : undefined,
           location: location(),

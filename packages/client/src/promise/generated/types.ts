@@ -269,8 +269,6 @@ export type SessionStatus =
     }
   | { type: "busy" }
 
-export type SessionID1 = string
-
 export type PtyTicketConnectToken = { ticket: string; expires_in: number }
 
 export type PersistentPtyHandoff = { directory: string; instanceID: string; ticket: string; expiresAt: number }
@@ -1799,7 +1797,7 @@ export type TuiSessionSelect = {
   metadata?: { [x: string]: any }
   type: "tui.session.select"
   location?: LocationRef
-  data: { sessionID: SessionID1 }
+  data: { sessionID: Session.ID }
 }
 
 export type InstallationUpdated = {

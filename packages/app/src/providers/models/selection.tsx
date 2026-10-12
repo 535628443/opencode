@@ -453,7 +453,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         current() {
           const model = current()
 
-          return resolveModelVariant({
+          return resolveModelVariant<Model.VariantID>({
             variants: this.list(),
             selected: this.selected(),
             configured: this.configured(),

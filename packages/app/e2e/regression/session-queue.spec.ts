@@ -755,7 +755,14 @@ for (const [action, status] of [
     // A steer waits behind work only once the running execution delivered input; before that it is starting.
     const delivered: SessionMessageInfo[] =
       status === "steering"
-        ? [{ id: "msg_queue_delivered", type: "user", text: "First prompt", time: { created: 1 } }]
+        ? [
+            {
+              id: SessionMessage.ID.make("msg_queue_delivered", { disableChecks: true }),
+              type: "user",
+              text: "First prompt",
+              time: { created: 1 },
+            },
+          ]
         : []
 
     const mock = createQueueMock(["U2: Also check the retry path."], delivered)
