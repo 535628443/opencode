@@ -43,6 +43,7 @@ export const Recent = Persistence.struct({
 export const Info = Persistence.struct({
   title: Schema.optional(Schema.String),
   directory: Schema.optional(Schema.String),
+  prompted: Schema.optional(Schema.Boolean),
 })
 
 export const Infos = Schema.Record(Schema.String, Schema.mutableKey(Info))
@@ -60,7 +61,11 @@ export const Regions = Schema.Record(
   ),
 )
 
-export const ClosedTab = Schema.Struct({ tab: SessionCodec, index: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)) })
+export const ClosedTab = Persistence.struct({
+  tab: SessionCodec,
+  index: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  info: Persistence.optional(Info),
+})
 
 export const Closed = Persistence.array(ClosedTab)
 

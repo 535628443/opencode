@@ -91,7 +91,7 @@ describe("credentialConnections", () => {
 })
 
 describe("connectionSummary", () => {
-  test("shows credential labels and environment variables", () => {
+  test("counts several connections", () => {
     expect(
       connectionSummary(
         integration({
@@ -108,6 +108,6 @@ describe("connectionSummary", () => {
           ],
         }),
       ),
-    ).toBe("Work, $EXAMPLE_KEY")
+    ).toBe("2 connections")
   })
 })

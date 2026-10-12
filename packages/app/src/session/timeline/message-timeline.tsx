@@ -162,7 +162,7 @@ function MessageTimelineView(
     if (!directory) return
     void data.location.vcs.sync({ directory }).catch(() => undefined)
   })
-  const turnPadding = () => "px-4 md:px-5"
+  const turnPadding = () => "px-4 md:px-6"
   const showHeader = createMemo(() => !props.hideHeader && (props.data.showHeader() || workspaceSession()))
   const pinned = createMemo(() => props.pinned)
   const messageByID = projection.messageByID
@@ -412,7 +412,7 @@ function MessageTimelineView(
           <div
             classList={{
               "min-w-0 w-full max-w-full": true,
-              "md:max-w-[1000px] md:mx-auto": props.centered,
+              "md:max-w-session md:mx-auto": props.centered,
             }}
           >
             <div

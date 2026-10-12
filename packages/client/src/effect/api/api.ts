@@ -7,7 +7,8 @@ import type { Session } from "@opencode/schema/session"
 import type { AbsolutePath } from "@opencode/schema/schema"
 import type { Project } from "@opencode/schema/project"
 import type { RelativePath } from "@opencode/schema/schema"
-import type { Brand } from "effect"
+import type { SessionsCursor } from "@opencode/protocol/groups/session"
+import type { Money } from "@opencode/schema/money"
 import type { Model } from "@opencode/schema/model"
 import type { DateTime } from "effect"
 import type { Permission } from "@opencode/schema/permission"
@@ -21,9 +22,10 @@ import type { InstructionEntry } from "@opencode/schema/instruction-entry"
 import type { Schema } from "effect"
 import type { Event } from "@opencode/schema/event"
 import type { EventLog } from "@opencode/schema/event-log"
-import type { Shell } from "@opencode/schema/shell"
-import type { Snapshot } from "@opencode/schema/snapshot"
 import type { Workspace } from "@opencode/schema/workspace"
+import type { Instruction } from "@opencode/schema/instruction"
+import type { Snapshot } from "@opencode/schema/snapshot"
+import type { Shell } from "@opencode/schema/shell"
 import type { Provider } from "@opencode/schema/provider"
 import type { Form } from "@opencode/schema/form"
 import type { Integration } from "@opencode/schema/integration"
@@ -123,14 +125,11 @@ export type SessionListInput = {
   readonly directory?: AbsolutePath | undefined
   readonly project?: Project.ID | undefined
   readonly subpath?: RelativePath | undefined
-  readonly cursor?: (string & Brand.Brand<"SessionsCursor">) | undefined
+  readonly cursor?: SessionsCursor | undefined
 }
 export type SessionListOutput = {
   readonly data: ReadonlyArray<Session.Info>
-  readonly cursor: {
-    readonly previous?: (string & Brand.Brand<"SessionsCursor">) | undefined
-    readonly next?: (string & Brand.Brand<"SessionsCursor">) | undefined
-  }
+  readonly cursor: { readonly previous?: SessionsCursor | undefined; readonly next?: SessionsCursor | undefined }
 }
 export type SessionListOperation<E = never> = (input?: SessionListInput) => Effect.Effect<SessionListOutput, E>
 
@@ -153,7 +152,7 @@ export type SessionStatsOutput = {
     readonly reasoning: number
     readonly cache: { readonly read: number; readonly write: number }
   }
-  readonly cost: number & Brand.Brand<"Money.USD">
+  readonly cost: Money.USD
   readonly tools:
     | { readonly mode: "none" }
     | {
@@ -194,7 +193,7 @@ export type SessionStatsOutput = {
       readonly reasoning: number
       readonly cache: { readonly read: number; readonly write: number }
     }
-    readonly cost: number & Brand.Brand<"Money.USD">
+    readonly cost: Money.USD
   }>
 }
 export type SessionStatsOperation<E = never> = (input?: SessionStatsInput) => Effect.Effect<SessionStatsOutput, E>
@@ -566,9 +565,7 @@ export type SessionLogOutput =
             readonly sessionID: Session.ID
             readonly parentID: Session.ID
             readonly boundary: Session.ForkBoundary
-            readonly instructions?:
-              | { readonly [x: string & Brand.Brand<"Instruction.Key">]: string & Brand.Brand<"Instruction.Hash"> }
-              | undefined
+            readonly instructions?: { readonly [x: Instruction.Key]: Instruction.Hash } | undefined
             readonly instructionEntries?: InstructionEntry.Snapshot | undefined
           }
         }
@@ -690,7 +687,7 @@ export type SessionLogOutput =
             | undefined
           readonly data: {
             readonly sessionID: Session.ID
-            readonly delta: { readonly [x: string]: (string & Brand.Brand<"Instruction.Hash">) | "removed" }
+            readonly delta: { readonly [x: string]: Instruction.Hash | "removed" }
             readonly text?: string | undefined
           }
         }
@@ -801,7 +798,7 @@ export type SessionLogOutput =
             readonly finish: "stop" | "length" | "tool-calls" | "content-filter" | "error" | "unknown"
             readonly rawFinish?: string | undefined
             readonly providerState?: SessionMessage.ProviderState | undefined
-            readonly cost: number & Brand.Brand<"Money.USD">
+            readonly cost: Money.USD
             readonly tokens: {
               readonly input: number
               readonly output: number
@@ -833,7 +830,7 @@ export type SessionLogOutput =
             readonly finish?: "content-filter" | undefined
             readonly rawFinish?: string | undefined
             readonly providerState?: SessionMessage.ProviderState | undefined
-            readonly cost?: (number & Brand.Brand<"Money.USD">) | undefined
+            readonly cost?: Money.USD | undefined
             readonly tokens?:
               | {
                   readonly input: number
@@ -1113,7 +1110,7 @@ export type SessionLogOutput =
               | undefined
             readonly text: string
             readonly recent: string
-            readonly cost?: (number & Brand.Brand<"Money.USD">) | undefined
+            readonly cost?: Money.USD | undefined
             readonly tokens?:
               | {
                   readonly input: number
@@ -1143,7 +1140,7 @@ export type SessionLogOutput =
               readonly response?: { readonly body: string } | undefined
             }
             readonly inputID?: SessionMessage.ID | undefined
-            readonly cost?: (number & Brand.Brand<"Money.USD">) | undefined
+            readonly cost?: Money.USD | undefined
             readonly tokens?:
               | {
                   readonly input: number
@@ -1199,7 +1196,7 @@ export type SessionLogOutput =
           readonly data: {
             readonly sessionID: Session.ID
             readonly source: "title" | "compaction"
-            readonly cost: number & Brand.Brand<"Money.USD">
+            readonly cost: Money.USD
             readonly tokens: {
               readonly input: number
               readonly output: number
@@ -1458,6 +1455,18 @@ export type IntegrationConnectKeyOperation<E = never> = (
   input: IntegrationConnectKeyInput,
 ) => Effect.Effect<IntegrationConnectKeyOutput, E>
 
+export type IntegrationConnectExternalInput = {
+  readonly integrationID: Integration.ID
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly methodID: Integration.MethodID
+  readonly answer?: Form.Answer | undefined
+  readonly label?: string | undefined
+}
+export type IntegrationConnectExternalOutput = void
+export type IntegrationConnectExternalOperation<E = never> = (
+  input: IntegrationConnectExternalInput,
+) => Effect.Effect<IntegrationConnectExternalOutput, E>
+
 export type IntegrationOauthConnectInput = {
   readonly integrationID: Integration.ID
   readonly location?: { readonly directory?: string | undefined } | undefined
@@ -1548,7 +1557,10 @@ export interface IntegrationApi<E = never> {
   readonly list: IntegrationListOperation<E>
   readonly get: IntegrationGetOperation<E>
   readonly wellknown: { readonly add: IntegrationWellknownAddOperation<E> }
-  readonly connect: { readonly key: IntegrationConnectKeyOperation<E> }
+  readonly connect: {
+    readonly key: IntegrationConnectKeyOperation<E>
+    readonly external: IntegrationConnectExternalOperation<E>
+  }
   readonly oauth: {
     readonly connect: IntegrationOauthConnectOperation<E>
     readonly status: IntegrationOauthStatusOperation<E>

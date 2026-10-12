@@ -168,7 +168,7 @@ test("agent and model drafts are isolated across sessions and survive navigation
   })
 })
 
-test("falls back from an unavailable session model without changing durable state", async () => {
+test("retains an unavailable saved session model instead of selecting a fallback", async () => {
   const selected = {
     providerID: Provider.ID.make("provider", { disableChecks: true }),
     id: Model.ID.make("missing", { disableChecks: true }),
@@ -188,12 +188,27 @@ test("falls back from an unavailable session model without changing durable stat
   await setup.data.session.sync(Session.ID.make("ses_first", { disableChecks: true }))
   setup.route.navigate({ type: "session", sessionID: Session.ID.make("ses_first", { disableChecks: true }) })
   expect<unknown>(setup.local.model.selection()).toEqual({
-    providerID: "provider",
-    modelID: "first",
-    variant: Model.VariantID.make("low", { disableChecks: true }),
+    providerID: Provider.ID.make("provider", { disableChecks: true }),
+    modelID: Model.ID.make("missing", { disableChecks: true }),
+    variant: Model.VariantID.make("high", { disableChecks: true }),
   })
-  expect(setup.local.model.available()).toBe(true)
+  expect(setup.local.model.available()).toBe(false)
   expect(setup.data.session.get(Session.ID.make("ses_first", { disableChecks: true }))?.model).toEqual(selected)
+})
+
+test("new-session fallback still skips unavailable CLI and recent models", async () => {
+  await using setup = await renderLocal({
+    models: [model("first"), model("second")],
+    args: { model: "provider/missing-cli" },
+    preferences: {
+      recent: [
+        { providerID: "provider", modelID: "missing-recent" },
+        { providerID: "provider", modelID: "second" },
+      ],
+    },
+  })
+  expect(setup.local.model.current()?.modelID).toBe("second")
+  expect(setup.local.model.available()).toBe(true)
 })
 
 test("a manual agent switch supersedes the CLI agent after its commit", async () => {

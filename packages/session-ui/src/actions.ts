@@ -30,9 +30,12 @@ export type SessionUserAttachmentReference = {
 export type SessionUserActions = {
   openAttachment?: (file: PromptFileAttachment) => void
   revert?: (input: { sessionID: SessionID; messageID: SessionMessage.ID }) => Promise<void> | void
-  /** A steer the server has not delivered yet. Like the TUI, it can move to the queue or be deleted. */
+  /**
+   * An input the server has not delivered yet. Like the TUI, a pending steer can move to the queue or be deleted;
+   * it shows as waiting only while `steering` behind delivered work or `stranded` by an execution that ended.
+   */
   pending?: {
-    steer: (messageID: SessionMessage.ID) => boolean
+    status: (messageID: SessionMessage.ID) => "starting" | "steering" | "stranded" | "queued" | undefined
     queue: (input: { sessionID: SessionID; messageID: SessionMessage.ID }) => Promise<void>
     remove: (input: { sessionID: SessionID; messageID: SessionMessage.ID }) => Promise<void>
   }
