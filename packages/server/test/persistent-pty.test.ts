@@ -195,6 +195,7 @@ smoke(
       const events = yield* Effect.promise(() => openEventStream(base))
       const first = Schema.decodeUnknownSync(PersistentPty.Info)(
         (yield* request(base, "POST", `/api/experimental/session/${sessionID}/terminal`, {
+          command: "/usr/bin/env",
           // Exercise transport bursts without macOS's 1024-byte canonical line buffer limit.
           args: ["/bin/sh", "-c", "stty -echo -icanon min 1 time 0; printf terminal-one; cat"],
           cwd: process.cwd(),
