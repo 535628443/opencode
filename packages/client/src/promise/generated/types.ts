@@ -28,6 +28,8 @@ export type ProviderCompaction = { type: "summary" } | { type: "native" }
 
 export type ProviderTransport = "http" | "websocket"
 
+export type ProviderEncoding = "zstd" | "gzip" | "none"
+
 export type AgentColor = string
 
 export type PermissionEffect = "allow" | "deny" | "ask"
@@ -169,6 +171,8 @@ export type FormValue = string | number | "Infinity" | "-Infinity" | "NaN" | boo
 export type ModelReasoningField = "reasoning" | "reasoning_content" | "reasoning_text" | (string & {})
 
 export type ModelMaxTokensField = "max_completion_tokens" | "max_tokens"
+
+export type ModelCacheFormat = "anthropic" | "alibaba"
 
 export type ModelCapabilities = { tools: boolean; input: Array<string>; output: Array<string> }
 
@@ -330,17 +334,16 @@ export type SessionProviderContextProvenance = {
 
 export type ModelRef = { id: ModelID; providerID: ProviderID; variant?: ModelVariantID }
 
-export type ModelSettings = { compaction?: ProviderCompaction } & { [x: string]: any }
-
-export type ConfigModelSettings = { compaction?: ProviderCompaction } & { [x: string]: JsonValue | null }
-
 export type ProviderSettings = {
   timeout?: number | false
   headerTimeout?: number | false
   chunkTimeout?: number | false
   compaction?: ProviderCompaction
   transport?: ProviderTransport
+  encoding?: ProviderEncoding
 } & { [x: string]: any }
+
+export type ModelSettings = { compaction?: ProviderCompaction; encoding?: ProviderEncoding } & { [x: string]: any }
 
 export type ConfigProviderSettings = {
   timeout?: number | false
@@ -348,7 +351,12 @@ export type ConfigProviderSettings = {
   chunkTimeout?: number | false
   compaction?: ProviderCompaction
   transport?: ProviderTransport
+  encoding?: ProviderEncoding
 } & { [x: string]: JsonValue | null }
+
+export type ConfigModelSettings = { compaction?: ProviderCompaction; encoding?: ProviderEncoding } & {
+  [x: string]: JsonValue | null
+}
 
 export type PermissionRule = { action: string; resource: string; effect: PermissionEffect }
 
@@ -632,8 +640,19 @@ export type ModelCompatibility = {
   requireFinishReason?: boolean
   requireAssistantAfterTool?: boolean
   supportsPromptCacheKey?: boolean
+  cacheFormat?: ModelCacheFormat
   supportsThinkingBlockBinding?: boolean
   supportsEffortUpdates?: boolean
+}
+
+export type ProviderCompatibility = {
+  reasoningField?: ModelReasoningField
+  requireReasoning?: boolean
+  maxTokensField?: ModelMaxTokensField
+  requireFinishReason?: boolean
+  requireAssistantAfterTool?: boolean
+  supportsPromptCacheKey?: boolean
+  cacheFormat?: ModelCacheFormat
 }
 
 export type ModelCost = {
@@ -880,27 +899,15 @@ export type SessionMessageModelSelected = {
   previous?: ModelRef
 }
 
-export type ModelVariant = {
-  id: ModelVariantID
-  settings?: ModelSettings
-  headers?: { [x: string]: string }
-  body?: { [x: string]: any }
-}
-
 export type ProviderRequest = {
   settings: ProviderSettings
   headers: { [x: string]: string }
   body: { [x: string]: any }
 }
 
-export type ProviderInfo = {
-  id: ProviderID
-  canonical?: ProviderID
-  integrationID?: IntegrationID
-  name: string
-  activation: "auto" | "enabled" | "disabled"
-  package: string
-  settings?: ProviderSettings
+export type ModelVariant = {
+  id: ModelVariantID
+  settings?: ModelSettings
   headers?: { [x: string]: string }
   body?: { [x: string]: any }
 }
@@ -1918,6 +1925,19 @@ export type CredentialKey = {
   configuration?: FormAnswer
 }
 
+export type ProviderInfo = {
+  id: ProviderID
+  canonical?: ProviderID
+  integrationID?: IntegrationID
+  name: string
+  activation: "auto" | "enabled" | "disabled"
+  package: string
+  compatibility?: ProviderCompatibility
+  settings?: ProviderSettings
+  headers?: { [x: string]: string }
+  body?: { [x: string]: any }
+}
+
 export type ConnectionInfo = ConnectionCredentialInfo | ConnectionEnvInfo
 
 export type PtyCreated = {
@@ -2247,6 +2267,7 @@ export type ConfigEntry =
             name?: string
             env?: Array<string>
             package?: string
+            compatibility?: ProviderCompatibility
             settings?: ConfigProviderSettings
             headers?: { [x: string]: string }
             body?: { [x: string]: JsonValue }
