@@ -2,7 +2,7 @@ import fs from "fs/promises"
 import path from "path"
 import { describe, expect } from "bun:test"
 import { Cause, Effect, Exit, Layer, Option, PlatformError, Stream } from "effect"
-import { ChildProcessSpawner } from "effect/unstable/process"
+import { ChildProcessSpawner } from "effect/process"
 import { CrossSpawnSpawner } from "@opencode/util/cross-spawn-spawner"
 import { Environment } from "@opencode/core/environment/index"
 import { FSUtil } from "@opencode/util/fs-util"
@@ -198,6 +198,10 @@ describe("FileSystem", () => {
           ])
           const absolute = yield* filesystem.list({ path: path.join(directory, "sibling") })
           expect(absolute).toEqual(sibling)
+          const missing = yield* Effect.flip(filesystem.list({ path: RelativePath.make("missing") }))
+          expect(missing).toBeInstanceOf(FileSystem.NotFoundError)
+          const file = yield* Effect.flip(filesystem.list({ path: RelativePath.make("../sibling/file.txt") }))
+          expect(file).toBeInstanceOf(FileSystem.NotFoundError)
         }).pipe(provide(current))
       }),
     ),
@@ -444,13 +448,10 @@ describe("FileSystem", () => {
               value: { _tag: "FileSystem.NotFoundError", path: "a-dir" },
             })
           }
-          const listFile = yield* service.list({ path: "z.bin" }).pipe(Effect.exit)
-          expect(Exit.isFailure(listFile)).toBe(true)
-          if (Exit.isFailure(listFile)) {
-            expect(listFile.cause.reasons.filter(Cause.isDieReason)).toMatchObject([
-              { defect: new Error("Path is not a directory") },
-            ])
-          }
+          const listFile = yield* service.list({ path: "z.bin" }).pipe(Effect.flip)
+          expect(listFile).toMatchObject({ _tag: "FileSystem.NotFoundError", path: "z.bin" })
+          const listMissing = yield* service.list({ path: "missing" }).pipe(Effect.flip)
+          expect(listMissing).toMatchObject({ _tag: "FileSystem.NotFoundError", path: "missing" })
         }).pipe(provideWorkspace(current, driver, files))
       }),
     ),

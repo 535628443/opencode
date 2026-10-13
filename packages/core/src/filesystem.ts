@@ -100,7 +100,8 @@ export interface File {
 
 export interface Interface {
   readonly read: (input: ReadInput) => Effect.Effect<File, NotFoundError>
-  readonly list: (input?: ListInput) => Effect.Effect<Entry[]>
+  /** Fails with `NotFoundError` when the path is missing or is not a directory. */
+  readonly list: (input?: ListInput) => Effect.Effect<Entry[], NotFoundError>
   readonly find: (input: FindInput) => Effect.Effect<Entry[]>
   /** Writes a file at an absolute path or one relative to the location; not confined to it. */
   readonly write: (input: WriteInput) => Effect.Effect<Write>
@@ -221,10 +222,12 @@ const baseLayer = Layer.effect(
       list: Effect.fn("FileSystem.list")(function* (input = {}) {
         // Navigation can leave the cwd without activating another Location.
         const directory = path.resolve(location.directory, input.path ?? ".")
+        const missing = new NotFoundError({ path: RelativePath.make(input.path ?? ".") })
         if (location.workspaceID) {
           const items = yield* environment.files.list(directory).pipe(
-            Effect.catchTag("Environment.WrongKind", () => Effect.die(new Error("Path is not a directory"))),
-            Effect.orDie,
+            Effect.catchTag("Environment.NotFound", () => Effect.fail(missing)),
+            Effect.catchTag("Environment.WrongKind", () => Effect.fail(missing)),
+            Effect.catchTag("Environment.Failed", (cause) => Effect.die(cause)),
           )
           return items
             .flatMap((item) => {
@@ -240,8 +243,15 @@ const baseLayer = Layer.effect(
             })
             .sort((a, b) => (a.type === b.type ? a.path.localeCompare(b.path) : a.type === "directory" ? -1 : 1))
         }
-        const info = yield* fs.stat(directory).pipe(Effect.orDie)
-        if (info.type !== "Directory") return yield* Effect.die(new Error("Path is not a directory"))
+        const info = yield* fs.stat(directory).pipe(
+          Effect.catchReason(
+            "PlatformError",
+            "NotFound",
+            () => Effect.fail(missing),
+            (_, error) => Effect.die(error),
+          ),
+        )
+        if (info.type !== "Directory") return yield* missing
         return yield* fs.readDirectoryEntries(directory).pipe(
           Effect.orDie,
           Effect.map((items) =>
