@@ -3,7 +3,7 @@ import type { Rpc } from "@opencode/schema/rpc"
 import type { RpcCallOptions, RpcEventPayload } from "@opencode/client/promise/api"
 import { Effect, Schema, SchemaAST, Stream } from "effect"
 import type { Scope } from "effect"
-import { HttpApiEndpoint, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiSchema } from "effect/http-api"
 import { define } from "../effect/plugin.js"
 import type { Plugin } from "./plugin.js"
 import type { Info, ToolContext } from "./tool.js"
@@ -357,6 +357,10 @@ export function fromPromise(plugin: Plugin) {
             get: adaptApiMethod(IntegrationEndpoints["integration.get"], host.integration.get),
             connect: {
               key: adaptApiMethod(IntegrationEndpoints["integration.connect.key"], host.integration.connect.key),
+              external: adaptApiMethod(
+                IntegrationEndpoints["integration.connect.external"],
+                host.integration.connect.external,
+              ),
             },
             oauth: {
               connect: adaptApiMethod(
@@ -647,7 +651,14 @@ const executePromiseTool = (tool: Info, input: any, context: Tool.Context) =>
       },
     }
 
-    return yield* Effect.promise(() => tool.execute(input, toolContext)).pipe(
+    return yield* Effect.tryPromise({
+      try: () => tool.execute(input, toolContext),
+      catch: (error) => error,
+    }).pipe(
+      Effect.catch((error) => {
+        if (error instanceof Tool.Error) return Effect.fail(error)
+        return Effect.fail(new Tool.Error({ message: error instanceof Error ? error.message : String(error), error }))
+      }),
       Effect.onInterrupt(() =>
         Effect.gen(function* () {
           // Abort listeners register the whole cleanup callback before it starts asynchronous work.
